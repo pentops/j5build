@@ -1,86 +1,86 @@
 package j5parse
 
 import (
-	"github.com/pentops/bcl.go/internal/walker"
+	"github.com/pentops/bcl.go/internal/walker/schema"
 )
 
-var globalDefs = map[string]*walker.BlockSpec{
+var globalDefs = map[string]*schema.BlockSpec{
 	"j5.schema.v1.Ref": {
-		Name: &walker.Tag{
+		Name: &schema.Tag{
 			SplitRef: [][]string{{"package"}, {"schema"}},
 		},
 	},
 	"j5.schema.v1.ArrayField": {
-		Qualifier: &walker.Tag{
+		Qualifier: &schema.Tag{
 			Path: []string{"items"},
 		},
 	},
 	"j5.schema.v1.KeyField": {
-		Qualifier: &walker.Tag{
+		Qualifier: &schema.Tag{
 			Path: []string{"format"},
 		},
 	},
 	"j5.schema.v1.ObjectProperty": {
-		Name: &walker.Tag{
+		Name: &schema.Tag{
 			Path: []string{"name"},
 		},
-		TypeSelect: &walker.Tag{
+		TypeSelect: &schema.Tag{
 			Path: []string{"schema"},
 		},
 	},
 	"j5.schema.v1.ObjectField": {
-		Qualifier: &walker.Tag{
+		Qualifier: &schema.Tag{
 			Path:     []string{"ref"},
 			SplitRef: [][]string{{"package"}, {"schema"}},
 		},
-		Blocks: map[string]walker.PathSpec{
+		Blocks: map[string]schema.PathSpec{
 			"field": {"object", "properties"},
 		},
 	},
 	"j5.schema.v1.OneofField": {
-		Qualifier: &walker.Tag{
+		Qualifier: &schema.Tag{
 			Path:     []string{"ref"},
 			SplitRef: [][]string{{"package"}, {"schema"}},
 		},
-		Blocks: map[string]walker.PathSpec{
+		Blocks: map[string]schema.PathSpec{
 			"option": {"oneof", "properties"},
 		},
 	},
 	"j5.sourcedef.v1.Object": {
 		Description: []string{"description"},
 		Location:    []string{"location"},
-		Name: &walker.Tag{
+		Name: &schema.Tag{
 			Path: []string{"name"},
 		},
-		Blocks: map[string]walker.PathSpec{
+		Blocks: map[string]schema.PathSpec{
 			"field": {"properties"},
 		},
 	},
 	"j5.sourcedef.v1.Oneof": {
 		Description: []string{"description"},
 		Location:    []string{"location"},
-		Name: &walker.Tag{
+		Name: &schema.Tag{
 			Path: []string{"name"},
 		},
-		Blocks: map[string]walker.PathSpec{
+		Blocks: map[string]schema.PathSpec{
 			"option": {"properties"},
 		},
 	},
 	"j5.schema.v1.Enum": {
 		Description: []string{"description"},
-		Name: &walker.Tag{
+		Name: &schema.Tag{
 			Path: []string{"name"},
 		},
-		Blocks: map[string]walker.PathSpec{
+		Blocks: map[string]schema.PathSpec{
 			"option": {"options"},
 		},
 	},
 	"j5.sourcedef.v1.Entity": {
-		Name: &walker.Tag{
+		Name: &schema.Tag{
 			Path: []string{"name"},
 		},
 		Location: []string{"location"},
-		Blocks: map[string]walker.PathSpec{
+		Blocks: map[string]schema.PathSpec{
 			"key":    {"keys", "properties"},
 			"data":   {"data"},
 			"status": {"status"},
@@ -93,11 +93,11 @@ var globalDefs = map[string]*walker.BlockSpec{
 		},
 	},
 	"j5.sourcedef.v1.SourceFile": {
-		Attributes: map[string]walker.PathSpec{
+		Attributes: map[string]schema.PathSpec{
 			"version": {"version"},
 		},
 		Description: []string{"description"},
-		Blocks: map[string]walker.PathSpec{
+		Blocks: map[string]schema.PathSpec{
 			"object": {"elements", "object"},
 			"enum":   {"elements", "enum"},
 			"oneof":  {"elements", "enum"},
@@ -106,6 +106,6 @@ var globalDefs = map[string]*walker.BlockSpec{
 	},
 }
 
-var Spec = &walker.ConversionSpec{
+var Spec = &schema.ConversionSpec{
 	GlobalDefs: globalDefs,
 }

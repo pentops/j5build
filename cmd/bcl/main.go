@@ -93,7 +93,7 @@ func runJ5Gen(ctx context.Context, cfg struct {
 	if err != nil {
 		debug, ok := errpos.AsErrorsWithSource(err)
 		if !ok {
-			return err
+			return fmt.Errorf("unlinked error: %w", err)
 		}
 
 		str := debug.HumanString(3)

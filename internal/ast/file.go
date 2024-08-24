@@ -167,18 +167,6 @@ func (bs BlockHeader) RootName() string {
 	return bs.Name[0].String()
 }
 
-func (bs BlockHeader) guessName() string {
-	if len(bs.Name) == 0 {
-		return "?"
-	}
-	first := bs.Name[0].String()
-	if len(bs.Name) == 1 {
-		return first
-	}
-	second := bs.Name[1].String()
-	return fmt.Sprintf("%s(%s)", first, second)
-}
-
 func (bs BlockHeader) NamePart(idx int) (string, bool) {
 	if idx >= len(bs.Name) {
 		return "", false

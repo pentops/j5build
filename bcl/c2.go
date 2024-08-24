@@ -6,11 +6,12 @@ import (
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/bcl.go/internal/ast"
 	"github.com/pentops/bcl.go/internal/walker"
+	"github.com/pentops/bcl.go/internal/walker/schema"
 	"github.com/pentops/j5/lib/j5reflect"
 )
 
-func ConvertTreeToSource(f *ast.File, obj j5reflect.Object, spec *walker.ConversionSpec) error {
-	return walker.Walk(obj, spec, func(sc walker.Context, blockSpec walker.BlockSpec) error {
+func ConvertTreeToSource(f *ast.File, obj j5reflect.Object, spec *schema.ConversionSpec) error {
+	return walker.Walk(obj, spec, func(sc walker.Context, blockSpec schema.BlockSpec) error {
 		return doBody(sc, f.Body)
 	})
 }
@@ -24,15 +25,17 @@ func doBody(sc walker.Context, body ast.Body) error {
 			if err != nil {
 				return err
 			}
+			sc.Logf("Assign OK")
 
 		case ast.BlockStatement:
-			err := sc.WithBlock(decl.Name[0], func(sc walker.Context, blockSpec walker.BlockSpec) error {
+			err := sc.WithBlock(decl.Name[0], func(sc walker.Context, blockSpec schema.BlockSpec) error {
 				sc.Logf("Block Statement %#v", decl.BlockHeader)
 				return doBlock(sc, blockSpec, decl)
 			})
 			if err != nil {
 				return err
 			}
+			sc.Logf("Block OK")
 
 		default:
 			return fmt.Errorf("unexpected statement type %T", decl)
@@ -54,9 +57,9 @@ func doAssign(sc walker.Context, a ast.Assignment) error {
 	return nil
 }
 
-func doScalarTag(searchPath walker.Context, tagSpec walker.Tag, gotTag ast.Reference) error {
+func doScalarTag(searchPath walker.Context, tagSpec schema.Tag, gotTag ast.Reference) error {
 	searchPath.LogSelf("doScalarTag %#v, %q", tagSpec, gotTag)
-	err := tagSpec.Validate(walker.TagTypeScalar)
+	err := tagSpec.Validate(schema.TagTypeScalar)
 	if err != nil {
 		return err
 	}
@@ -89,7 +92,7 @@ func (tags *refSet) popFirst() (ast.Reference, bool) {
 	return tag, true
 }
 
-func doBlock(sc walker.Context, spec walker.BlockSpec, bs ast.BlockStatement) error {
+func doBlock(sc walker.Context, spec schema.BlockSpec, bs ast.BlockStatement) error {
 
 	gotTags := newRefSet(bs.BlockHeader.Name)
 	gotTags.popFirst()
@@ -112,11 +115,11 @@ func doBlock(sc walker.Context, spec walker.BlockSpec, bs ast.BlockStatement) er
 		}
 	}
 
-	return walkTags(sc, spec, gotTags, func(sc walker.Context, spec walker.BlockSpec) error {
+	return walkTags(sc, spec, gotTags, func(sc walker.Context, spec schema.BlockSpec) error {
 
 		gotQualifiers := newRefSet(bs.BlockHeader.Qualifiers)
 
-		return walkQualifiers(sc, spec, gotQualifiers, func(sc walker.Context, spec walker.BlockSpec) error {
+		return walkQualifiers(sc, spec, gotQualifiers, func(sc walker.Context, spec schema.BlockSpec) error {
 			if bs.BlockHeader.Description != nil {
 				if len(spec.Description) == 0 {
 					spec.Description = []string{"description"}
@@ -135,7 +138,7 @@ func doBlock(sc walker.Context, spec walker.BlockSpec, bs ast.BlockStatement) er
 	})
 }
 
-func walkTags(sc walker.Context, spec walker.BlockSpec, gotTags refSet, outerCallback walker.SpanCallback) error {
+func walkTags(sc walker.Context, spec schema.BlockSpec, gotTags refSet, outerCallback walker.SpanCallback) error {
 	if spec.TypeSelect != nil {
 		gotTag, ok := gotTags.popFirst()
 		if !ok {
@@ -145,7 +148,7 @@ func walkTags(sc walker.Context, spec walker.BlockSpec, gotTags refSet, outerCal
 		tagSpec := *spec.TypeSelect
 
 		sc.Logf("TypeSelect %#v %s", tagSpec, gotTag)
-		return sc.WithTypeSelect(tagSpec.Path, gotTag, func(sc walker.Context, spec walker.BlockSpec) error {
+		return sc.WithTypeSelect(tagSpec.Path, gotTag, func(sc walker.Context, spec schema.BlockSpec) error {
 			return walkTags(sc, spec, gotTags, outerCallback)
 		})
 	}
@@ -157,7 +160,7 @@ func walkTags(sc walker.Context, spec walker.BlockSpec, gotTags refSet, outerCal
 	return outerCallback(sc, spec)
 }
 
-func walkQualifiers(sc walker.Context, spec walker.BlockSpec, gotQualifiers refSet, outerCallback walker.SpanCallback) error {
+func walkQualifiers(sc walker.Context, spec schema.BlockSpec, gotQualifiers refSet, outerCallback walker.SpanCallback) error {
 
 	qualifier, ok := gotQualifiers.popFirst()
 	if !ok {
@@ -170,42 +173,12 @@ func walkQualifiers(sc walker.Context, spec walker.BlockSpec, gotQualifiers refS
 
 	tagSpec := spec.Qualifier
 	sc.Logf("Qualifier %#v %s", tagSpec, qualifier)
-	return sc.WithTypeSelect(tagSpec.Path, qualifier, func(sc walker.Context, spec walker.BlockSpec) error {
+	return sc.WithTypeSelect(tagSpec.Path, qualifier, func(sc walker.Context, spec schema.BlockSpec) error {
 		return walkQualifiers(sc, spec, gotQualifiers, outerCallback)
 	})
-
-	/*
-		for _, givenQualifier := range bs.BlockHeader.Qualifiers {
-			if leafSpec.Qualifier == nil {
-				err := fmt.Errorf("unexpected qualifier %#v", givenQualifier)
-				err = errpos.AddPosition(err, givenQualifier[0].Start)
-				return err
-			}
-			tagSpec := leafSpec.Qualifier
-
-			childBlock, err := doTag(leafContext, *tagSpec, givenQualifier)
-			if err != nil {
-				return err
-			}
-
-			leafContext = leafContext.ChildSpan(childBlock.SchemaName(), childBlock)
-			leafSpec = childBlock.spec
-
-			switch tagSpec.Type {
-			case TagTypeScalar: // already handled
-			case TagTypeAppendContext:
-				bodyContext.Append(childBlock)
-			case TagTypeReplaceContext:
-				bodyContext.Logf("Replacing context with %s", childBlock.SchemaName())
-				bodyContext = leafContext
-			default:
-				return fmt.Errorf("unexpected tag type %d", tagSpec.Type)
-			}
-		}*/
-
 }
 
-func applyScalarTag(sc walker.Context, tagSpec walker.Tag, gotTag ast.Reference) error {
+func applyScalarTag(sc walker.Context, tagSpec schema.Tag, gotTag ast.Reference) error {
 	sc.Logf("Applying scalar tag %#v %s", tagSpec, gotTag)
 	if len(tagSpec.SplitRef) == 0 {
 		err := sc.SetScalar(tagSpec.Path, gotTag.AsValue())

@@ -1,4 +1,4 @@
-package walker
+package schema
 
 import (
 	"fmt"
@@ -9,6 +9,22 @@ import (
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
 )
+
+type SchemaError struct {
+	err  error
+	path PathSpec
+}
+
+func (se *SchemaError) Error() string {
+	return fmt.Sprintf("<Schema>: %s", se.err)
+}
+
+func schemaError(path PathSpec, err error) error {
+	return &SchemaError{
+		err:  err,
+		path: path,
+	}
+}
 
 type TagType int
 
@@ -313,7 +329,7 @@ func (ss *SchemaSet) wrapContainer(node reflwrap.ContainerField, path []string) 
 	return &containerField{
 		rootName:  node.SchemaName(),
 		container: node,
-		spec:      spec,
+		spec:      *spec,
 		path:      path,
 	}, nil
 

@@ -1,4 +1,4 @@
-package walker
+package schema
 
 import (
 	"fmt"
@@ -14,18 +14,34 @@ type NoNodeFoundError struct {
 }
 
 func (e NoNodeFoundError) Error() string {
-	return fmt.Sprintf("no node found for path %q", strings.Join(e.path, "."))
-}
-
-type NoBlockFoundError struct {
-	name string
-}
-
-func (e NoBlockFoundError) Error() string {
-	return fmt.Sprintf("unknown block %q", e.name)
+	return fmt.Sprintf("no valid node found for path %q", strings.Join(e.path, "."))
 }
 
 type blockScope []containerField
+
+// containerField is a spec linked to a reflection container field.
+type containerField struct {
+	rootName string
+	path     []string
+
+	container reflwrap.ContainerField
+	spec      BlockSpec
+}
+
+func (sc *containerField) Spec() BlockSpec {
+	return sc.spec
+}
+
+func (sc *containerField) Path() []string {
+	return sc.path
+}
+
+func (sc *containerField) SchemaName() string {
+	if sc.spec.DebugName != "" {
+		return sc.rootName + " (" + sc.spec.DebugName + ")"
+	}
+	return sc.rootName
+}
 
 func (bs blockScope) SchemaNames() []string {
 	names := make([]string, 0, len(bs))
@@ -34,23 +50,6 @@ func (bs blockScope) SchemaNames() []string {
 	}
 	return names
 }
-
-/*
-func (bs blockSet) FindField(path []string) (reflwrap.Field, error) {
-	for _, blockSchema := range bs {
-		node, ok, err := blockSchema.MaybeFindField(path)
-		if err != nil {
-			return nil, err
-		}
-		if node != nil {
-			return node, nil
-		}
-		if ok {
-			return nil, nil
-		}
-	}
-	return nil, NoNodeFoundError{path: path}
-}*/
 
 func (bs blockScope) ListAvailableBlocks() []string {
 	possibleNames := make([]string, 0)
@@ -80,7 +79,7 @@ func (bs blockScope) fieldForAttribute(name string) (reflwrap.Field, error) {
 		return field, nil
 	}
 
-	return nil, NoBlockFoundError{name: name}
+	return nil, NoNodeFoundError{path: []string{name}}
 }
 
 // containerForChildBlock finds a block with the given name which is registered as a
@@ -108,7 +107,7 @@ func (bs blockScope) containerForBlock(name string) (reflwrap.ContainerField, er
 		return container, nil
 	}
 
-	return nil, NoBlockFoundError{name: name}
+	return nil, NoNodeFoundError{path: []string{name}}
 }
 
 func (bs blockScope) SetScalar(path []string, value ast.Value) error {

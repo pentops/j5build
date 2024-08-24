@@ -9,13 +9,14 @@ import (
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/bcl.go/internal/ast"
 	"github.com/pentops/bcl.go/internal/reflwrap"
+	"github.com/pentops/bcl.go/internal/walker/schema"
 	"github.com/pentops/j5/lib/j5reflect"
 )
 
 type Context interface {
-	WithTypeSelect(path PathSpec, givenName ast.Reference, fn SpanCallback) error
+	WithTypeSelect(path schema.PathSpec, givenName ast.Reference, fn SpanCallback) error
 
-	SetScalar(path PathSpec, value ast.Value) error
+	SetScalar(path schema.PathSpec, value ast.Value) error
 	FindAttribute(ref ast.Reference) (reflwrap.Field, error)
 
 	// WithBlock begins a new context with nothing in the search path, for the
@@ -27,26 +28,10 @@ type Context interface {
 	WrapErr(err error, pos errpos.Position) error
 }
 
-type SpanCallback func(Context, BlockSpec) error
-
-type SchemaError struct {
-	err  error
-	path PathSpec
-}
-
-func (se *SchemaError) Error() string {
-	return fmt.Sprintf("<Schema>: %s", se.err)
-}
-
-func schemaError(path PathSpec, err error) error {
-	return &SchemaError{
-		err:  err,
-		path: path,
-	}
-}
+type SpanCallback func(Context, schema.BlockSpec) error
 
 type walkContext struct {
-	schema *schemaWalker
+	schema schema.Scope
 
 	// name is the full path from the root to this context, as field names
 	name []string
@@ -55,25 +40,25 @@ type walkContext struct {
 	depth int
 }
 
-func Walk(obj j5reflect.Object, spec *ConversionSpec, cb SpanCallback) error {
+func Walk(obj j5reflect.Object, spec *schema.ConversionSpec, cb SpanCallback) error {
 
 	err := spec.Validate()
 	if err != nil {
 		return err
 	}
 
-	walker, err := newRootSchemaWalker(spec, obj)
+	scope, err := schema.NewRootSchemaWalker(spec, obj)
 	if err != nil {
 		return err
 	}
 
 	rootContext := &walkContext{
-		schema: walker,
-		name:   []string{"."},
+		schema: scope,
+		name:   []string{""},
 	}
 
 	rootErr := rootContext.run(func(sc Context) error {
-		return cb(sc, *walker.leafBlock.spec)
+		return cb(sc, scope.CurrentBlock().Spec())
 	})
 	if rootErr == nil {
 		return nil
@@ -84,13 +69,13 @@ func Walk(obj j5reflect.Object, spec *ConversionSpec, cb SpanCallback) error {
 }
 
 func (sc *walkContext) FindAttribute(ref ast.Reference) (reflwrap.Field, error) {
-	sc.LogSelf("findAttribute(%#v)", ref)
-	return sc.schema.findAttribute(ref)
+	//sc.LogSelf("findAttribute(%#v)", ref)
+	return sc.schema.FindAttribute(ref)
 }
 
 func (sc *walkContext) WithBlock(ref ast.Reference, fn SpanCallback) error {
-	sc.LogSelf("findBlock(%#v)", ref)
-	container, err := sc.schema.findBlock(ref)
+	//sc.LogSelf("findBlock(%#v)", ref)
+	container, err := sc.schema.FindBlock(ref)
 	if err != nil {
 		return err
 	}
@@ -103,18 +88,15 @@ func (sc *walkContext) WithBlock(ref ast.Reference, fn SpanCallback) error {
 // set, so the wrapper is not included in the callback scope.
 // The node it finds at givenName should must be a block, which is appended to
 // the scope and becomes the new leaf for the callback.
-func (sc *walkContext) WithTypeSelect(path PathSpec, givenName ast.Reference, fn SpanCallback) error {
+func (sc *walkContext) WithTypeSelect(path schema.PathSpec, givenName ast.Reference, fn SpanCallback) error {
 
-	containerAtPath, err := sc.schema.containerFromLeaf(path)
+	scopeAtPath, err := sc.schema.NewScopeAtPath(path)
 	if err != nil {
-		return schemaError(path, err)
+		return err
 	}
 
-	// new scope with just the container in it.
-	scopeAtPath := sc.schema.newChild(containerAtPath, false)
-
 	// the block should have a property with the name given by the user.
-	blockForType, err := scopeAtPath.findBlock(givenName)
+	blockForType, err := scopeAtPath.FindBlock(givenName)
 	if err != nil {
 		// this is not a schema error, as it's the passed in user value.
 		err = errpos.AddPosition(err, givenName[0].Start)
@@ -126,9 +108,9 @@ func (sc *walkContext) WithTypeSelect(path PathSpec, givenName ast.Reference, fn
 	return sc.withSchema(blockForType, false, fn)
 }
 
-func (sc *walkContext) SetScalar(path PathSpec, value ast.Value) error {
+func (sc *walkContext) SetScalar(path schema.PathSpec, value ast.Value) error {
 	sc.Logf("SetScalar(%#v, %#v)", path, value)
-	leaf, err := sc.schema.fieldPathInLeaf(path)
+	leaf, err := sc.schema.FieldPathInLeaf(path)
 	if err != nil {
 		return fmt.Errorf("(Schema Error): %w", err)
 	}
@@ -136,41 +118,45 @@ func (sc *walkContext) SetScalar(path PathSpec, value ast.Value) error {
 }
 
 func (wc *walkContext) run(fn func(Context) error) error {
-	wc.Logf("|>>> ENTERING >>>>")
-	wc.depth++
-	wc.Logf("Path %s", strings.Join(wc.name, "."))
 	err := fn(wc)
 	if err != nil {
-
 		scoped := &scopedError{}
 		if errors.As(err, &scoped) {
 			return err
 		}
 
+		err = wc.WrapErr(err, errpos.Position{})
+		err = errpos.AddContext(err, strings.Join(wc.name, "."))
+		err = errpos.SetSchemas(err, wc.schema.SchemaNames())
+
 		return &scopedError{
-			err:    err,
+			err:    err.(*errpos.Err),
 			schema: wc.schema,
 		}
 	}
 	wc.depth--
-	wc.LogSelf("|<<< Leaving %s <<<", wc.name)
+	wc.Logf("|<<< Leaving %s <<<", wc.name)
 	return nil
 }
 
-func (wc *walkContext) withSchema(container *containerField, freshScope bool, fn SpanCallback) error {
+func (wc *walkContext) withSchema(container schema.Scope, freshScope bool, fn SpanCallback) error {
+	wc.Logf("|>>> ENTERING >>>>")
+	wc.Logf("|> %q", strings.Join(container.CurrentBlock().Path(), "."))
 	childContext := &walkContext{
-		schema: wc.schema.newChild(container, freshScope),
-		name:   append(wc.name, container.path...),
-		depth:  wc.depth,
+		schema: container,
+		name:   append(wc.name, container.CurrentBlock().Path()...),
+		depth:  wc.depth + 1,
 	}
+	wc.Logf("|> Path = %q", strings.Join(childContext.name, "."))
+
 	return childContext.run(func(sc Context) error {
-		return fn(sc, *container.spec)
+		return fn(sc, container.CurrentBlock().Spec())
 	})
 }
 
 func (wc *walkContext) WrapErr(err error, pos errpos.Position) error {
 	err = errpos.AddContext(err, strings.Join(wc.name, "."))
-	err = errpos.SetSchemas(err, wc.schema.schemaNames())
+	err = errpos.SetSchemas(err, wc.schema.SchemaNames())
 	err = errpos.AddPosition(err, pos)
 	return err
 }
@@ -189,12 +175,16 @@ func (wc *walkContext) Logf(format string, args ...interface{}) {
 }
 
 type scopedError struct {
-	err    error
-	schema *schemaWalker
+	err    *errpos.Err
+	schema schema.Scope
 }
 
 func (se *scopedError) Error() string {
 	return se.err.Error()
+}
+
+func (se *scopedError) Unwrap() error {
+	return se.err
 }
 
 func logError(err error) {
@@ -205,12 +195,12 @@ func logError(err error) {
 	}
 	pf := prefixer(log.Printf, "ERR | ")
 	pf("Error %s", err)
-	scoped.schema.printScope(pf)
+	scoped.schema.PrintScope(pf)
 	pf("Got Error %s\n", err)
 }
 
 func (wc *walkContext) LogSelf(label string, args ...interface{}) {
 	wc.Logf(label, args...)
 	wc.Logf("Context For %q", wc.name)
-	wc.schema.printScope(wc.Logf)
+	wc.schema.PrintScope(wc.Logf)
 }

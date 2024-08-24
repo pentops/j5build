@@ -187,8 +187,11 @@ func setFilenames(input Errors, filename string) Errors {
 
 func AddSourceFile(err error, filename string, fileData string) error {
 	if withSource, ok := AsErrorsWithSource(err); ok {
-		setFilenames(withSource.Errors, filename)
-		return withSource
+		errors := setFilenames(withSource.Errors, filename)
+		return &ErrorsWithSource{
+			lines:  strings.Split(fileData, "\n"),
+			Errors: errors,
+		}
 	}
 
 	input, ok := AsErrors(err)
@@ -196,7 +199,7 @@ func AddSourceFile(err error, filename string, fileData string) error {
 		return err
 	}
 
-	setFilenames(input, filename)
+	input = setFilenames(input, filename)
 
 	return &ErrorsWithSource{
 		lines:  strings.Split(fileData, "\n"),
