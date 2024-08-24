@@ -5,7 +5,6 @@ package errpos
 import (
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 )
 
@@ -153,11 +152,15 @@ func (e *Err) Unwrap() error {
 	return e.Err
 }
 
+// Check if any useful wrapper was added to the error
 func (e *Err) mergeErr(err error, label string) {
 	if e == err || e.Err == err {
 		return // no change
 	}
-	log.Printf("MERGE ERRORS %s\n   new: %v \n  exis: %v\n", label, err, e.Err)
+	if errors.Is(err, e.Err) {
+		return // no change
+	}
+	fmt.Printf("==========\nMERGE ERRORS %s\n    new: %v \n      %T \n  exist: %v\n      %T\n----\n", label, err, err, e.Err, e.Err)
 	e.Err = fmt.Errorf("%w: %v", e.Err, err)
 }
 

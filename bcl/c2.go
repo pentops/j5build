@@ -68,12 +68,18 @@ func doScalarTag(searchPath walker.Context, tagSpec walker.Tag, gotTag ast.Refer
 	return nil
 }
 
-type tagSet struct {
+type refSet struct {
 	gotTags      []ast.Reference
 	lastPosition errpos.Position
 }
 
-func (tags *tagSet) pop() (ast.Reference, bool) {
+func newRefSet(refs []ast.Reference) refSet {
+	return refSet{
+		gotTags: refs,
+	}
+}
+
+func (tags *refSet) popFirst() (ast.Reference, bool) {
 	if len(tags.gotTags) == 0 {
 		return nil, false
 	}
@@ -85,13 +91,11 @@ func (tags *tagSet) pop() (ast.Reference, bool) {
 
 func doBlock(sc walker.Context, spec walker.BlockSpec, bs ast.BlockStatement) error {
 
-	gotTags := tagSet{
-		gotTags:      bs.BlockHeader.Name[1:],
-		lastPosition: bs.BlockHeader.Name[0][0].End,
-	}
+	gotTags := newRefSet(bs.BlockHeader.Name)
+	gotTags.popFirst()
 
 	if spec.Name != nil {
-		gotTag, ok := gotTags.pop()
+		gotTag, ok := gotTags.popFirst()
 		if !ok {
 			return sc.WrapErr(fmt.Errorf("expected name tag"), gotTags.lastPosition)
 		}
@@ -110,26 +114,30 @@ func doBlock(sc walker.Context, spec walker.BlockSpec, bs ast.BlockStatement) er
 
 	return walkTags(sc, spec, gotTags, func(sc walker.Context, spec walker.BlockSpec) error {
 
-		if bs.BlockHeader.Description != nil {
-			if len(spec.Description) == 0 {
-				spec.Description = []string{"description"}
+		gotQualifiers := newRefSet(bs.BlockHeader.Qualifiers)
+
+		return walkQualifiers(sc, spec, gotQualifiers, func(sc walker.Context, spec walker.BlockSpec) error {
+			if bs.BlockHeader.Description != nil {
+				if len(spec.Description) == 0 {
+					spec.Description = []string{"description"}
+				}
+				if err := sc.SetScalar(spec.Description, *bs.BlockHeader.Description); err != nil {
+					return err
+				}
 			}
-			if err := sc.SetScalar(spec.Description, *bs.BlockHeader.Description); err != nil {
+
+			if err := doBody(sc, bs.Body); err != nil {
 				return err
 			}
-		}
 
-		if err := doBody(sc, bs.Body); err != nil {
-			return err
-		}
-
-		return nil
+			return nil
+		})
 	})
 }
 
-func walkTags(sc walker.Context, spec walker.BlockSpec, gotTags tagSet, outerCallback walker.SpanCallback) error {
+func walkTags(sc walker.Context, spec walker.BlockSpec, gotTags refSet, outerCallback walker.SpanCallback) error {
 	if spec.TypeSelect != nil {
-		gotTag, ok := gotTags.pop()
+		gotTag, ok := gotTags.popFirst()
 		if !ok {
 			return sc.WrapErr(fmt.Errorf("expected type tag"), gotTags.lastPosition)
 		}
@@ -137,7 +145,7 @@ func walkTags(sc walker.Context, spec walker.BlockSpec, gotTags tagSet, outerCal
 		tagSpec := *spec.TypeSelect
 
 		sc.Logf("TypeSelect %#v %s", tagSpec, gotTag)
-		return sc.WithTagProperty(tagSpec.Path, gotTag[0].String(), func(sc walker.Context, spec walker.BlockSpec) error {
+		return sc.WithTypeSelect(tagSpec.Path, gotTag, func(sc walker.Context, spec walker.BlockSpec) error {
 			return walkTags(sc, spec, gotTags, outerCallback)
 		})
 	}
@@ -147,6 +155,24 @@ func walkTags(sc walker.Context, spec walker.BlockSpec, gotTags tagSet, outerCal
 	}
 
 	return outerCallback(sc, spec)
+}
+
+func walkQualifiers(sc walker.Context, spec walker.BlockSpec, gotQualifiers refSet, outerCallback walker.SpanCallback) error {
+
+	qualifier, ok := gotQualifiers.popFirst()
+	if !ok {
+		return outerCallback(sc, spec)
+	}
+	if spec.Qualifier == nil {
+		err := fmt.Errorf("unexpected qualifier %#v", qualifier)
+		return sc.WrapErr(err, qualifier[0].Start)
+	}
+
+	tagSpec := spec.Qualifier
+	sc.Logf("Qualifier %#v %s", tagSpec, qualifier)
+	return sc.WithTypeSelect(tagSpec.Path, qualifier, func(sc walker.Context, spec walker.BlockSpec) error {
+		return walkQualifiers(sc, spec, gotQualifiers, outerCallback)
+	})
 
 	/*
 		for _, givenQualifier := range bs.BlockHeader.Qualifiers {

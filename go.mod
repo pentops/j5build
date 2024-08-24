@@ -14,6 +14,7 @@ require (
 
 require (
 	github.com/fatih/color v1.17.0 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pentops/log.go v0.0.0-20240806161938-2742d05b4c24 // indirect

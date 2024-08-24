@@ -232,13 +232,17 @@ func (ss *SchemaSet) _buildSpec(node reflwrap.ContainerField) (*BlockSpec, error
 	foundScalars := map[string]PathSpec{}
 
 	err := node.RangeProperties(func(prop j5reflect.Property) error {
+		name := prop.JSONName()
 		schema := prop.Schema()
 		switch field := schema.Schema.Type.(type) {
 		case *schema_j5pb.Field_Object:
-			name := objectName(field.Object)
-			if name != "" {
-				foundContainers[name] = PathSpec{name}
-			}
+			//name := objectName(field.Object)
+			//if name != "" {
+			foundContainers[name] = PathSpec{name}
+		//}
+
+		case *schema_j5pb.Field_Oneof:
+			foundContainers[name] = PathSpec{name}
 
 		case *schema_j5pb.Field_String_:
 			if schema.Name == "name" && spec.Name == nil {
@@ -252,6 +256,18 @@ func (ss *SchemaSet) _buildSpec(node reflwrap.ContainerField) (*BlockSpec, error
 
 			foundScalars[schema.Name] = []string{schema.Name}
 
+		case *schema_j5pb.Field_Boolean,
+			*schema_j5pb.Field_Integer,
+			*schema_j5pb.Field_Float,
+			*schema_j5pb.Field_Key,
+			*schema_j5pb.Field_Enum,
+			*schema_j5pb.Field_Bytes,
+			*schema_j5pb.Field_Date,
+			*schema_j5pb.Field_Timestamp,
+			*schema_j5pb.Field_Decimal:
+
+			foundScalars[schema.Name] = []string{schema.Name}
+
 		case *schema_j5pb.Field_Array:
 			items := field.Array.Items
 			switch itemSchema := items.Type.(type) {
@@ -262,6 +278,8 @@ func (ss *SchemaSet) _buildSpec(node reflwrap.ContainerField) (*BlockSpec, error
 				}
 			}
 
+		default:
+			return fmt.Errorf("unimplemented schema type: %T", field)
 		}
 
 		return nil
@@ -284,6 +302,21 @@ func (ss *SchemaSet) _buildSpec(node reflwrap.ContainerField) (*BlockSpec, error
 	}
 
 	return spec, nil
+}
+
+func (ss *SchemaSet) wrapContainer(node reflwrap.ContainerField, path []string) (*containerField, error) {
+	spec, err := ss.blockSpec(node)
+	if err != nil {
+		return nil, err
+	}
+
+	return &containerField{
+		rootName:  node.SchemaName(),
+		container: node,
+		spec:      spec,
+		path:      path,
+	}, nil
+
 }
 
 func (ss *SchemaSet) blockSpec(node reflwrap.ContainerField) (*BlockSpec, error) {

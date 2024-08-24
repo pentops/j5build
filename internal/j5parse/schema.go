@@ -27,11 +27,6 @@ var globalDefs = map[string]*walker.BlockSpec{
 		TypeSelect: &walker.Tag{
 			Path: []string{"schema"},
 		},
-		/*
-			}, {
-				Type: walker.TagTypeAppendContext,
-				Path: []string{"schema"},
-			}},*/
 	},
 	"j5.schema.v1.ObjectField": {
 		Qualifier: &walker.Tag{
@@ -49,9 +44,6 @@ var globalDefs = map[string]*walker.BlockSpec{
 		},
 		Blocks: map[string]walker.PathSpec{
 			"option": {"oneof", "properties"},
-			//	"ref": {
-			//		Path: []string{"ref"},
-			//	},
 		},
 	},
 	"j5.sourcedef.v1.Object": {
@@ -109,7 +101,7 @@ var globalDefs = map[string]*walker.BlockSpec{
 			"object": {"elements", "object"},
 			"enum":   {"elements", "enum"},
 			"oneof":  {"elements", "enum"},
-			"entity": {"entities", "entity"},
+			"entity": {"elements", "entity"},
 		},
 	},
 }

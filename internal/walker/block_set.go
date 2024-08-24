@@ -84,7 +84,9 @@ func (bs blockScope) fieldForAttribute(name string) (reflwrap.Field, error) {
 }
 
 // containerForChildBlock finds a block with the given name which is registered as a
-// child of *any one of the blocks* in the block set.
+// child of *any one of the blocks* in the block set. Values along the way are
+// created at default value, as is the final container, which will likely be an
+// empty object or oneof.
 func (bs blockScope) containerForBlock(name string) (reflwrap.ContainerField, error) {
 	for _, blockSchema := range bs {
 		pathToBlock, ok := blockSchema.spec.Blocks[name]
@@ -130,29 +132,6 @@ func (bs blockScope) SetScalar(path []string, value ast.Value) error {
 	return leaf.SetScalar(value)
 }
 
-// containerField is a spec linked to a reflection container field.
-type containerField struct {
-	rootName string
-
-	container reflwrap.ContainerField
-	spec      *BlockSpec
-}
-
-func newContainerField(container reflwrap.ContainerField, spec *BlockSpec) (*containerField, error) {
-	return &containerField{
-		rootName:  container.SchemaName(),
-		container: container,
-		spec:      spec,
-	}, nil
-}
-
-func (sc *containerField) SchemaName() string {
-	if sc.spec.DebugName != "" {
-		return sc.rootName + " (" + sc.spec.DebugName + ")"
-	}
-	return sc.rootName
-}
-
 func walkPath(container reflwrap.ContainerField, path []string) (reflwrap.Field, error) {
 	if len(path) == 0 {
 		return nil, fmt.Errorf("empty path")
@@ -160,6 +139,9 @@ func walkPath(container reflwrap.ContainerField, path []string) (reflwrap.Field,
 
 	name, resst := path[0], path[1:]
 
+	if !container.HasProperty(name) {
+		return nil, NoNodeFoundError{path: path}
+	}
 	prop, err := container.Property(name)
 	if err != nil {
 		return nil, err

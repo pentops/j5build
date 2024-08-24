@@ -50,7 +50,6 @@ func (p *Parser) ParseFile(filename string, data string) (*sourcedef_j5pb.Source
 	err = walkFile(file)
 	if err != nil {
 		err = errpos.AddSourceFile(err, filename, data)
-		//err = fmt.Errorf("Validating File: %v", err)
 		return nil, err
 	}
 
@@ -106,7 +105,6 @@ func walkFile(file *sourcedef_j5pb.SourceFile) error {
 				err = errpos.AddContext(err, "oneof")
 				errors = errors.Append(err)
 			}
-			return nil
 		case *sourcedef_j5pb.RootElement_Entity:
 			err := walkEntity(st.Entity)
 			if err != nil {
@@ -114,7 +112,6 @@ func walkFile(file *sourcedef_j5pb.SourceFile) error {
 				err = errpos.AddContext(err, "entity")
 				errors = errors.Append(err)
 			}
-			return nil
 
 		default:
 			err := fmt.Errorf("unknown element type %T", st)
@@ -166,6 +163,16 @@ func walkEntity(entity *sourcedef_j5pb.Entity) error {
 	if err := walkObject(entity.Data.Def); err != nil {
 		err = errpos.AddPosition(err, srcLoc(entity.Data.Location))
 		return errpos.AddContext(err, "data")
+	}
+
+	for _, evt := range entity.Events {
+		if evt.Def == nil {
+			return fmt.Errorf("missing event definition")
+		}
+		if err := walkObject(evt.Def); err != nil {
+			err = errpos.AddPosition(err, srcLoc(evt.Location))
+			return errpos.AddContext(err, "event")
+		}
 	}
 
 	return nil
