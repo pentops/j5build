@@ -15,7 +15,7 @@ func (uv unknownValue) AsString() (string, error) {
 	return "", fmt.Errorf("value is %s is not a string", uv.typeName)
 }
 
-func (uv unknownValue) AsBoolean() (bool, error) {
+func (uv unknownValue) AsBool() (bool, error) {
 	return false, fmt.Errorf("value is %s is not a boolean", uv.typeName)
 }
 

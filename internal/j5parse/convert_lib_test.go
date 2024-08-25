@@ -27,6 +27,9 @@ func (fb *fileBuild) run(t *testing.T, input string) {
 		t.Fatalf("FATAL: %s", err)
 	}
 
+	got.SourceLocations = nil
+	got.Path = ""
+
 	cmpProto(t, fb.file, got)
 }
 
@@ -84,11 +87,6 @@ func (f *fieldBuild) setSchema(sch schema_j5pb.IsField_Type) {
 func (f *fileBuild) addEntity(name string) *entityBuild {
 	obj := &sourcedef_j5pb.Entity{
 		Name: name,
-		Data: &sourcedef_j5pb.Object{
-			Def: &schema_j5pb.Object{
-				Name: name + "Data",
-			},
-		},
 	}
 	f.file.Elements = append(f.file.Elements, &sourcedef_j5pb.RootElement{
 		Type: &sourcedef_j5pb.RootElement_Entity{

@@ -6,6 +6,7 @@ import (
 
 	"github.com/iancoleman/strcase"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
+	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
 )
 
@@ -129,6 +130,27 @@ const (
 	specSourceSchema specSource = "global"
 )
 
+type ChildSpec struct {
+	Path         PathSpec
+	IsContainer  bool
+	IsScalar     bool
+	IsCollection bool
+}
+
+func (cs ChildSpec) TagString() string {
+	prefix := []rune{'-', '-', '-'}
+	if cs.IsContainer {
+		prefix[0] = 'C'
+	}
+	if cs.IsScalar {
+		prefix[1] = 'S'
+	}
+	if cs.IsCollection {
+		prefix[2] = 'A'
+	}
+	return string(prefix)
+}
+
 type PathSpec []string
 
 func (sp PathSpec) GoString() string {
@@ -144,8 +166,7 @@ type BlockSpec struct {
 
 	Description PathSpec // Field to place the description in
 
-	Attributes map[string]PathSpec
-	Blocks     map[string]PathSpec
+	Children map[string]ChildSpec
 
 	Name       *Tag
 	TypeSelect *Tag
@@ -158,7 +179,7 @@ type BlockSpec struct {
 	OnlyDefined bool // Only allows blocks and attributes explicitly defined in Spec, otherwise merges all available in the schema
 }
 
-func (bs *BlockSpec) errName() string {
+func (bs *BlockSpec) ErrName() string {
 	if bs.DebugName != "" {
 		return fmt.Sprintf("%s from %s as %q", bs.schema, bs.source, bs.DebugName)
 	}
@@ -214,57 +235,52 @@ func (sc *ConversionSpec) Validate() error {
 
 func (ss *SchemaSet) _buildSpec(node j5reflect.PropertySet) (*BlockSpec, error) {
 	schemaName := node.SchemaName()
-	spec := ss.givenSpecs[schemaName]
-	if spec == nil {
-		spec = &BlockSpec{
+	blockSpec := ss.givenSpecs[schemaName]
+	if blockSpec == nil {
+		blockSpec = &BlockSpec{
 			source: specSourceAuto,
 		}
 	} else {
-		spec.source = specSourceSchema
+		blockSpec.source = specSourceSchema
 	}
-	spec.schema = schemaName
+	blockSpec.schema = schemaName
 
-	if spec.OnlyDefined {
-		return spec, nil
-	}
-
-	if spec.Blocks == nil {
-		spec.Blocks = map[string]PathSpec{}
+	if blockSpec.OnlyDefined {
+		return blockSpec, nil
 	}
 
-	if spec.Attributes == nil {
-		spec.Attributes = map[string]PathSpec{}
+	if blockSpec.Children == nil {
+		blockSpec.Children = map[string]ChildSpec{}
 	}
-
-	foundContainers := map[string]PathSpec{}
-	foundScalars := map[string]PathSpec{}
 
 	err := node.RangeProperties(func(prop j5reflect.Field) error {
+
 		name := prop.NameInParent()
 		schema := prop.Schema()
+		spec := ChildSpec{
+			Path: PathSpec{name},
+		}
+
 		switch field := schema.(type) {
 		case *schema_j5pb.Field_Object:
-			//name := objectName(field.Object)
-			//if name != "" {
-			foundContainers[name] = PathSpec{name}
-		//}
+			spec.IsContainer = true
 
 		case *schema_j5pb.Field_Oneof:
-			foundContainers[name] = PathSpec{name}
+			spec.IsContainer = true
 
 		case *schema_j5pb.Field_String_:
-			if name == "name" && spec.Name == nil {
-				spec.Name = &Tag{
+			if name == "name" && blockSpec.Name == nil {
+				blockSpec.Name = &Tag{
 					Path: []string{"name"},
 				}
 			}
-			if name == "description" && len(spec.Description) == 0 {
-				spec.Description = []string{"description"}
+			if name == "description" && len(blockSpec.Description) == 0 {
+				blockSpec.Description = []string{"description"}
 			}
 
-			foundScalars[name] = []string{name}
+			spec.IsScalar = true
 
-		case *schema_j5pb.Field_Boolean,
+		case *schema_j5pb.Field_Bool,
 			*schema_j5pb.Field_Integer,
 			*schema_j5pb.Field_Float,
 			*schema_j5pb.Field_Key,
@@ -274,7 +290,7 @@ func (ss *SchemaSet) _buildSpec(node j5reflect.PropertySet) (*BlockSpec, error) 
 			*schema_j5pb.Field_Timestamp,
 			*schema_j5pb.Field_Decimal:
 
-			foundScalars[name] = []string{name}
+			spec.IsScalar = true
 
 		case *schema_j5pb.Field_Array:
 			items := field.Array.Items
@@ -282,12 +298,17 @@ func (ss *SchemaSet) _buildSpec(node j5reflect.PropertySet) (*BlockSpec, error) 
 			case *schema_j5pb.Field_Object:
 				name := objectName(itemSchema.Object)
 				if name != "" {
-					foundContainers[name] = PathSpec{name}
+					spec.IsCollection = true
+					spec.IsContainer = true
 				}
 			}
 
 		default:
 			return fmt.Errorf("unimplemented schema type: %T", field)
+		}
+
+		if _, ok := blockSpec.Children[name]; !ok {
+			blockSpec.Children[name] = spec
 		}
 
 		return nil
@@ -297,32 +318,21 @@ func (ss *SchemaSet) _buildSpec(node j5reflect.PropertySet) (*BlockSpec, error) 
 		return nil, err
 	}
 
-	for name, block := range foundContainers {
-		if _, ok := spec.Blocks[name]; !ok {
-			spec.Blocks[name] = block
-		}
-	}
-
-	for name, attr := range foundScalars {
-		if _, ok := spec.Attributes[name]; !ok {
-			spec.Attributes[name] = attr
-		}
-	}
-
-	return spec, nil
+	return blockSpec, nil
 }
 
-func (ss *SchemaSet) wrapContainer(node j5reflect.PropertySet, path []string) (*containerField, error) {
+func (ss *SchemaSet) wrapContainer(node j5reflect.PropertySet, path []string, loc *sourcedef_j5pb.SourceLocation) (*containerField, error) {
 	spec, err := ss.blockSpec(node)
 	if err != nil {
 		return nil, err
 	}
 
 	return &containerField{
-		rootName:  node.SchemaName(),
-		container: node,
-		spec:      *spec,
-		path:      path,
+		schemaName: node.SchemaName(),
+		container:  node,
+		spec:       *spec,
+		path:       path,
+		location:   loc,
 	}, nil
 
 }

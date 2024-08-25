@@ -2,8 +2,8 @@ package schema
 
 import (
 	"fmt"
-	"strings"
 
+	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
 )
 
@@ -13,74 +13,89 @@ const (
 	UnknownPathError PathErrorType = iota
 	NodeNotContainer
 	NodeNotScalar
+	NodeNotFound
 	RootNotFound
 )
 
 type WalkPathError struct {
-	Path []string
-
 	Type PathErrorType
 
 	// for unknown:
 	Err error
 
-	// for RootNotFound:
+	// for RootNotFound and NodeNotFound:
 	Available []string
 	Schema    string
+	Field     string
+	Path      []string
 }
 
 func (wpe *WalkPathError) Error() string {
-	path := strings.Join(wpe.Path, ".")
+	return wpe.LongMessage()
+
+}
+
+func (wpe *WalkPathError) LongMessage() string {
 	switch wpe.Type {
-	case UnknownPathError:
-		return fmt.Sprintf("error walking path %q: %s", path, wpe.Err)
 	case NodeNotContainer:
-		return fmt.Sprintf("error walking path %q: wanted a container, got %s", path, wpe.Schema)
+		return fmt.Sprintf("wanted a container field, got %s", wpe.Schema)
 	case NodeNotScalar:
-		return fmt.Sprintf("error walking path %q: wanted a scalar, got %s", path, wpe.Schema)
+		return fmt.Sprintf("wanted a scalar, got %s", wpe.Schema)
 	case RootNotFound:
-		return fmt.Sprintf("error walking path %q: root not found, available: %v", path, wpe.Available)
+		return fmt.Sprintf("root %q unknown, available: %v", wpe.Field, wpe.Available)
+	case NodeNotFound:
+		return fmt.Sprintf("node %q not found in %s", wpe.Field, wpe.Schema)
 	}
-	return fmt.Sprintf("error walking path %v: unknown error", wpe.Path)
+	return wpe.Err.Error()
 }
 
 type containerSet []containerField
 
 // containerField is a spec linked to a reflection container field.
 type containerField struct {
-	rootName string
-	path     []string
+	schemaName string
+	path       []string
+	name       string
 
 	container j5reflect.PropertySet
 	spec      BlockSpec
+	location  *sourcedef_j5pb.SourceLocation
 }
 
 func (sc *containerField) Spec() BlockSpec {
 	return sc.spec
 }
 
+func (sc *containerField) Name() string {
+	return sc.name
+}
+
 func (sc *containerField) Path() []string {
 	return sc.path
 }
 
+func (sc *containerField) Location() *sourcedef_j5pb.SourceLocation {
+	return sc.location
+}
+
 func (sc *containerField) SchemaName() string {
 	if sc.spec.DebugName != "" {
-		return sc.rootName + " (" + sc.spec.DebugName + ")"
+		return sc.schemaName + " (" + sc.spec.DebugName + ")"
 	}
-	return sc.rootName
+	return sc.schemaName
 }
 
 func (bs containerSet) schemaNames() []string {
 	names := make([]string, 0, len(bs))
 	for _, block := range bs {
-		names = append(names, block.rootName)
+		names = append(names, block.schemaName)
 	}
 	return names
 }
 
 func (bs containerSet) hasAttribute(name string) bool {
 	for _, blockSchema := range bs {
-		if _, ok := blockSchema.spec.Attributes[name]; ok {
+		if node, ok := blockSchema.spec.Children[name]; ok && node.IsScalar {
 			return true
 		}
 	}
@@ -89,7 +104,7 @@ func (bs containerSet) hasAttribute(name string) bool {
 
 func (bs containerSet) hasBlock(name string) bool {
 	for _, blockSchema := range bs {
-		if _, ok := blockSchema.spec.Blocks[name]; ok {
+		if _, ok := blockSchema.spec.Children[name]; ok {
 			return true
 		}
 	}
@@ -99,7 +114,10 @@ func (bs containerSet) hasBlock(name string) bool {
 func (bs containerSet) listAttributes() []string {
 	possibleNames := make([]string, 0)
 	for _, blockSchema := range bs {
-		for blockName := range blockSchema.spec.Attributes {
+		for blockName, spec := range blockSchema.spec.Children {
+			if !spec.IsScalar {
+				continue
+			}
 			possibleNames = append(possibleNames, blockName)
 		}
 	}
@@ -110,135 +128,95 @@ func (bs containerSet) listAttributes() []string {
 func (bs containerSet) listBlocks() []string {
 	possibleNames := make([]string, 0)
 	for _, blockSchema := range bs {
-		for blockName := range blockSchema.spec.Blocks {
+		for blockName, spec := range blockSchema.spec.Children {
+			if !spec.IsContainer {
+				continue
+			}
 			possibleNames = append(possibleNames, blockName)
 		}
 	}
 	return possibleNames
 }
 
-/*
-func (bs containerSet) ListAvailableBlocks() []string {
-	possibleNames := make([]string, 0)
-	for _, blockSchema := range bs {
-		for blockName := range blockSchema.spec.Blocks {
-			possibleNames = append(possibleNames, blockName)
-		}
-	}
+type child struct {
+	spec      ChildSpec
+	container j5reflect.PropertySet
+}
 
-	sort.Strings(possibleNames)
-	return possibleNames
-}*/
-
-func (bs containerSet) fieldForAttribute(name string) (j5reflect.ScalarField, *WalkPathError) {
+func (bs containerSet) child(name string) *child {
 	for _, blockSchema := range bs {
-		pathToField, ok := blockSchema.spec.Attributes[name]
+		pathToField, ok := blockSchema.spec.Children[name]
 		if !ok {
 			continue
 		}
-
-		// walk the block to the path specified in the config.
-		field, err := walkPath(blockSchema.container, pathToField)
-		if err != nil {
-			return nil, err
-		}
-
-		asScalar, ok := field.AsScalar()
-		if ok {
-			return asScalar, nil
-		}
-
-		return nil, &WalkPathError{
-			Path:   []string{name},
-			Type:   NodeNotScalar,
-			Schema: field.TypeName(),
+		return &child{
+			spec:      pathToField,
+			container: blockSchema.container,
 		}
 	}
-
-	if bs.hasBlock(name) {
-		return nil, &WalkPathError{
-			Path:   []string{name},
-			Type:   NodeNotScalar,
-			Schema: "block",
-		}
-	}
-
-	return nil, &WalkPathError{
-		Path:      []string{name},
-		Type:      RootNotFound,
-		Available: bs.listAttributes(),
-	}
-
+	return nil
 }
 
-// containerForChildBlock finds a block with the given name which is registered as a
-// child of *any one of the blocks* in the block set. Values along the way are
-// created at default value, as is the final container, which will likely be an
-// empty object or oneof.
-func (bs containerSet) containerForBlock(name string) (j5reflect.PropertySet, *WalkPathError) {
-	for _, blockSchema := range bs {
-		pathToBlock, ok := blockSchema.spec.Blocks[name]
-		if !ok {
-			continue
-		}
-
-		// walk the block to the path specified in the config.
-		field, pathErr := walkPath(blockSchema.container, pathToBlock)
-		if pathErr != nil {
-			return nil, pathErr
-		}
-
-		propAsContainer, ok, err := fieldToContainer(field)
-		if err != nil {
-			return nil, &WalkPathError{
-				Path: pathToBlock,
-				Type: UnknownPathError,
-				Err:  err,
-			}
-		}
-
-		if !ok {
-			return nil, &WalkPathError{
-				Path:   pathToBlock,
-				Type:   NodeNotContainer,
-				Schema: field.TypeName(),
-			}
-		}
-
-		return propAsContainer, nil
+func fieldToContainer(parent *containerField, prop j5reflect.Field) (*containerField, bool, error) {
+	if parent.location.Children == nil {
+		parent.location.Children = map[string]*sourcedef_j5pb.SourceLocation{}
 	}
 
-	return nil, &WalkPathError{
-		Path:      []string{name},
-		Type:      RootNotFound,
-		Available: bs.listBlocks(),
-	}
-}
+	ps := prop.ProtoPath()
 
-func fieldToContainer(prop j5reflect.Field) (j5reflect.PropertySet, bool, error) {
-	containerField, ok := prop.AsContainer()
+	last := parent.location
+	for _, p := range ps {
+		next := last.Children[p]
+		if next == nil {
+			next = &sourcedef_j5pb.SourceLocation{
+				Children: map[string]*sourcedef_j5pb.SourceLocation{},
+			}
+			last.Children[p] = next
+		}
+		last = next
+	}
+	childLocation := last
+
+	propContainer, ok := prop.AsContainer()
 	if ok {
-		container, err := containerField.GetOrCreateContainer()
+		container, err := propContainer.GetOrCreateContainer()
 		if err != nil {
 			return nil, false, err
 		}
-		return container, true, nil
+		wrapped := &containerField{
+			path:       append(parent.path, ps...),
+			schemaName: container.SchemaName(),
+			container:  container,
+			location:   childLocation,
+		}
+		return wrapped, true, nil
 	}
 
 	arrayField, ok := prop.AsArrayOfContainer()
 	if ok {
-		container, err := arrayField.NewContainerElement()
+		container, idx, err := arrayField.NewContainerElement()
 		if err != nil {
 			return nil, false, err
 		}
 
-		return container, true, nil
+		idxStr := fmt.Sprintf("%d", idx)
+		newPath := append(ps, idxStr)
+		cl := &sourcedef_j5pb.SourceLocation{}
+		childLocation.Children[idxStr] = cl
+
+		wrapped := &containerField{
+			path:       append(parent.path, newPath...),
+			schemaName: container.SchemaName(),
+			container:  container,
+			location:   cl,
+		}
+		return wrapped, true, nil
 	}
 
 	return nil, false, nil
 }
 
-func walkPath(container j5reflect.PropertySet, path []string) (j5reflect.Field, *WalkPathError) {
+func walkPath(container *containerField, path []string) (*containerField, *WalkPathError) {
 	if len(path) == 0 {
 		return nil, &WalkPathError{
 			Path: path,
@@ -247,44 +225,49 @@ func walkPath(container j5reflect.PropertySet, path []string) (j5reflect.Field, 
 	}
 
 	name, resst := path[0], path[1:]
-	if !container.HasProperty(name) {
+	if !container.container.HasProperty(name) {
 		return nil, &WalkPathError{
-			Path: []string{name},
-			Err:  fmt.Errorf("property %q not found", name),
+			Field:     name,
+			Type:      NodeNotFound,
+			Schema:    container.SchemaName(),
+			Available: container.container.ListPropertyNames(),
 		}
 	}
 
-	prop, err := container.GetProperty(name)
+	prop, err := container.container.GetProperty(name)
 	if err != nil {
 		return nil, &WalkPathError{
-			Path: []string{name},
-			Err:  err,
+			Field:  name,
+			Err:    err,
+			Schema: container.SchemaName(),
+		}
+	}
+
+	childContainer, ok, err := fieldToContainer(container, prop)
+	if err != nil {
+		return nil, &WalkPathError{
+			Field:  name,
+			Type:   UnknownPathError,
+			Err:    err,
+			Schema: container.SchemaName(),
+		}
+	}
+	if !ok {
+		return nil, &WalkPathError{
+			Field:  name,
+			Type:   NodeNotContainer,
+			Schema: container.SchemaName(),
 		}
 	}
 
 	if len(resst) == 0 {
-		return prop, nil
+		return childContainer, nil
 	}
 
-	propAsContainer, ok, err := fieldToContainer(prop)
-	if err != nil {
-		return nil, &WalkPathError{
-			Path: []string{name},
-			Type: UnknownPathError,
-			Err:  err,
-		}
-	}
-
-	if !ok {
-		return nil, &WalkPathError{
-			Path: []string{name},
-			Type: NodeNotContainer,
-		}
-	}
-
-	endField, pathErr := walkPath(propAsContainer, resst)
+	endField, pathErr := walkPath(childContainer, resst)
 	if pathErr != nil {
-		pathErr.Path = append([]string{name}, pathErr.Path...)
+		pathErr.Path = append([]string{pathErr.Field}, pathErr.Path...)
+		pathErr.Field = name
 		return nil, pathErr
 	}
 	return endField, nil

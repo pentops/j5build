@@ -5,14 +5,21 @@ import (
 	"os"
 	"testing"
 
+	"buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
 	"github.com/pentops/prototools/protoprint"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
+
+func withOption[T protoreflect.ProtoMessage](opt T, extType protoreflect.ExtensionType, extVal proto.Message) T {
+	proto.SetExtension(opt, extType, extVal)
+	return opt
+}
 
 func TestSchemaToProto(t *testing.T) {
 
@@ -57,7 +64,7 @@ func TestSchemaToProto(t *testing.T) {
 			Enum: &schema_j5pb.Enum{
 				Name:   "TestEnum",
 				Prefix: "TEST_ENUM_",
-				Options: []*schema_j5pb.Enum_Value{{
+				Options: []*schema_j5pb.Enum_Option{{
 					Name:   "UNSPECIFIED",
 					Number: 0,
 				}, {
@@ -98,7 +105,13 @@ func TestSchemaToProto(t *testing.T) {
 				Type:     descriptorpb.FieldDescriptorProto_TYPE_ENUM.Enum(),
 				Number:   proto.Int32(3),
 				TypeName: proto.String(".test.v1.TestEnum"),
-				Options:  &descriptorpb.FieldOptions{},
+				Options: withOption(&descriptorpb.FieldOptions{}, validate.E_Field, &validate.FieldConstraints{
+					Type: &validate.FieldConstraints_Enum{
+						Enum: &validate.EnumRules{
+							DefinedOnly: ptr(true),
+						},
+					},
+				}),
 			}},
 			Options: &descriptorpb.MessageOptions{},
 		}},

@@ -13,6 +13,7 @@ import (
 	"github.com/pentops/bcl.go/internal/j5parse"
 	"github.com/pentops/bcl.go/internal/protobuild"
 	"github.com/pentops/j5/codec"
+	"github.com/pentops/prototools/protoprint"
 	"github.com/pentops/runner/commander"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/descriptorpb"
@@ -100,7 +101,22 @@ func runJ5Gen(ctx context.Context, cfg struct {
 		fmt.Println(str)
 		os.Exit(1)
 	}
+	if err := protoprint.PrintProtoFiles(ctx, &fileWriter{dir: cfg.Dir}, desc, protoprint.Options{}); err != nil {
+		return err
+	}
 
 	return nil
 
+}
+
+type fileWriter struct {
+	dir string
+}
+
+func (f *fileWriter) PutFile(ctx context.Context, filename string, data []byte) error {
+	dir := path.Join(f.dir, path.Dir(filename))
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(path.Join(f.dir, filename), data, 0644)
 }

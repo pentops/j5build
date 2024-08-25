@@ -9,6 +9,7 @@ import (
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
+	"github.com/pentops/j5/lib/uuid62"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
@@ -97,13 +98,13 @@ func (fb *FileBuilder) AddRoot(schema *sourcedef_j5pb.RootElement) error {
 		}
 		err := doOneof(fb, st.Oneof.Def)
 		if err != nil {
-			return errpos.AddContext(err, "oneof")
+			return errpos.AddContext(err, "oneof", st.Oneof.Def.Name)
 		}
 		return nil
 	case *sourcedef_j5pb.RootElement_Entity:
 		err := fb.AddEntity(st.Entity)
 		if err != nil {
-			return errpos.AddContext(err, "entity")
+			return errpos.AddContext(err, "entity", st.Entity.Name)
 		}
 		return nil
 
@@ -116,44 +117,99 @@ func (fb *FileBuilder) AddEntity(entity *sourcedef_j5pb.Entity) error {
 	if entity.Keys == nil {
 		return fmt.Errorf("missing keys")
 	}
-	if entity.Data == nil {
-		return fmt.Errorf("missing data")
-	}
 	if entity.Status == nil {
 		return fmt.Errorf("missing status")
 	}
 
-	entity.Keys.Def.Description = entity.Description
-
-	stateMsg := &schema_j5pb.Object{
+	stateObj := &schema_j5pb.Object{
 		Name: strcase.ToCamel(entity.Name + "State"),
 		Entity: &schema_j5pb.EntityObject{
 			Entity: entity.Name,
 			Part:   schema_j5pb.EntityPart_STATE,
 		},
 	}
-	eventMsg := &schema_j5pb.Object{
+
+	keysObj := &schema_j5pb.Object{
+		Name: strcase.ToCamel(entity.Name + "Keys"),
+		Entity: &schema_j5pb.EntityObject{
+			Entity: entity.Name,
+			Part:   schema_j5pb.EntityPart_KEYS,
+		},
+	}
+
+	dataObj := &schema_j5pb.Object{
+		Name: strcase.ToCamel(entity.Name + "Data"),
+		//	Entity: &schema_j5pb.EntityObject{
+		//		Entity: entity.Name,
+		//		Part:   schema_j5pb.EntityPart_DATA,
+		//	},
+	}
+
+	eventOneof := &schema_j5pb.Oneof{
+		Name: strcase.ToCamel(entity.Name + "EventType"),
+	}
+
+	for _, event := range entity.Events {
+		event.Def.Name = strcase.ToCamel(event.Def.Name)
+		if err := doMessage(fb, event.Def); err != nil {
+			return errpos.AddContext(err, "event", event.Def.Name)
+		}
+		eventOneof.Properties = append(eventOneof.Properties, &schema_j5pb.ObjectProperty{
+			Name: strcase.ToSnake(event.Def.Name),
+			Schema: &schema_j5pb.Field{
+				Type: &schema_j5pb.Field_Object{
+					Object: &schema_j5pb.ObjectField{
+						Schema: &schema_j5pb.ObjectField_Object{
+							Object: event.Def,
+						},
+					},
+				},
+			},
+		})
+	}
+
+	eventObj := &schema_j5pb.Object{
 		Name: strcase.ToCamel(entity.Name + "Event"),
 		Entity: &schema_j5pb.EntityObject{
 			Entity: entity.Name,
 			Part:   schema_j5pb.EntityPart_EVENT,
 		},
+
+		Properties: []*schema_j5pb.ObjectProperty{{
+			Name:       "event",
+			ProtoField: []int32{3},
+			Schema: &schema_j5pb.Field{
+				Type: &schema_j5pb.Field_Oneof{
+					Oneof: &schema_j5pb.OneofField{
+						Schema: &schema_j5pb.OneofField_Ref{
+							Ref: &schema_j5pb.Ref{
+								Package: "",
+								Schema:  eventOneof.Name,
+							},
+						},
+					},
+				},
+			},
+		}},
 	}
 
-	if err := doMessage(fb, entity.Keys.Def); err != nil {
+	if err := doMessage(fb, keysObj); err != nil {
 		return errpos.AddContext(err, "keys")
 	}
-	if err := doMessage(fb, stateMsg); err != nil {
+	if err := doMessage(fb, stateObj); err != nil {
 		return errpos.AddContext(err, "state")
 	}
 	if err := doEnum(fb, entity.Status); err != nil {
 		return errpos.AddContext(err, "status")
 	}
-	if err := doMessage(fb, entity.Data.Def); err != nil {
+	if err := doMessage(fb, dataObj); err != nil {
 		return errpos.AddContext(err, "data")
 	}
-	if err := doMessage(fb, eventMsg); err != nil {
+	if err := doMessage(fb, eventObj); err != nil {
 		return errpos.AddContext(err, "event")
+	}
+	if err := doOneof(fb, eventOneof); err != nil {
+		return errpos.AddContext(err, "event oneof")
 	}
 
 	return nil
@@ -321,6 +377,20 @@ func (fb *FieldBuilder) build(schema *schema_j5pb.Field) error {
 
 	switch st := schema.Type.(type) {
 	case *schema_j5pb.Field_Any:
+		return fmt.Errorf("TODO: 'any' not implemented")
+
+	case *schema_j5pb.Field_Map:
+		if st.Map.ItemSchema == nil {
+			fmt.Printf("Field: \n%s\n", prototext.Format(schema))
+
+			return fmt.Errorf("missing schema/type")
+		}
+
+		fb.desc.Label = descriptorpb.FieldDescriptorProto_LABEL_REPEATED.Enum()
+		fb.desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
+
+		return fmt.Errorf("TODO: 'map' not implemented")
+
 	case *schema_j5pb.Field_Array:
 
 		if st.Array.Items == nil {
@@ -333,15 +403,84 @@ func (fb *FieldBuilder) build(schema *schema_j5pb.Field) error {
 			return errpos.AddContext(err, "array items")
 		}
 		fb.desc.Label = descriptorpb.FieldDescriptorProto_LABEL_REPEATED.Enum()
+
+		proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
+			Type: &ext_j5pb.FieldOptions_Array{
+				Array: st.Array.Ext,
+			},
+		})
+
+		if st.Array.Rules != nil {
+			rules := &validate.FieldConstraints{
+				Type: &validate.FieldConstraints_Repeated{
+					Repeated: &validate.RepeatedRules{
+						MinItems: st.Array.Rules.MinItems,
+						MaxItems: st.Array.Rules.MaxItems,
+						Unique:   st.Array.Rules.UniqueItems,
+					},
+				},
+			}
+			proto.SetExtension(field.Options, validate.E_Field, rules)
+		}
+
 		return nil
 
-	case *schema_j5pb.Field_Boolean:
-		field.Type = descriptorpb.FieldDescriptorProto_TYPE_BOOL.Enum()
+	case *schema_j5pb.Field_Object:
+		field.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
+		switch where := st.Object.Schema.(type) {
+		case *schema_j5pb.ObjectField_Ref:
+			if where.Ref.Package != "" {
+				field.TypeName = ptr(fmt.Sprintf(".%s.%s", where.Ref.Package, where.Ref.Schema))
+			} else {
+				field.TypeName = ptr(where.Ref.Schema)
+			}
+		case *schema_j5pb.ObjectField_Object:
+			// object is inline
+			return fmt.Errorf("TODO: inline object not implemented")
+		}
 
-	case *schema_j5pb.Field_Bytes:
-	case *schema_j5pb.Field_Date:
-	case *schema_j5pb.Field_Decimal:
+		if st.Object.Ext != nil {
+			proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
+				Type: &ext_j5pb.FieldOptions_Object{
+					Object: st.Object.Ext,
+				},
+			})
+		}
+
+		if st.Object.Rules != nil {
+			rules := &validate.FieldConstraints{}
+			proto.SetExtension(field.Options, validate.E_Field, rules)
+			return fmt.Errorf("TODO: object rules not implemented")
+		}
+
+	case *schema_j5pb.Field_Oneof:
+		field.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
+		switch where := st.Oneof.Schema.(type) {
+		case *schema_j5pb.OneofField_Ref:
+			if where.Ref.Package != "" {
+				field.TypeName = ptr(fmt.Sprintf(".%s.%s", where.Ref.Package, where.Ref.Schema))
+			} else {
+				field.TypeName = ptr(where.Ref.Schema)
+			}
+		case *schema_j5pb.OneofField_Oneof:
+			// oneof is inline
+			return fmt.Errorf("TODO: inline oneof not implemented")
+		}
+
+		proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
+			Type: &ext_j5pb.FieldOptions_Oneof{
+				Oneof: st.Oneof.Ext,
+			},
+		})
+
+		if st.Oneof.Rules != nil {
+			return fmt.Errorf("TODO: oneof rules not implemented")
+			rules := &validate.FieldConstraints{}
+			proto.SetExtension(field.Options, validate.E_Field, rules)
+		}
+
 	case *schema_j5pb.Field_Enum:
+
 		field.Type = descriptorpb.FieldDescriptorProto_TYPE_ENUM.Enum()
 		switch where := st.Enum.Schema.(type) {
 		case *schema_j5pb.EnumField_Ref:
@@ -352,50 +491,216 @@ func (fb *FieldBuilder) build(schema *schema_j5pb.Field) error {
 			}
 		case *schema_j5pb.EnumField_Enum:
 			// enum is inline
+			return fmt.Errorf("TODO: inline enum not implemented")
 		}
-	case *schema_j5pb.Field_Float:
-	case *schema_j5pb.Field_Integer:
-	case *schema_j5pb.Field_Key:
-		field.Type = descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum()
-		if st.Key.Format != nil {
-			switch st.Key.Format.Type.(type) {
-			case *schema_j5pb.KeyFormat_Uuid:
-				fb.msg.Parent.ensureImport(bufValidateImport)
-				proto.SetExtension(field.Options, validate.E_Field, &validate.FieldConstraints{
-					Type: &validate.FieldConstraints_String_{
-						String_: &validate.StringRules{
-							WellKnown: &validate.StringRules_Uuid{
-								Uuid: true,
-							},
-						},
-					},
-				})
+		if st.Enum.Ext != nil {
 
-			default:
-				return fmt.Errorf("unknown key format %T", st.Key.Format.Type)
-			}
-
-		}
-		fb.msg.Parent.ensureImport(j5ExtImport)
-		proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
-			Type: &ext_j5pb.FieldOptions_Key{
-				Key: &ext_j5pb.KeyTypeFieldOptions{},
-			},
-		})
-
-		if st.Key.Primary {
-			proto.SetExtension(field.Options, ext_j5pb.E_Key, &ext_j5pb.KeyFieldOptions{
-				PrimaryKey: true,
+			proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
+				Type: &ext_j5pb.FieldOptions_Enum{
+					Enum: st.Enum.Ext,
+				},
 			})
 		}
 
-	case *schema_j5pb.Field_Map:
-	case *schema_j5pb.Field_Object:
-	case *schema_j5pb.Field_Oneof:
+		enumRules := &validate.EnumRules{
+			DefinedOnly: ptr(true),
+		}
+
+		if st.Enum.Rules != nil {
+			if st.Enum.Rules.In != nil || st.Enum.Rules.NotIn != nil {
+				return fmt.Errorf("TODO: enum rules not implemented, requires reflection lookup")
+			}
+		}
+
+		rules := &validate.FieldConstraints{
+			Type: &validate.FieldConstraints_Enum{
+				Enum: enumRules,
+			},
+		}
+		proto.SetExtension(field.Options, validate.E_Field, rules)
+
+	case *schema_j5pb.Field_Bool:
+		field.Type = descriptorpb.FieldDescriptorProto_TYPE_BOOL.Enum()
+
+		proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
+			Type: &ext_j5pb.FieldOptions_Bool{
+				Bool: st.Bool.Ext,
+			},
+		})
+
+		if st.Bool.Rules != nil {
+			rules := &validate.FieldConstraints{
+				Type: &validate.FieldConstraints_Bool{
+					Bool: &validate.BoolRules{
+						Const: st.Bool.Rules.Const,
+					},
+				},
+			}
+			proto.SetExtension(field.Options, validate.E_Field, rules)
+		}
+
+	case *schema_j5pb.Field_Bytes:
+		field.Type = descriptorpb.FieldDescriptorProto_TYPE_BYTES.Enum()
+		proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
+			Type: &ext_j5pb.FieldOptions_Bytes{
+				Bytes: st.Bytes.Ext,
+			},
+		})
+
+		if st.Bytes.Rules != nil {
+			rules := &validate.FieldConstraints{
+				Type: &validate.FieldConstraints_Bytes{
+					Bytes: &validate.BytesRules{
+						MinLen: st.Bytes.Rules.MinLength,
+						MaxLen: st.Bytes.Rules.MaxLength,
+					},
+				},
+			}
+			proto.SetExtension(field.Options, validate.E_Field, rules)
+		}
+
+	case *schema_j5pb.Field_Date:
+		field.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
+		field.TypeName = ptr(".j5.types.date.v1.Date")
+		proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
+			Type: &ext_j5pb.FieldOptions_Date{
+				Date: st.Date.Ext,
+			},
+		})
+
+	case *schema_j5pb.Field_Decimal:
+		field.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
+		field.TypeName = ptr(".j5.types.decimal.v1.Decimal")
+		proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
+			Type: &ext_j5pb.FieldOptions_Decimal{
+				Decimal: st.Decimal.Ext,
+			},
+		})
+
+	case *schema_j5pb.Field_Float:
+		if st.Float.Rules != nil {
+			return fmt.Errorf("TODO: float rules not implemented")
+		}
+		switch st.Float.Format {
+		case schema_j5pb.FloatField_FORMAT_FLOAT32:
+			field.Type = descriptorpb.FieldDescriptorProto_TYPE_FLOAT.Enum()
+
+		case schema_j5pb.FloatField_FORMAT_FLOAT64:
+			field.Type = descriptorpb.FieldDescriptorProto_TYPE_DOUBLE.Enum()
+		default:
+			return fmt.Errorf("unknown float format %T", st.Float.Format)
+		}
+
+		proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
+			Type: &ext_j5pb.FieldOptions_Float{
+				Float: st.Float.Ext,
+			},
+		})
+
+	case *schema_j5pb.Field_Integer:
+		if st.Integer.Rules != nil {
+			return fmt.Errorf("TODO: integer rules not implemented")
+		}
+		switch st.Integer.Format {
+		case schema_j5pb.IntegerField_FORMAT_INT32:
+			field.Type = descriptorpb.FieldDescriptorProto_TYPE_INT32.Enum()
+		case schema_j5pb.IntegerField_FORMAT_INT64:
+			field.Type = descriptorpb.FieldDescriptorProto_TYPE_INT64.Enum()
+		case schema_j5pb.IntegerField_FORMAT_UINT32:
+			field.Type = descriptorpb.FieldDescriptorProto_TYPE_UINT32.Enum()
+		case schema_j5pb.IntegerField_FORMAT_UINT64:
+			field.Type = descriptorpb.FieldDescriptorProto_TYPE_UINT64.Enum()
+		default:
+			return fmt.Errorf("unknown integer format %T", st.Integer.Format)
+		}
+
+		proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
+			Type: &ext_j5pb.FieldOptions_Integer{
+				Integer: st.Integer.Ext,
+			},
+		})
+
+	case *schema_j5pb.Field_Key:
+		field.Type = descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum()
+		fb.msg.Parent.ensureImport(j5ExtImport)
+
+		if st.Key.Ext.PrimaryKey {
+			proto.SetExtension(field.Options, ext_j5pb.E_Key, &ext_j5pb.PSMKeyFieldOptions{
+				PrimaryKey: true,
+			})
+		}
+		proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
+			Type: &ext_j5pb.FieldOptions_Key{
+				Key: st.Key.Ext,
+			},
+		})
+
+		stringRules := &validate.StringRules{}
+
+		if st.Key.Format != nil {
+			switch st.Key.Format.Type.(type) {
+			case *schema_j5pb.KeyFormat_Uuid:
+				stringRules.WellKnown = &validate.StringRules_Uuid{
+					Uuid: true,
+				}
+
+			case *schema_j5pb.KeyFormat_Uuid62:
+				stringRules.Pattern = ptr(uuid62.PatternString)
+			default:
+				return fmt.Errorf("unknown key format %T", st.Key.Format.Type)
+			}
+			fb.msg.Parent.ensureImport(bufValidateImport)
+			proto.SetExtension(field.Options, validate.E_Field, &validate.FieldConstraints{
+				Type: &validate.FieldConstraints_String_{
+					String_: stringRules,
+				},
+			})
+
+		}
+
 	case *schema_j5pb.Field_String_:
 		field.Type = descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum()
 
+		if st.String_.Ext != nil {
+			proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
+				Type: &ext_j5pb.FieldOptions_String_{
+					String_: st.String_.Ext,
+				},
+			})
+
+		}
+		if st.String_.Rules != nil {
+			rules := &validate.FieldConstraints{
+				Type: &validate.FieldConstraints_String_{
+					String_: &validate.StringRules{
+						MinLen:  st.String_.Rules.MinLength,
+						MaxLen:  st.String_.Rules.MaxLength,
+						Pattern: st.String_.Rules.Pattern,
+					},
+				},
+			}
+			proto.SetExtension(field.Options, validate.E_Field, rules)
+		}
+
 	case *schema_j5pb.Field_Timestamp:
+
+		field.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
+		field.TypeName = ptr(".j5.types.timestamp.v1.Timestamp")
+		proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
+			Type: &ext_j5pb.FieldOptions_Timestamp{
+				Timestamp: st.Timestamp.Ext,
+			},
+		})
+
+		if st.Timestamp.Rules != nil {
+			rules := &validate.FieldConstraints{
+				Type: &validate.FieldConstraints_Timestamp{
+					Timestamp: &validate.TimestampRules{},
+					// None Implemented.
+				},
+			}
+			proto.SetExtension(field.Options, validate.E_Field, rules)
+		}
 	default:
 		return fmt.Errorf("unknown schema type %T", schema.Type)
 	}

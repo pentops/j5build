@@ -241,7 +241,7 @@ func (v Value) AsString() (string, error) {
 	return v.token.Lit, nil
 }
 
-func (v Value) AsBoolean() (bool, error) {
+func (v Value) AsBool() (bool, error) {
 	if v.token.Type != lexer.BOOL {
 		return false, &TypeError{
 			Expected: "bool",

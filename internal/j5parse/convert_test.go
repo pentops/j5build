@@ -34,11 +34,43 @@ func TestObject(t *testing.T) {
 
 }
 
+func TestObjectField(t *testing.T) {
+	file := build()
+	obj := file.addObject("Foo")
+	field := obj.addField("bar")
+	field.prop.Schema = &schema_j5pb.Field{
+		Type: &schema_j5pb.Field_Object{
+			Object: &schema_j5pb.ObjectField{
+				Schema: &schema_j5pb.ObjectField_Object{
+					Object: &schema_j5pb.Object{
+						Properties: []*schema_j5pb.ObjectProperty{{
+							ProtoField: []int32{1},
+							Name:       "bar_id",
+							Schema: &schema_j5pb.Field{
+								Type: &schema_j5pb.Field_String_{String_: &schema_j5pb.StringField{}},
+							},
+						}},
+					},
+				},
+			},
+		},
+	}
+
+	file.run(t, `
+		object Foo {
+			field bar object {
+				field bar_id string {
+				}
+			}
+		}
+	`)
+}
+
 func TestEntity(t *testing.T) {
 	file := build()
 	ent := file.addEntity("Foo")
 
-	evt := ent.addEvent("doThing")
+	evt := ent.addEvent("DoThing")
 	evt.addField("bar").prop.Schema = &schema_j5pb.Field{
 		Type: &schema_j5pb.Field_String_{
 			String_: &schema_j5pb.StringField{},
@@ -47,7 +79,7 @@ func TestEntity(t *testing.T) {
 
 	file.run(t, `
 		entity Foo {
-			event doThing {
+			event DoThing {
 				field bar string
 			}
 		}

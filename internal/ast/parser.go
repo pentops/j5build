@@ -314,7 +314,7 @@ func (ww *Walker) walkStatement(ref Reference) (Statement, error) {
 		return block, nil
 
 	default:
-		return nil, unexpectedToken(ww.popToken(), lexer.LBRACE, lexer.EOL)
+		return nil, unexpectedToken(ww.popToken(), lexer.LBRACE, lexer.EOL, lexer.DESCRIPTION, lexer.IDENT)
 	}
 }
 
