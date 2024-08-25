@@ -82,6 +82,21 @@ func (e Errors) Error() string {
 	return "multiple syntax errors"
 }
 
+func AsError(err error) (*Err, bool) {
+	if err == nil {
+		return nil, false
+	}
+
+	var single *Err
+	if errors.As(err, &single) {
+		single.mergeErr(err, "Group")
+		return single, true
+	}
+
+	return nil, false
+
+}
+
 func AsErrors(err error) (Errors, bool) {
 	if err == nil {
 		return nil, false
@@ -115,10 +130,9 @@ func AsErrors(err error) (Errors, bool) {
 // Error wraps it all together.
 // Short names are annoying but - duck typing.
 type Err struct {
-	Pos     *Position
-	Ctx     Context
-	Schemas []string
-	Err     error
+	Pos *Position
+	Ctx Context
+	Err error
 }
 
 var _ HasPosition = &Err{}
@@ -130,9 +144,6 @@ func (e *Err) Error() string {
 	}
 	if len(e.Ctx) > 0 {
 		parts = append(parts, "in ", e.Ctx.String(), ": ")
-	}
-	for _, schema := range e.Schemas {
-		parts = append(parts, " <", schema, "> ")
 	}
 	if e.Err == nil {
 		parts = append(parts, "<nil error>")
@@ -162,24 +173,6 @@ func (e *Err) mergeErr(err error, label string) {
 	}
 	fmt.Printf("==========\nMERGE ERRORS %s\n    new: %v \n      %T \n  exist: %v\n      %T\n----\n", label, err, err, e.Err, e.Err)
 	e.Err = fmt.Errorf("%w: %v", e.Err, err)
-}
-
-func SetSchemas(err error, schemas []string) error {
-	if err == nil {
-		return nil
-	}
-
-	existing := &Err{}
-	if !errors.As(err, &existing) {
-		return &Err{
-			Schemas: schemas,
-			Err:     err,
-		}
-	}
-
-	existing.mergeErr(err, "Schema")
-	existing.Schemas = schemas
-	return existing
 }
 
 // WithContext adds context elements to an error.

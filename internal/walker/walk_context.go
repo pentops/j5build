@@ -8,23 +8,24 @@ import (
 
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/bcl.go/internal/ast"
-	"github.com/pentops/bcl.go/internal/reflwrap"
 	"github.com/pentops/bcl.go/internal/walker/schema"
 	"github.com/pentops/j5/lib/j5reflect"
 )
 
+type ScopeFlag int
+
+const (
+	// Reset the scope to the new block
+	ResetScope ScopeFlag = iota
+	// Keep the current scope and add the new block
+	KeepScope
+)
+
 type Context interface {
-	WithTypeSelect(path schema.PathSpec, givenName ast.Reference, fn SpanCallback) error
-
-	SetScalar(path schema.PathSpec, value ast.Value) error
-	FindAttribute(ref ast.Reference) (reflwrap.Field, error)
-
-	// WithBlock begins a new context with nothing in the search path, for the
-	// block found by the given name.
-	WithBlock(ref ast.Reference, fn SpanCallback) error
+	SetAttribute(path schema.PathSpec, ref ast.Reference, value ast.Value) error
+	WithBlock(path schema.PathSpec, ref ast.Reference, resetScope ScopeFlag, fn SpanCallback) error
 
 	Logf(format string, args ...interface{})
-	LogSelf(label string, args ...interface{})
 	WrapErr(err error, pos errpos.Position) error
 }
 
@@ -68,95 +69,177 @@ func Walk(obj j5reflect.Object, spec *schema.ConversionSpec, cb SpanCallback) er
 
 }
 
-func (sc *walkContext) FindAttribute(ref ast.Reference) (reflwrap.Field, error) {
-	//sc.LogSelf("findAttribute(%#v)", ref)
-	return sc.schema.FindAttribute(ref)
+func newSchemaError(err error) error {
+	if err == nil {
+		panic("newSchemaError called with nil error")
+
+	}
+	if fmt.Sprintf("%s", err) == "<nil>" {
+		panic("newSchemaError called with nil error")
+	}
+	return fmt.Errorf("Schema Error): %w", err)
 }
 
-func (sc *walkContext) WithBlock(ref ast.Reference, fn SpanCallback) error {
-	//sc.LogSelf("findBlock(%#v)", ref)
-	container, err := sc.schema.FindBlock(ref)
+type pathElement struct {
+	name     string
+	position *errpos.Position
+}
+
+func combinePath(path schema.PathSpec, ref ast.Reference) []pathElement {
+	pathToBlock := make([]pathElement, len(path)+len(ref))
+	for i, ident := range path {
+		pathToBlock[i] = pathElement{
+			name: ident,
+		}
+	}
+
+	for i, ident := range ref {
+		start := ident.Start
+		pathToBlock[i+len(path)] = pathElement{
+			name:     ident.String(),
+			position: &start,
+		}
+	}
+	return pathToBlock
+}
+
+func (sc *walkContext) walkPath(path []pathElement) (schema.Scope, error) {
+	container := sc.schema
+	for _, ident := range path {
+		next, err := container.ChildBlock(ident.name)
+		if err != nil {
+			if ident.position != nil {
+				return nil, sc.WrapErr(err, *ident.position)
+			} else {
+				return nil, newSchemaError(err)
+			}
+		}
+		container = next
+	}
+	return container, nil
+}
+
+func (sc *walkContext) WithBlock(path schema.PathSpec, ref ast.Reference, scopeFlag ScopeFlag, fn SpanCallback) error {
+	sc.Logf("WithBlock(%#v, %#v)", path, ref)
+	fullPath := combinePath(path, ref)
+	if len(fullPath) == 0 {
+		if scopeFlag == ResetScope {
+			// call back with just the tail schema
+			return sc.withSchema(sc.schema, ResetScope, fn)
+		}
+
+		return newSchemaError(fmt.Errorf("empty path for WithBlock and KeepScope"))
+	}
+
+	container, err := sc.walkPath(fullPath)
 	if err != nil {
 		return err
 	}
 
-	return sc.withSchema(container, true, fn)
+	// Then call back with the schema of the end node in scope. Scope does not
+	// get modified until the end
+	return sc.withSchema(container, scopeFlag, fn)
 }
 
-// WithTypeSelect selects a child container from a wrapper container at path.
-// It is intended to be used where exactly one option of the wrapper should be
-// set, so the wrapper is not included in the callback scope.
-// The node it finds at givenName should must be a block, which is appended to
-// the scope and becomes the new leaf for the callback.
-func (sc *walkContext) WithTypeSelect(path schema.PathSpec, givenName ast.Reference, fn SpanCallback) error {
+type BadTypeError struct {
+	WantType string
+	GotType  string
+}
 
-	scopeAtPath, err := sc.schema.NewScopeAtPath(path)
+func (bte BadTypeError) Error() string {
+	return fmt.Sprintf("bad type: want %s, got %s", bte.WantType, bte.GotType)
+}
+
+func (sc *walkContext) SetAttribute(path schema.PathSpec, ref ast.Reference, val ast.Value) error {
+	sc.Logf("SetAttribute(%#v, %#v, %#v)", path, ref, val)
+	fullPath := combinePath(path, ref)
+	if len(fullPath) == 0 {
+		return newSchemaError(fmt.Errorf("empty path for SetAttribute"))
+	}
+	last := fullPath[len(fullPath)-1]
+	pathToBlock := fullPath[:len(fullPath)-1]
+	container, err := sc.walkPath(pathToBlock)
 	if err != nil {
 		return err
 	}
 
-	// the block should have a property with the name given by the user.
-	blockForType, err := scopeAtPath.FindBlock(givenName)
+	field, err := container.Field(last.name)
 	if err != nil {
-		// this is not a schema error, as it's the passed in user value.
-		err = errpos.AddPosition(err, givenName[0].Start)
-		return err
+		if last.position != nil {
+			return sc.WrapErr(err, *last.position)
+		} else {
+			return newSchemaError(err)
+		}
 	}
 
-	// Continue walking, the scope of the blockForType is appended and the type
-	// value is set.
-	return sc.withSchema(blockForType, false, fn)
-}
-
-func (sc *walkContext) SetScalar(path schema.PathSpec, value ast.Value) error {
-	sc.Logf("SetScalar(%#v, %#v)", path, value)
-	leaf, err := sc.schema.FieldPathInLeaf(path)
+	err = field.SetASTValue(val)
 	if err != nil {
-		return fmt.Errorf("(Schema Error): %w", err)
+		return sc.WrapErr(err, val.Start)
 	}
-	return leaf.SetScalar(value)
+	return nil
 }
 
 func (wc *walkContext) run(fn func(Context) error) error {
 	err := fn(wc)
 	if err != nil {
+		// already scoped, pass it up the tree.
 		scoped := &scopedError{}
 		if errors.As(err, &scoped) {
 			return err
 		}
 
-		err = wc.WrapErr(err, errpos.Position{})
-		err = errpos.AddContext(err, strings.Join(wc.name, "."))
-		err = errpos.SetSchemas(err, wc.schema.SchemaNames())
+		wc.Logf("New Error %s", err)
+
+		posErr, ok := errpos.AsError(err)
+		if !ok {
+			wc.Logf("Not errpos")
+			posErr = &errpos.Err{
+				Err: err,
+			}
+		}
 
 		return &scopedError{
-			err:    err.(*errpos.Err),
+			err:    posErr,
 			schema: wc.schema,
 		}
 	}
-	wc.depth--
-	wc.Logf("|<<< Leaving %s <<<", wc.name)
 	return nil
 }
 
-func (wc *walkContext) withSchema(container schema.Scope, freshScope bool, fn SpanCallback) error {
-	wc.Logf("|>>> ENTERING >>>>")
-	wc.Logf("|> %q", strings.Join(container.CurrentBlock().Path(), "."))
+func (wc *walkContext) withSchema(container schema.Scope, scopeFlag ScopeFlag, fn SpanCallback) error {
+	lastBlock := container.CurrentBlock()
+
+	pathName := strings.Join(lastBlock.Path(), ".")
+	wc.Logf("|>>> Entering %q >>>", pathName)
+	defer wc.Logf("|<<< Leaving %q <<<", pathName)
+	prefix := strings.Repeat("| ", wc.depth) + "|> "
+	entry := prefixer(log.Printf, prefix)
+
+	newName := append(wc.name, lastBlock.Path()...)
+	entry("Path = %q", strings.Join(newName, "."))
+
+	newScope := container
+	switch scopeFlag {
+	case ResetScope:
+		entry("Reset Scope")
+	case KeepScope:
+		entry("Keep Scope")
+		newScope = wc.schema.MergeScope(container)
+	}
+	newScope.PrintScope(entry)
+
 	childContext := &walkContext{
-		schema: container,
-		name:   append(wc.name, container.CurrentBlock().Path()...),
+		schema: newScope,
+		name:   newName,
 		depth:  wc.depth + 1,
 	}
-	wc.Logf("|> Path = %q", strings.Join(childContext.name, "."))
-
 	return childContext.run(func(sc Context) error {
 		return fn(sc, container.CurrentBlock().Spec())
 	})
 }
 
 func (wc *walkContext) WrapErr(err error, pos errpos.Position) error {
-	err = errpos.AddContext(err, strings.Join(wc.name, "."))
-	err = errpos.SetSchemas(err, wc.schema.SchemaNames())
+	//	err = errpos.AddContext(err, strings.Join(wc.name, "."))
 	err = errpos.AddPosition(err, pos)
 	return err
 }
@@ -194,13 +277,9 @@ func logError(err error) {
 		return
 	}
 	pf := prefixer(log.Printf, "ERR | ")
-	pf("Error %s", err)
+	msg := scoped.err.Err.Error()
+	pf("Error: %s", msg)
+	pf("Scope:")
 	scoped.schema.PrintScope(pf)
-	pf("Got Error %s\n", err)
-}
-
-func (wc *walkContext) LogSelf(label string, args ...interface{}) {
-	wc.Logf(label, args...)
-	wc.Logf("Context For %q", wc.name)
-	wc.schema.PrintScope(wc.Logf)
+	pf("Got Error %s\n", msg)
 }

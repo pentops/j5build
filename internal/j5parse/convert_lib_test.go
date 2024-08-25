@@ -1,6 +1,7 @@
 package j5parse
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -130,4 +131,113 @@ func cmpProto(t testing.TB, want, got proto.Message) {
 		t.Error("Found Diffs")
 	}
 
+}
+
+type rootBuilder struct {
+	lines []string
+	sourceContext
+}
+
+func (sb *rootBuilder) addLine(s string) {
+	sb.lines = append(sb.lines, s)
+}
+
+type sourceBuilder interface {
+	p(...string)
+	indent() sourceBuilder
+}
+
+type sourceContext struct {
+	collector interface{ addLine(string) }
+	prefix    string
+}
+
+func (sb *sourceContext) p(s ...string) {
+	sb.collector.addLine(sb.prefix + strings.Join(s, ""))
+}
+
+func (sb *sourceContext) indent() sourceBuilder {
+	return &sourceContext{
+		collector: sb.collector,
+		prefix:    sb.prefix + "  ",
+	}
+}
+
+func buildSource() *blockBuilder {
+	return &blockBuilder{}
+}
+
+func (sb *rootBuilder) toString() string {
+	return strings.Join(sb.lines, "\n")
+}
+
+type blockBuilder struct {
+	_tags []string
+	_qual []string
+	body  []statementBuilder
+}
+
+func (bb *blockBuilder) qualifiers(s ...string) {
+	bb._qual = append(bb._qual, s...)
+}
+
+func (bb *blockBuilder) write(p sourceBuilder) {
+	suffix := " {"
+	if len(bb.body) == 0 {
+		suffix = ""
+	}
+	if len(bb._qual) > 0 {
+		p.p(
+			strings.Join(bb._tags, " "),
+			":",
+			strings.Join(bb._qual, ":"),
+			suffix,
+		)
+	} else {
+
+		p.p(strings.Join(bb._tags, " "), suffix)
+	}
+	if len(bb.body) == 0 {
+		return
+	}
+	ind := p.indent()
+	for _, stmt := range bb.body {
+		stmt.write(ind)
+	}
+	p.p("}")
+
+}
+
+type attributeBuilder struct {
+	name  string
+	value string
+}
+
+func (ab *attributeBuilder) write(p sourceBuilder) {
+	p.p(ab.name + " = " + ab.value)
+}
+
+type statementBuilder interface {
+	write(p sourceBuilder)
+}
+
+func (sb *blockBuilder) block(tags ...string) *blockBuilder {
+	block := &blockBuilder{
+		_tags: tags,
+	}
+	sb.body = append(sb.body, block)
+	return block
+}
+
+func (sb *blockBuilder) attr(name, value string) {
+	sb.body = append(sb.body, &attributeBuilder{
+		name:  name,
+		value: value,
+	})
+}
+
+func buildString(blk *blockBuilder) string {
+	sb := &rootBuilder{}
+	blk.write(&sourceContext{collector: sb})
+	return sb.toString()
 }

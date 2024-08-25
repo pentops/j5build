@@ -12,12 +12,19 @@ var globalDefs = map[string]*schema.BlockSpec{
 	},
 	"j5.schema.v1.ArrayField": {
 		Qualifier: &schema.Tag{
-			Path: []string{"items"},
+			Path:    []string{"items"},
+			IsBlock: true,
 		},
 	},
 	"j5.schema.v1.KeyField": {
 		Qualifier: &schema.Tag{
-			Path: []string{"format"},
+			Path:    []string{"format"},
+			IsBlock: true,
+		},
+	},
+	"j5.schema.v1.Field": {
+		TypeSelect: &schema.Tag{
+			Path: []string{}, // self
 		},
 	},
 	"j5.schema.v1.ObjectProperty": {
@@ -48,7 +55,15 @@ var globalDefs = map[string]*schema.BlockSpec{
 	},
 	"j5.sourcedef.v1.Object": {
 		Description: []string{"description"},
-		Location:    []string{"location"},
+		Name: &schema.Tag{
+			Path: []string{"name"},
+		},
+		Blocks: map[string]schema.PathSpec{
+			"field": {"properties"},
+		},
+	},
+	"j5.schema.v1.Object": {
+		Description: []string{"description"},
 		Name: &schema.Tag{
 			Path: []string{"name"},
 		},
@@ -58,7 +73,6 @@ var globalDefs = map[string]*schema.BlockSpec{
 	},
 	"j5.sourcedef.v1.Oneof": {
 		Description: []string{"description"},
-		Location:    []string{"location"},
 		Name: &schema.Tag{
 			Path: []string{"name"},
 		},
@@ -79,7 +93,6 @@ var globalDefs = map[string]*schema.BlockSpec{
 		Name: &schema.Tag{
 			Path: []string{"name"},
 		},
-		Location: []string{"location"},
 		Blocks: map[string]schema.PathSpec{
 			"key":    {"keys", "properties"},
 			"data":   {"data"},

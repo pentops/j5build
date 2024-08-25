@@ -127,11 +127,6 @@ func humanString(err *Err, lines []string, context int) string {
 		out.WriteString(err.Ctx.String())
 		out.WriteString("\n")
 	}
-	for _, schema := range err.Schemas {
-		out.WriteString(" Schema: ")
-		out.WriteString(schema)
-		out.WriteString("\n")
-	}
 	if err.Err != nil {
 		out.WriteString("Message: ")
 		out.WriteString(err.Err.Error())

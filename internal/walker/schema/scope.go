@@ -1,25 +1,25 @@
 package schema
 
 import (
-	"fmt"
-
-	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/bcl.go/internal/ast"
-	"github.com/pentops/bcl.go/internal/reflwrap"
 	"github.com/pentops/j5/lib/j5reflect"
 )
+
+type ScalarField interface {
+	SetASTValue(j5reflect.ASTValue) error
+}
 
 type Scope interface {
 	PrintScope(func(string, ...interface{}))
 	SchemaNames() []string
 
-	FieldPathInLeaf(PathSpec) (reflwrap.Field, error)
-	FindAttribute(ast.Reference) (reflwrap.Field, error)
-
-	NewScopeAtPath(PathSpec) (Scope, error)
-	FindBlock(ast.Reference) (Scope, error)
-
+	ChildBlock(name string) (Scope, error)
+	Field(name string) (ScalarField, error)
 	CurrentBlock() Container
+
+	ListAttributes() []string
+	ListBlocks() []string
+
+	MergeScope(Scope) Scope
 }
 
 type Container interface {
@@ -28,7 +28,7 @@ type Container interface {
 }
 
 type schemaWalker struct {
-	blockSet  blockScope
+	blockSet  containerSet
 	leafBlock *containerField
 	schemaSet *SchemaSet
 }
@@ -46,23 +46,22 @@ func NewRootSchemaWalker(spec *ConversionSpec, root j5reflect.Object) (Scope, er
 		ss.givenSpecs = map[string]*BlockSpec{}
 	}
 
-	rootContainer := reflwrap.NewContainerField(root)
-	rootWrapped, err := ss.wrapContainer(rootContainer, []string{})
+	rootWrapped, err := ss.wrapContainer(root, []string{})
 	if err != nil {
 		return nil, err
 	}
 
 	return &schemaWalker{
 		schemaSet: ss,
-		blockSet:  blockScope{*rootWrapped},
+		blockSet:  containerSet{*rootWrapped},
 		leafBlock: rootWrapped,
 	}, nil
 }
 
 func (sw *schemaWalker) newChild(container *containerField, newScope bool) *schemaWalker {
-	var newBlockSet blockScope
+	var newBlockSet containerSet
 	if newScope {
-		newBlockSet = blockScope{*container}
+		newBlockSet = containerSet{*container}
 	} else {
 		newBlockSet = append(sw.blockSet, *container)
 	}
@@ -74,91 +73,51 @@ func (sw *schemaWalker) newChild(container *containerField, newScope bool) *sche
 }
 
 func (sw *schemaWalker) SchemaNames() []string {
-	return sw.blockSet.SchemaNames()
+	return sw.blockSet.schemaNames()
 }
 
-// fieldPathInLeaf is called when parsing tag lines, where only the leaf context
-// is considered.
-func (sw *schemaWalker) FieldPathInLeaf(path PathSpec) (reflwrap.Field, error) {
-	atPath, err := walkPath(sw.leafBlock.container, path)
-	if err != nil {
-		return nil, schemaError(path, err)
-	}
-
-	return atPath, nil
+func (sw *schemaWalker) ListAttributes() []string {
+	return sw.blockSet.listAttributes()
 }
 
-func (sw *schemaWalker) FindAttribute(ref ast.Reference) (reflwrap.Field, error) {
-	if len(ref) == 0 {
-		return nil, fmt.Errorf("invalid attribute reference %#v", ref)
-	}
+func (sw *schemaWalker) ListBlocks() []string {
+	return sw.blockSet.listBlocks()
+}
 
-	field, err := sw.walkReferences(ref)
-	if err != nil {
-		return nil, fmt.Errorf("attribute %q: %s", ref, err)
+func (sw *schemaWalker) Field(name string) (ScalarField, error) {
+	field, walkErr := sw.blockSet.fieldForAttribute(name)
+	if walkErr != nil {
+		return nil, walkErr
 	}
 	return field, nil
-
 }
 
-func (sw *schemaWalker) walkReferences(ref ast.Reference) (reflwrap.Field, error) {
-	root, rest := ref[0], ref[1:]
-	if len(rest) == 0 {
-		return sw.blockSet.fieldForAttribute(root.String())
-	}
+func (sw *schemaWalker) ChildBlock(name string) (Scope, error) {
 
-	container, err := sw.findBlockStep(root)
+	container, walkErr := sw.blockSet.containerForBlock(name)
+	if walkErr != nil {
+		return nil, walkErr
+	}
+	wrappedContainer, err := sw.schemaSet.wrapContainer(container, []string{name})
 	if err != nil {
 		return nil, err
 	}
-
-	newWalker := sw.newChild(container, true)
-	return newWalker.walkReferences(rest)
+	newWalker := sw.newChild(wrappedContainer, true)
+	return newWalker, nil
 }
 
-func (sw *schemaWalker) FindBlock(ref ast.Reference) (Scope, error) {
-	if len(ref) != 1 {
-		return nil, fmt.Errorf("TODO: BLOCK Namespace Tags %#v", ref)
+func (sw *schemaWalker) MergeScope(other Scope) Scope {
+	otherWalker, ok := other.(*schemaWalker)
+	if !ok {
+		panic("invalid merge")
 	}
 
-	name, rest := ref[0], ref[1:]
-
-	container, err := sw.findBlockStep(name)
-	if err != nil {
-		return nil, err
+	newBlockSet := append(sw.blockSet, otherWalker.blockSet...)
+	return &schemaWalker{
+		blockSet:  newBlockSet,
+		leafBlock: otherWalker.leafBlock,
+		schemaSet: sw.schemaSet,
 	}
-	newWalker := sw.newChild(container, true)
-	return newWalker.FindBlock(rest)
-}
-
-func (sw *schemaWalker) findBlockStep(ref ast.Ident) (*containerField, error) {
-	container, err := sw.blockSet.containerForBlock(ref.String())
-	if err != nil {
-		err = errpos.AddPosition(err, ref.Start)
-		return nil, err
-	}
-	return sw.schemaSet.wrapContainer(container, []string{ref.String()})
-}
-
-func (sw *schemaWalker) NewScopeAtPath(path PathSpec) (Scope, error) {
-	atPath, err := walkPath(sw.leafBlock.container, path)
-	if err != nil {
-		return nil, schemaError(path, err)
-	}
-
-	container, err := atPath.AsContainer()
-	if err != nil {
-		return nil, err
-	}
-
-	wrapped, err := sw.schemaSet.wrapContainer(container, path)
-	if err != nil {
-		return nil, err
-	}
-
-	// new scope with just the container in it.
-	scopeAtPath := sw.newChild(wrapped, false)
-	return scopeAtPath, nil
 }
 
 func (sw *schemaWalker) PrintScope(logf func(string, ...interface{})) {

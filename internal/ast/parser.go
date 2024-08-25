@@ -377,12 +377,22 @@ func (ww *Walker) walkBlockStatement(block *BlockStatement) error {
 		return err
 	}
 
+	empty := false
+	if ww.nextType() == lexer.RBRACE {
+		// Empty block
+		ww.popToken()
+		empty = true
+	}
+
 	comment, err := ww.endStatement()
 	if err != nil {
 		return err
 	}
 	if comment != nil {
 		block.Comment = comment
+	}
+	if empty {
+		return nil
 	}
 
 	if ww.nextType() == lexer.DESCRIPTION {
