@@ -3,6 +3,7 @@ package schema
 import (
 	"fmt"
 
+	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
 )
@@ -12,9 +13,7 @@ type ScalarField interface {
 	FullTypeName() string
 }
 
-type SourceLocation struct {
-	Line, Col int
-}
+type SourceLocation = errpos.Position
 
 type Scope interface {
 	PrintScope(func(string, ...interface{}))
@@ -29,12 +28,6 @@ type Scope interface {
 	ListBlocks() []string
 
 	MergeScope(Scope) Scope
-}
-
-type Container interface {
-	Path() []string
-	Spec() BlockSpec
-	Name() string
 }
 
 type schemaWalker struct {
@@ -65,6 +58,7 @@ func NewRootSchemaWalker(spec *ConversionSpec, root j5reflect.Object, sourceLoc 
 		return nil, err
 	}
 
+	rootWrapped.isRoot = true
 	return &schemaWalker{
 		schemaSet: ss,
 
@@ -112,20 +106,13 @@ func (sw *schemaWalker) Field(name string, source SourceLocation) (ScalarField, 
 			}
 		}
 
-		walkContainer := blockSchema
-
 		pathToContainer, final := childSpec.Path[:len(childSpec.Path)-1], childSpec.Path[len(childSpec.Path)-1]
 
-		if len(pathToContainer) > 1 {
-
-			// walk the block to the path specified in the config.
-			container, walkErr := walkPath(&blockSchema, pathToContainer)
-			if walkErr != nil {
-				return nil, walkErr
-			}
-			walkContainer = *container
-
+		walkContainer, err := sw.walkToChild(&blockSchema, pathToContainer, source)
+		if err != nil {
+			return nil, err
 		}
+
 		if !walkContainer.container.HasProperty(final) {
 			return nil, &WalkPathError{
 				Type: NodeNotFound,
@@ -133,26 +120,13 @@ func (sw *schemaWalker) Field(name string, source SourceLocation) (ScalarField, 
 
 		}
 
-		finalField, err := walkContainer.container.GetProperty(final)
+		finalField, err := walkContainer.container.NewValue(final)
 		if err != nil {
 			return nil, &WalkPathError{
 				Type: UnknownPathError,
 				Err:  err,
 			}
 		}
-
-		walkLoc := walkContainer.location
-		for _, p := range finalField.ProtoPath() {
-			if walkLoc.Children == nil {
-				walkLoc.Children = map[string]*sourcedef_j5pb.SourceLocation{}
-			}
-			if walkLoc.Children[p] == nil {
-				walkLoc.Children[p] = &sourcedef_j5pb.SourceLocation{}
-			}
-			walkLoc = walkLoc.Children[p]
-		}
-		walkLoc.StartLine = int32(source.Line)
-		walkLoc.StartColumn = int32(source.Col)
 
 		asScalar, ok := finalField.AsScalar()
 		if ok {
@@ -181,6 +155,30 @@ func (sw *schemaWalker) Field(name string, source SourceLocation) (ScalarField, 
 	}
 }
 
+func (sw *schemaWalker) walkToChild(blockSchema *containerField, path []string, sourceLocation SourceLocation) (*containerField, error) {
+	if len(path) == 0 {
+		return blockSchema, nil
+	}
+
+	// walk the block to the path specified in the config.
+	visitedFields, pathErr := blockSchema.walkPath(path, sourceLocation)
+	if pathErr != nil {
+		return nil, pathErr
+	}
+
+	for _, field := range visitedFields {
+		spec, err := sw.schemaSet.blockSpec(field.container)
+		if err != nil {
+			return nil, err
+		}
+		field.spec = *spec
+	}
+
+	mainField := visitedFields[0]
+	mainField.transparentPath = visitedFields[1:]
+	return mainField, nil
+}
+
 func (sw *schemaWalker) ChildBlock(name string, source SourceLocation) (Scope, error) {
 
 	for _, blockSchema := range sw.blockSet {
@@ -188,26 +186,13 @@ func (sw *schemaWalker) ChildBlock(name string, source SourceLocation) (Scope, e
 		if !ok {
 			continue
 		}
-
-		// walk the block to the path specified in the config.
-		field, pathErr := walkPath(&blockSchema, childSpec.Path)
-		if pathErr != nil {
-			return nil, pathErr
-		}
-		field.name = name
-
-		if field.location.StartLine == 0 {
-			field.location.StartLine = int32(source.Line)
-			field.location.StartColumn = int32(source.Col)
-		}
-
-		spec, err := sw.schemaSet.blockSpec(field.container)
+		mainField, err := sw.walkToChild(&blockSchema, childSpec.Path, source)
 		if err != nil {
 			return nil, err
 		}
-		field.spec = *spec
+		mainField.name = name
 
-		newWalker := sw.newChild(field, true)
+		newWalker := sw.newChild(mainField, true)
 		return newWalker, nil
 	}
 
@@ -216,7 +201,6 @@ func (sw *schemaWalker) ChildBlock(name string, source SourceLocation) (Scope, e
 		Type:      RootNotFound,
 		Available: sw.blockSet.listBlocks(),
 	}
-
 }
 
 func (sw *schemaWalker) MergeScope(other Scope) Scope {

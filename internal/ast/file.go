@@ -13,6 +13,13 @@ type File struct {
 	Package string
 	Imports []Import
 	BlockStatement
+
+	Errors errpos.Errors
+}
+
+type Error struct {
+	Err error
+	Pos errpos.Position
 }
 
 type Comment struct {
@@ -20,8 +27,8 @@ type Comment struct {
 }
 
 type SourceNode struct {
-	Start   errpos.Position
-	End     errpos.Position
+	Start   lexer.Position
+	End     lexer.Position
 	Comment *Comment
 }
 

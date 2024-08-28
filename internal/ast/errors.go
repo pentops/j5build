@@ -9,14 +9,7 @@ import (
 	"github.com/pentops/bcl.go/internal/lexer"
 )
 
-func tokenErrf(tok lexer.Token, format string, args ...interface{}) error {
-	return &errpos.Err{
-		Pos: &tok.Start,
-		Err: fmt.Errorf(format, args...),
-	}
-}
-
-func unexpectedToken(tok lexer.Token, expected ...lexer.TokenType) error {
+func unexpectedToken(tok lexer.Token, expected ...lexer.TokenType) *unexpectedTokenError {
 	return &unexpectedTokenError{
 		tok:      tok,
 		expected: expected,
@@ -26,10 +19,14 @@ func unexpectedToken(tok lexer.Token, expected ...lexer.TokenType) error {
 type unexpectedTokenError struct {
 	tok      lexer.Token
 	expected []lexer.TokenType
+	context  string
 }
 
 func (e *unexpectedTokenError) Error() string {
-	return fmt.Sprintf("%s %s", e.tok.Start, e.msg())
+	if e.context == "" {
+		return fmt.Sprintf("%s %s", e.tok.Start, e.msg())
+	}
+	return fmt.Sprintf("%s %s %s", e.tok.Start, e.msg(), e.context)
 }
 
 func (e *unexpectedTokenError) msg() string {
@@ -44,8 +41,16 @@ func (e *unexpectedTokenError) msg() string {
 }
 
 func (e *unexpectedTokenError) ErrorPosition() *errpos.Position {
-	pos := e.tok.Start
-	return &pos
+	return &errpos.Position{
+		Start: errpos.Point{
+			Line:   e.tok.Start.Line,
+			Column: e.tok.Start.Column,
+		},
+		End: errpos.Point{
+			Line:   e.tok.End.Line,
+			Column: e.tok.End.Column,
+		},
+	}
 }
 
 func (e *unexpectedTokenError) WithoutPosition() error {

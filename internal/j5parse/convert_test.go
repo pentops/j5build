@@ -5,60 +5,145 @@ import (
 	"testing"
 
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
+	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
 )
 
 func TestObject(t *testing.T) {
 	file := build()
 	obj := file.addObject("Foo")
 
-	field := obj.addField("foo_id")
-	field.setRequired()
-	field.prop.Schema = &schema_j5pb.Field{
-		Type: &schema_j5pb.Field_Key{
-			Key: &schema_j5pb.KeyField{
-				Format: &schema_j5pb.KeyFormat{
-					Type: &schema_j5pb.KeyFormat_Uuid{
-						Uuid: &schema_j5pb.KeyFormat_UUID{},
-					},
-				},
-			},
-		},
-	}
+	obj.addField("foo_id").
+		setRequired().
+		setSchema(basicKey())
+
+	obj.addField("bar").
+		setSchema(basicString())
 
 	file.run(t, `
 		object Foo {
 			field foo_id key:uuid {
 				required = true
 			}
-		}`)
 
+			field bar string
+		}`)
+}
+
+func TestValidateNested(t *testing.T) {
+	t.Skip("This test fails due to https://github.com/bufbuild/protovalidate-go/issues/141")
+	t.Run("only parse", func(t *testing.T) {
+		runToErrors(t, `
+		object Foo {
+			field num integer {
+			}
+		}
+		`)
+	})
+}
+
+func TestEnum(t *testing.T) {
+	file := build()
+	enum := file.addEnum("Foo")
+	enum.addOption("BAR")
+	enum.addOption("BAZ")
+
+	file.run(t, `
+		enum Foo {
+			option BAR
+			option BAZ
+		}
+		`)
+
+}
+
+func TestValidateBase(t *testing.T) {
+	t.Run("regex", func(t *testing.T) {
+		runToErrors(t, `
+		object foo {}
+	`)
+	})
+	t.Run("nested", func(t *testing.T) {
+		runToErrors(t, `
+		object Foo {
+			field bar object {
+				schema.object.name = bar
+			}
+		}
+	`)
+	})
 }
 
 func TestObjectField(t *testing.T) {
 	file := build()
 	obj := file.addObject("Foo")
 	field := obj.addField("bar")
-	field.prop.Schema = &schema_j5pb.Field{
-		Type: &schema_j5pb.Field_Object{
-			Object: &schema_j5pb.ObjectField{
-				Schema: &schema_j5pb.ObjectField_Object{
-					Object: &schema_j5pb.Object{
-						Properties: []*schema_j5pb.ObjectProperty{{
-							ProtoField: []int32{1},
-							Name:       "bar_id",
-							Schema: &schema_j5pb.Field{
-								Type: &schema_j5pb.Field_String_{String_: &schema_j5pb.StringField{}},
-							},
-						}},
-					},
-				},
-			},
-		},
-	}
+
+	// The name isn't explicitly set in the source, it is automaticaly set from the field name
+	fieldObj := field.inlineObject("Bar")
+	fieldObj.addField("bar_id").setSchema(basicString())
 
 	file.run(t, `
 		object Foo {
 			field bar object {
+				field bar_id string {
+				}
+			}
+		}
+	`)
+
+}
+
+func TestEmptyOneofBody(t *testing.T) {
+
+	file := build()
+	obj := file.addObject("Foo")
+	obj.addField("bar_id").setSchema(basicString())
+
+	file.run(t, `
+		object Foo {
+			field bar_id string
+		}
+	`, func(t *testing.T, file *sourcedef_j5pb.SourceFile) {
+		fieldProp := file.Elements[0].GetObject().Def.Properties[0]
+
+		if fieldProp == nil {
+			t.Fatal("missing field")
+		}
+
+		if fieldProp.Schema == nil {
+			t.Fatal("missing schema")
+		}
+
+		if fieldProp.Schema.Type == nil {
+			t.Fatal("missing type")
+		}
+
+		stringField, ok := fieldProp.Schema.Type.(*schema_j5pb.Field_String_)
+		if !ok {
+			t.Fatalf("wrong type %T", fieldProp.Schema.Type)
+		}
+
+		if stringField == nil {
+			t.Fatal("Field_String_ was nil in oneof, but was set to the type")
+		}
+
+		if stringField.String_ == nil {
+			t.Fatal("Field_String_.String_ was nil in oneof, but was set to the type")
+		}
+
+	})
+}
+
+func TestImplicitOneofName(t *testing.T) {
+	file := build()
+	obj := file.addOneof("Foo")
+	field := obj.addOption("bar")
+	fieldObj := field.inlineObject("Bar")
+	fieldObj.addField("bar_id").setSchema(basicString())
+
+	file.run(t, `
+		oneof Foo {
+			option bar object {
 				field bar_id string {
 				}
 			}
@@ -71,17 +156,22 @@ func TestEntity(t *testing.T) {
 	ent := file.addEntity("Foo")
 
 	evt := ent.addEvent("DoThing")
-	evt.addField("bar").prop.Schema = &schema_j5pb.Field{
-		Type: &schema_j5pb.Field_String_{
-			String_: &schema_j5pb.StringField{},
-		},
-	}
+	evt.addField("bar").setSchema(basicString())
+	ent.addKey("foo_id").setSchema(basicKey())
+
+	ent.addStatus("S1", "S1 Desc")
+	ent.addStatus("S2", "S2 Desc")
 
 	file.run(t, `
 		entity Foo {
 			event DoThing {
 				field bar string
 			}
+
+			key foo_id key:uuid
+
+			status S1 | S1 Desc
+			status S2 | S2 Desc
 		}
 	`)
 }
@@ -201,39 +291,20 @@ func TestConvert(t *testing.T) {
 	file := build()
 	file.file.Version = "v1"
 	obj := file.addObject("Foo")
-	obj.obj.Def.Description = "Foo Object Description"
+	obj.obj.Description = "Foo Object Description"
 	key := obj.addField("foo_id")
 
-	key.setSchema(&schema_j5pb.Field_Key{Key: &schema_j5pb.KeyField{
-		Format: &schema_j5pb.KeyFormat{
-			Type: &schema_j5pb.KeyFormat_Uuid{
-				Uuid: &schema_j5pb.KeyFormat_UUID{},
-			},
-		},
-	}})
+	key.setSchema(basicKey())
 	key.setRequired()
 
 	obj.addField("bar_field").
 		setRequired().
-		prop.Schema = &schema_j5pb.Field{
-		Type: &schema_j5pb.Field_String_{String_: &schema_j5pb.StringField{
-			Rules: &schema_j5pb.StringField_Rules{MinLength: ptr(uint64(1))},
-		}},
-	}
+		setSchema(basicString(func(s *schema_j5pb.StringField) {
+			s.Rules = &schema_j5pb.StringField_Rules{MinLength: ptr(uint64(1))}
+		}))
 
 	baz := obj.addField("baz_field")
-	baz.prop.Schema = &schema_j5pb.Field{
-		Type: &schema_j5pb.Field_Object{
-			Object: &schema_j5pb.ObjectField{
-				Schema: &schema_j5pb.ObjectField_Ref{
-					Ref: &schema_j5pb.Ref{
-						Package: "path.to",
-						Schema:  "Type",
-					},
-				},
-			},
-		},
-	}
+	baz.refObject("path.to", "Type")
 
 	baz2 := obj.addField("baz_2")
 	baz2.prop.Schema = &schema_j5pb.Field{

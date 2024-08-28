@@ -177,6 +177,20 @@ type BlockSpec struct {
 	//IncludeNestedContext []string
 
 	OnlyDefined bool // Only allows blocks and attributes explicitly defined in Spec, otherwise merges all available in the schema
+
+	// Callback to run after closing the block, to run validation, automatic
+	// cleanup etc.
+	RunAfter BlockHook
+}
+
+type BlockHookFunc func(j5reflect.ContainerField) error
+
+func (bh BlockHookFunc) RunHook(cf j5reflect.ContainerField) error {
+	return bh(cf)
+}
+
+type BlockHook interface {
+	RunHook(j5reflect.ContainerField) error
 }
 
 func (bs *BlockSpec) ErrName() string {
@@ -253,15 +267,15 @@ func (ss *SchemaSet) _buildSpec(node j5reflect.PropertySet) (*BlockSpec, error) 
 		blockSpec.Children = map[string]ChildSpec{}
 	}
 
-	err := node.RangeProperties(func(prop j5reflect.Field) error {
+	err := node.RangeProperties(func(prop j5reflect.Property) error {
 
-		name := prop.NameInParent()
-		schema := prop.Schema()
+		schema := prop.Schema().ToJ5Proto()
+		name := schema.Name
 		spec := ChildSpec{
-			Path: PathSpec{name},
+			Path: PathSpec{schema.Name},
 		}
 
-		switch field := schema.(type) {
+		switch field := schema.Schema.Type.(type) {
 		case *schema_j5pb.Field_Object:
 			spec.IsContainer = true
 

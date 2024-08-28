@@ -13,8 +13,10 @@ func TestPrintAlignment(t *testing.T) {
 		t.Log("pos:", line, column)
 		err := &Err{
 			Pos: &Position{
-				Line:   line,
-				Column: column,
+				Start: Point{
+					Line:   line,
+					Column: column,
+				},
 			},
 		}
 
@@ -50,14 +52,14 @@ func TestPrintAlignment(t *testing.T) {
 
 	}
 
-	run([]string{"123"}, 1, 1, "^")
-	run([]string{"123"}, 1, 2, " ^")
-	run([]string{"123"}, 1, 3, "  ^")
-	run([]string{"123"}, 1, 4, "   ^")
+	run([]string{"123"}, 0, 0, "^")
+	run([]string{"123"}, 0, 1, " ^")
+	run([]string{"123"}, 0, 2, "  ^")
+	run([]string{"123"}, 0, 3, "   ^")
 
 	// allows for the column to reference the EOF or EOL
-	run([]string{"123"}, 1, 5, "<column 5 out of range>")
+	run([]string{"123"}, 0, 4, "<column 5 out of range>")
 
-	run([]string{"\t123"}, 1, 2, "  ^")
+	run([]string{"\t123"}, 0, 1, "  ^")
 
 }

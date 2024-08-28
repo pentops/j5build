@@ -3,38 +3,53 @@ package j5parse
 import (
 	"errors"
 	"fmt"
+	"log"
 	"path"
 	"strings"
 
 	"buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"github.com/bufbuild/protovalidate-go"
-	"github.com/iancoleman/strcase"
-	"github.com/pentops/bcl.go/bcl"
 	"github.com/pentops/bcl.go/bcl/errpos"
+	"github.com/pentops/bcl.go/internal/ast"
+	"github.com/pentops/bcl.go/internal/walker"
+	"github.com/pentops/bcl.go/internal/walker/schema"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
 )
 
 type Parser struct {
-	refl *j5reflect.Reflector
+	refl     *j5reflect.Reflector
+	Verbose  bool
+	FailFast bool
+	validate *protovalidate.Validator
 }
 
-func NewParser() *Parser {
-	return &Parser{
-		refl: j5reflect.New(),
+func NewParser() (*Parser, error) {
+	pv, err := protovalidate.New(protovalidate.WithMessages(
+		&schema_j5pb.IntegerField_Rules{},
+		&schema_j5pb.IntegerField{
+			Format: schema_j5pb.IntegerField_FORMAT_INT32,
+		},
+		&sourcedef_j5pb.SourceFile{},
+	), protovalidate.WithDisableLazy(true))
+	if err != nil {
+		return nil, err
 	}
+	return &Parser{
+		refl:     j5reflect.New(),
+		FailFast: true,
+		validate: pv,
+	}, nil
 }
 
-func (p *Parser) ParseFile(filename string, data string) (*sourcedef_j5pb.SourceFile, error) {
-
-	dirName, fileName := path.Split(filename)
+func (p *Parser) fileStub(sourceFilename string) *sourcedef_j5pb.SourceFile {
+	dirName, fileName := path.Split(sourceFilename)
 	ext := path.Ext(fileName)
 	dirName = strings.TrimSuffix(dirName, "/")
 
 	fileName = strings.TrimSuffix(fileName, ext)
 	genFilename := fileName + ".gen.proto"
-	_ = genFilename
 
 	pathPackage := strings.Join(strings.Split(dirName, "/"), ".")
 	file := &sourcedef_j5pb.SourceFile{
@@ -42,18 +57,37 @@ func (p *Parser) ParseFile(filename string, data string) (*sourcedef_j5pb.Source
 		Package:         pathPackage,
 		SourceLocations: &sourcedef_j5pb.SourceLocation{},
 	}
+	return file
+}
+
+func (p *Parser) ParseFile(filename string, data string) (*sourcedef_j5pb.SourceFile, error) {
+
+	file := p.fileStub(filename)
 	obj, err := p.refl.NewObject(file.ProtoReflect())
 	if err != nil {
 		return nil, err
 	}
 
-	err = bcl.ParseIntoSchema(data, obj, file.SourceLocations, Spec)
+	tree, err := ast.ParseFile(data, p.FailFast)
+	if err != nil {
+		if err == ast.HadErrors {
+			return nil, errpos.AddSource(tree.Errors, data)
+		}
+		return nil, err
+	}
+
+	scope, err := schema.NewRootSchemaWalker(J5SchemaSpec, obj, file.SourceLocations)
+	if err != nil {
+		return nil, err
+	}
+
+	err = walker.WalkSchema(scope, tree.Body, p.Verbose)
 	if err != nil {
 		err = errpos.AddSourceFile(err, filename, data)
 		return nil, err
 	}
 
-	err = walkFile(file)
+	err = validateFile(p.validate, file)
 	if err != nil {
 		err = errpos.AddSourceFile(err, filename, data)
 		return nil, err
@@ -63,8 +97,7 @@ func (p *Parser) ParseFile(filename string, data string) (*sourcedef_j5pb.Source
 }
 
 type baseSet struct {
-	errors    []*errpos.Err
-	validator *protovalidate.Validator
+	errors []*errpos.Err
 }
 
 type sourceSet struct {
@@ -73,20 +106,15 @@ type sourceSet struct {
 	base *baseSet
 }
 
-func newSourceSet(locs *sourcedef_j5pb.SourceLocation) (sourceSet, error) {
-	vv, err := protovalidate.New()
-	if err != nil {
-		return sourceSet{}, err
-	}
+func newSourceSet(locs *sourcedef_j5pb.SourceLocation) sourceSet {
 	return sourceSet{
-		loc: locs,
-		base: &baseSet{
-			validator: vv,
-		},
-	}, nil
+		loc:  locs,
+		base: &baseSet{},
+	}
 }
 
 func (s sourceSet) addViolation(violation *validate.Violation) {
+	log.Printf("VIOLATION %s %s", violation.FieldPath, violation.Message)
 	path := strings.Split(violation.FieldPath, ".")
 	fullPath := make([]string, 0)
 	for i, p := range path {
@@ -102,21 +130,11 @@ func (s sourceSet) addViolation(violation *validate.Violation) {
 	}
 
 	ss := s
-	fmt.Printf("WALKING\n")
 	for _, p := range fullPath {
-		fmt.Printf("  Check %s\n", p)
 		ss = ss.field(p)
-		fmt.Printf("  Location %d\n", ss.loc.StartLine)
+		log.Printf("FIELD %s = %d,%d\n", p, ss.loc.StartLine, ss.loc.StartColumn)
 	}
 	ss.err(fmt.Errorf(violation.Message))
-}
-
-func (s sourceSet) prop(name string) sourceSet {
-	return s.field(name)
-}
-
-func (s sourceSet) idx(idx int) sourceSet {
-	return s.field(fmt.Sprintf("%d", idx))
 }
 
 func (s sourceSet) field(name string) sourceSet {
@@ -151,10 +169,12 @@ func (ss sourceSet) err(err error) {
 			Err: err,
 		}
 	}
+
+	log.Printf("ERROR %s %s", ss.path, err.Error())
 	if ss.loc != nil && base.Pos == nil {
 		base.Pos = &errpos.Position{
-			Line:   int(ss.loc.StartLine),
-			Column: int(ss.loc.StartColumn),
+			Start: errpos.Point{Line: int(ss.loc.StartLine), Column: int(ss.loc.StartColumn)},
+			End:   errpos.Point{Line: int(ss.loc.EndLine), Column: int(ss.loc.EndColumn)},
 		}
 	}
 	if len(base.Ctx) == 0 {
@@ -163,64 +183,24 @@ func (ss sourceSet) err(err error) {
 	ss.base.errors = append(ss.base.errors, base)
 }
 
-func printSource(loc *sourcedef_j5pb.SourceLocation, indent int) {
+func printSource(loc *sourcedef_j5pb.SourceLocation, prefix string) {
+	fmt.Printf("%03d,%03d - %03d,%03d %s\n", loc.StartLine, loc.StartColumn, loc.EndLine, loc.EndColumn, prefix)
 	for name, child := range loc.Children {
-		fmt.Printf("%s%s  AT %d %d\n", strings.Repeat(" ", indent), name, child.StartLine, child.StartColumn)
-		printSource(child, indent+2)
+		printSource(child, prefix+"."+name)
 	}
 }
 
-func walkFile(file *sourcedef_j5pb.SourceFile) error {
+func validateFile(pv *protovalidate.Validator, file *sourcedef_j5pb.SourceFile) error {
 
-	sources, err := newSourceSet(file.SourceLocations)
-	if err != nil {
-		return err
-	}
+	sources := newSourceSet(file.SourceLocations)
 
-	printSource(sources.loc, 0)
+	printSource(sources.loc, " ROOT")
 
-	elementsSource := sources.prop("elements")
-	for idx, element := range file.Elements {
-		elementSource := elementsSource.idx(idx)
-
-		switch st := element.Type.(type) {
-		case *sourcedef_j5pb.RootElement_Object:
-			if st.Object.Def == nil {
-				err := fmt.Errorf("missing object definition")
-				sources.err(err)
-				continue
-			}
-			walkObject(elementSource, st.Object.Def)
-			/*
-				case *sourcedef_j5pb.RootElement_Enum:
-					err := walkEnum(st.Enum)
-					if err != nil {
-						return errpos.AddContext(err, "enum")
-					}
-					return nil*/
-		case *sourcedef_j5pb.RootElement_Oneof:
-			if st.Oneof.Def == nil {
-				err := fmt.Errorf("missing oneof definition")
-				elementsSource.err(err)
-				continue
-			}
-			walkOneof(elementSource, st.Oneof.Def)
-
-		case *sourcedef_j5pb.RootElement_Entity:
-			walkEntity(elementSource, st.Entity)
-
-		default:
-			err := fmt.Errorf("unknown element type %T", st)
-			elementsSource.err(err)
-		}
-
-	}
-
-	validationErr := sources.base.validator.Validate(file)
+	validationErr := pv.Validate(file)
 	if validationErr != nil {
 		valErr := &protovalidate.ValidationError{}
 		if errors.As(validationErr, &valErr) {
-			sources.err(valErr)
+			//sources.err(valErr)
 			for _, violation := range valErr.Violations {
 				sources.addViolation(violation)
 			}
@@ -235,83 +215,4 @@ func walkFile(file *sourcedef_j5pb.SourceFile) error {
 	}
 
 	return errpos.Errors(sources.base.errors)
-}
-
-func walkObject(source sourceSet, obj *schema_j5pb.Object) {
-	propSources := source.field("properties")
-	for idx, prop := range obj.Properties {
-		propSource := propSources.idx(idx)
-		prop.ProtoField = []int32{int32(idx) + 1}
-		walkProperty(propSource, prop)
-	}
-
-}
-
-func walkOneof(source sourceSet, oneof *schema_j5pb.Oneof) {
-	propSources := source.field("properties")
-	for idx, prop := range oneof.Properties {
-		propSource := propSources.idx(idx)
-		prop.ProtoField = []int32{int32(idx) + 1}
-
-		if obj := prop.Schema.GetObject(); obj != nil {
-			if sch := obj.GetObject(); sch != nil {
-				if sch.Name == "" {
-					sch.Name = strcase.ToCamel(prop.Name)
-				}
-			}
-		}
-
-		walkProperty(propSource, prop)
-	}
-
-}
-
-func walkEntity(source sourceSet, entity *sourcedef_j5pb.Entity) {
-
-	datasSource := source.field("data")
-	for idx, prop := range entity.Data {
-		propSource := datasSource.idx(idx)
-		prop.ProtoField = []int32{int32(idx) + 1}
-		walkProperty(propSource, prop)
-	}
-
-	keysSource := source.field("keys")
-	for idx, prop := range entity.Keys {
-		propSource := keysSource.idx(idx)
-		prop.ProtoField = []int32{int32(idx) + 1}
-		walkProperty(propSource, prop)
-	}
-
-	eventsSource := source.field("events")
-	for idx, evt := range entity.Events {
-		eventSource := eventsSource.idx(idx)
-		if evt.Def == nil {
-			err := fmt.Errorf("missing event definition")
-			eventSource.err(err)
-			continue
-		}
-		walkObject(eventSource, evt.Def)
-	}
-
-}
-
-func walkProperty(source sourceSet, prop *schema_j5pb.ObjectProperty) {
-	if prop.Schema == nil {
-		source.err(fmt.Errorf("missing schema"))
-		return
-	}
-	switch st := prop.Schema.Type.(type) {
-	case *schema_j5pb.Field_Object:
-		obj := st.Object
-
-		switch st := obj.Schema.(type) {
-		case *schema_j5pb.ObjectField_Object:
-			walkObject(source.field("schema").field("type").field("object").field("schema").field("object"), st.Object)
-
-		case *schema_j5pb.ObjectField_Ref:
-			//
-		default:
-			source.err(fmt.Errorf("unknown object schema %T, must set Ref or Object", st))
-		}
-	}
 }

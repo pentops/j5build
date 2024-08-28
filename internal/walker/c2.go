@@ -1,14 +1,11 @@
-package bcl
+package walker
 
 import (
 	"fmt"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/bcl.go/internal/ast"
-	"github.com/pentops/bcl.go/internal/walker"
 	"github.com/pentops/bcl.go/internal/walker/schema"
-	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
-	"github.com/pentops/j5/lib/j5reflect"
 )
 
 type ErrExpectedTag struct {
@@ -23,16 +20,24 @@ func (e *ErrExpectedTag) Error() string {
 	return fmt.Sprintf("expected %s tag", e.Label)
 }
 
+func pointPosition(point ast.Position) errpos.Position {
+	return errpos.Position{
+		Start: point,
+		End:   point,
+	}
+}
+
+func spanPosition(start, end ast.Position) errpos.Position {
+	return errpos.Position{
+		Start: start,
+		End:   end,
+	}
+}
+
 var ErrUnexpectedTag = fmt.Errorf("unexpected tag")
 var ErrUnexpectedQualifier = fmt.Errorf("unexpected qualifier")
 
-func ConvertTreeToSource(f *ast.File, obj j5reflect.Object, source *sourcedef_j5pb.SourceLocation, spec *schema.ConversionSpec) error {
-	return walker.Walk(obj, source, spec, func(sc walker.Context, blockSpec schema.BlockSpec) error {
-		return doBody(sc, f.Body)
-	})
-}
-
-func doBody(sc walker.Context, body ast.Body) error {
+func doBody(sc Context, body ast.Body) error {
 	for _, decl := range body.Statements {
 		switch decl := decl.(type) {
 		case ast.Assignment:
@@ -45,14 +50,18 @@ func doBody(sc walker.Context, body ast.Body) error {
 
 		case ast.BlockStatement:
 			sc.Logf("Block Statement %#v", decl.BlockHeader)
+			blockLocation := schema.SourceLocation{
+				Start: decl.BlockHeader.Start,
+				End:   decl.BlockHeader.End,
+			}
 
 			gotTags := newPopSet(decl.BlockHeader.Name)
 			typeTag, ok := gotTags.popFirst() // "Type".
 			if !ok {
-				return sc.WrapErr(&ErrExpectedTag{Label: "type"}, decl.BlockHeader.End)
+				return sc.WrapErr(&ErrExpectedTag{Label: "type"}, blockLocation)
 			}
 
-			err := sc.WithBlock(nil, typeTag, walker.ResetScope, func(sc walker.Context, blockSpec schema.BlockSpec) error {
+			err := sc.WithContainer(&blockLocation, nil, typeTag, ResetScope, func(sc Context, blockSpec schema.BlockSpec) error {
 				return doBlock(sc, blockSpec, gotTags, decl)
 			})
 			if err != nil {
@@ -67,11 +76,11 @@ func doBody(sc walker.Context, body ast.Body) error {
 	return nil
 }
 
-func doAssign(sc walker.Context, a ast.Assignment) error {
+func doAssign(sc Context, a ast.Assignment) error {
 	return sc.SetAttribute(nil, a.Key, a.Value)
 }
 
-func doScalarTag(searchPath walker.Context, tagSpec schema.Tag, gotTag ast.Reference) error {
+func doScalarTag(searchPath Context, tagSpec schema.Tag, gotTag ast.Reference) error {
 	searchPath.Logf("doScalarTag %#v, %q", tagSpec, gotTag)
 	err := tagSpec.Validate(schema.TagTypeScalar)
 	if err != nil {
@@ -80,7 +89,7 @@ func doScalarTag(searchPath walker.Context, tagSpec schema.Tag, gotTag ast.Refer
 
 	err = applyScalarTag(searchPath, tagSpec, gotTag)
 	if err != nil {
-		return searchPath.WrapErr(err, gotTag[0].Start)
+		return searchPath.WrapErr(err, schema.SourceLocation{Start: gotTag[0].Start, End: gotTag[0].End})
 	}
 	return nil
 }
@@ -120,13 +129,13 @@ func (ps *popSet[T]) hasMore() bool {
 	return len(ps.items) > 0
 }
 
-func doBlock(sc walker.Context, spec schema.BlockSpec, gotTags popSet[ast.Reference], bs ast.BlockStatement) error {
+func doBlock(sc Context, spec schema.BlockSpec, gotTags popSet[ast.Reference], bs ast.BlockStatement) error {
 
-	return walkTags(sc, spec, gotTags, func(sc walker.Context, spec schema.BlockSpec) error {
+	return walkTags(sc, spec, gotTags, func(sc Context, spec schema.BlockSpec) error {
 
 		gotQualifiers := newPopSet(bs.BlockHeader.Qualifiers)
 
-		return walkQualifiers(sc, spec, gotQualifiers, func(sc walker.Context, spec schema.BlockSpec) error {
+		return walkQualifiers(sc, spec, gotQualifiers, func(sc Context, spec schema.BlockSpec) error {
 			if bs.BlockHeader.Description != nil {
 				if len(spec.Description) == 0 {
 					spec.Description = []string{"description"}
@@ -145,7 +154,7 @@ func doBlock(sc walker.Context, spec schema.BlockSpec, gotTags popSet[ast.Refere
 	})
 }
 
-func walkTags(sc walker.Context, spec schema.BlockSpec, gotTags popSet[ast.Reference], outerCallback walker.SpanCallback) error {
+func walkTags(sc Context, spec schema.BlockSpec, gotTags popSet[ast.Reference], outerCallback SpanCallback) error {
 
 	if spec.Name != nil {
 		gotTag, ok := gotTags.popFirst()
@@ -154,7 +163,7 @@ func walkTags(sc walker.Context, spec schema.BlockSpec, gotTags popSet[ast.Refer
 				Label:  "name",
 				Schema: spec.ErrName(),
 			}
-			return sc.WrapErr(err, gotTags.lastItem[0].End)
+			return sc.WrapErr(err, pointPosition(gotTags.lastItem[0].End))
 		}
 
 		tagSpec := *spec.Name
@@ -169,29 +178,30 @@ func walkTags(sc walker.Context, spec schema.BlockSpec, gotTags popSet[ast.Refer
 	if spec.TypeSelect != nil {
 		gotTag, ok := gotTags.popFirst()
 		if !ok {
-			return sc.WrapErr(&ErrExpectedTag{
+			err := &ErrExpectedTag{
 				Label:  "type-select",
 				Schema: spec.ErrName(),
-			}, gotTags.lastItem[0].End)
+			}
+			return sc.WrapErr(err, pointPosition(gotTags.lastItem[0].End))
 		}
 
 		tagSpec := *spec.TypeSelect
 
 		sc.Logf("TypeSelect %#v %s", tagSpec, gotTag)
-		return sc.WithBlock(tagSpec.Path, gotTag, walker.KeepScope, func(sc walker.Context, spec schema.BlockSpec) error {
+		return sc.WithContainer(nil, tagSpec.Path, gotTag, KeepScope, func(sc Context, spec schema.BlockSpec) error {
 			return walkTags(sc, spec, gotTags, outerCallback)
 		})
 	}
 
 	if gotTags.hasMore() {
 		err := fmt.Errorf("no more tags expected for type %s", spec.ErrName())
-		return errpos.AddPosition(err, gotTags.items[0][0].Start)
+		return errpos.AddPosition(err, spanPosition(gotTags.items[0][0].Start, gotTags.items[len(gotTags.items)-1][0].End))
 	}
 
 	return outerCallback(sc, spec)
 }
 
-func walkQualifiers(sc walker.Context, spec schema.BlockSpec, gotQualifiers popSet[ast.Reference], outerCallback walker.SpanCallback) error {
+func walkQualifiers(sc Context, spec schema.BlockSpec, gotQualifiers popSet[ast.Reference], outerCallback SpanCallback) error {
 
 	qualifier, ok := gotQualifiers.popFirst()
 	if !ok {
@@ -199,7 +209,7 @@ func walkQualifiers(sc walker.Context, spec schema.BlockSpec, gotQualifiers popS
 	}
 	if spec.Qualifier == nil {
 		err := fmt.Errorf("not expecting a qualifier for type %s", spec.ErrName())
-		return sc.WrapErr(err, qualifier[0].Start)
+		return sc.WrapErr(err, spanPosition(qualifier[0].Start, qualifier[0].End))
 	}
 
 	tagSpec := spec.Qualifier
@@ -211,7 +221,7 @@ func walkQualifiers(sc walker.Context, spec schema.BlockSpec, gotQualifiers popS
 		}
 
 		if gotQualifiers.hasMore() {
-			return errpos.AddPosition(ErrUnexpectedQualifier, gotQualifiers.items[0][0].Start)
+			return errpos.AddPosition(ErrUnexpectedQualifier, spanPosition(gotQualifiers.items[0][0].Start, gotQualifiers.items[len(gotQualifiers.items)-1][0].End))
 		}
 
 		return outerCallback(sc, spec)
@@ -223,13 +233,13 @@ func walkQualifiers(sc walker.Context, spec schema.BlockSpec, gotQualifiers popS
 	// set, so the wrapper is not included in the callback scope.
 	// The node it finds at givenName should must be a block, which is appended to
 	// the scope and becomes the new leaf for the callback.
-	return sc.WithBlock(tagSpec.Path, qualifier, walker.KeepScope, func(sc walker.Context, spec schema.BlockSpec) error {
+	return sc.WithContainer(nil, tagSpec.Path, qualifier, KeepScope, func(sc Context, spec schema.BlockSpec) error {
 		return walkQualifiers(sc, spec, gotQualifiers, outerCallback)
 	})
 
 }
 
-func applyScalarTag(sc walker.Context, tagSpec schema.Tag, gotTag ast.Reference) error {
+func applyScalarTag(sc Context, tagSpec schema.Tag, gotTag ast.Reference) error {
 	if len(tagSpec.SplitRef) == 0 {
 		err := sc.SetAttribute(tagSpec.Path, nil, gotTag.AsValue())
 		if err != nil {
@@ -238,7 +248,7 @@ func applyScalarTag(sc walker.Context, tagSpec schema.Tag, gotTag ast.Reference)
 		return nil
 	}
 
-	return sc.WithBlock(tagSpec.Path, nil, walker.ResetScope, func(sc walker.Context, spec schema.BlockSpec) error {
+	return sc.WithContainer(nil, tagSpec.Path, nil, ResetScope, func(sc Context, spec schema.BlockSpec) error {
 
 		// element 0 is the 'remainder' of the tag, after popping idents off
 		// of the *RIGHT* side and setting the scalar at the TagSpec to the

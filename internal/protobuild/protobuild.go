@@ -193,13 +193,19 @@ func (fb *FileBuilder) AddEntity(entity *sourcedef_j5pb.Entity) error {
 		}},
 	}
 
+	statusEnum := &schema_j5pb.Enum{
+		Name:    strcase.ToCamel(entity.Name + "Status"),
+		Prefix:  strcase.ToScreamingSnake(entity.Name) + "_",
+		Options: []*schema_j5pb.Enum_Option{},
+	}
+
 	if err := doMessage(fb, keysObj); err != nil {
 		return errpos.AddContext(err, "keys")
 	}
 	if err := doMessage(fb, stateObj); err != nil {
 		return errpos.AddContext(err, "state")
 	}
-	if err := doEnum(fb, entity.Status); err != nil {
+	if err := doEnum(fb, statusEnum); err != nil {
 		return errpos.AddContext(err, "status")
 	}
 	if err := doMessage(fb, dataObj); err != nil {
@@ -436,7 +442,10 @@ func (fb *FieldBuilder) build(schema *schema_j5pb.Field) error {
 			}
 		case *schema_j5pb.ObjectField_Object:
 			// object is inline
-			return fmt.Errorf("TODO: inline object not implemented")
+
+			if err := doMessage(fb.msg.Parent, where.Object); err != nil {
+				return err
+			}
 		}
 
 		if st.Object.Ext != nil {
@@ -474,9 +483,9 @@ func (fb *FieldBuilder) build(schema *schema_j5pb.Field) error {
 		})
 
 		if st.Oneof.Rules != nil {
-			return fmt.Errorf("TODO: oneof rules not implemented")
 			rules := &validate.FieldConstraints{}
 			proto.SetExtension(field.Options, validate.E_Field, rules)
+			return fmt.Errorf("TODO: oneof rules not implemented")
 		}
 
 	case *schema_j5pb.Field_Enum:
@@ -611,7 +620,7 @@ func (fb *FieldBuilder) build(schema *schema_j5pb.Field) error {
 		case schema_j5pb.IntegerField_FORMAT_UINT64:
 			field.Type = descriptorpb.FieldDescriptorProto_TYPE_UINT64.Enum()
 		default:
-			return fmt.Errorf("unknown integer format %T", st.Integer.Format)
+			return fmt.Errorf("unknown integer format %v", st.Integer.Format)
 		}
 
 		proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
@@ -624,10 +633,12 @@ func (fb *FieldBuilder) build(schema *schema_j5pb.Field) error {
 		field.Type = descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum()
 		fb.msg.Parent.ensureImport(j5ExtImport)
 
-		if st.Key.Ext.PrimaryKey {
-			proto.SetExtension(field.Options, ext_j5pb.E_Key, &ext_j5pb.PSMKeyFieldOptions{
-				PrimaryKey: true,
-			})
+		if st.Key.Ext != nil {
+			if st.Key.Ext.PrimaryKey {
+				proto.SetExtension(field.Options, ext_j5pb.E_Key, &ext_j5pb.PSMKeyFieldOptions{
+					PrimaryKey: true,
+				})
+			}
 		}
 		proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
 			Type: &ext_j5pb.FieldOptions_Key{

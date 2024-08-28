@@ -89,15 +89,76 @@ var (
 	}
 )
 
+type positionAsserter struct {
+	lex *Lexer
+	t   *testing.T
+}
+
+func newPosAsserter(t *testing.T, val string) *positionAsserter {
+	return &positionAsserter{
+		lex: NewLexer(val),
+		t:   t,
+	}
+}
+
+func (a *positionAsserter) pos(l, c int) {
+	a.t.Helper()
+	current := a.lex.getPosition()
+	if current.Line != l || current.Column != c {
+		a.t.Fatalf("expected %d:%d, got %d:%d", l, c, current.Line, current.Column)
+	}
+}
+func (a *positionAsserter) peek(r rune) {
+	a.t.Helper()
+	got := a.lex.peek()
+	if got != r {
+		a.t.Fatalf("Peek Val: expected %q, got %q", r, got)
+	}
+}
+func (a *positionAsserter) next(r rune) {
+	a.t.Helper()
+	a.lex.next()
+	if a.lex.ch != r {
+		a.t.Fatalf("Next Val: expected %q, got %q", r, a.lex.ch)
+	}
+}
+
+func TestPositionWalk(t *testing.T) {
+
+	a := newPosAsserter(t, "01\n01")
+
+	// first positions are invalid, as nothing has been read.
+	a.pos(0, -1)
+	a.peek('0')
+	a.pos(0, -1)
+
+	// Begin at L0,C0
+	a.next('0')
+	a.pos(0, 0)
+	a.next('1')
+	a.pos(0, 1)
+	a.next('\n')
+	a.pos(0, 2)
+	a.next('0')
+	a.pos(1, 0)
+	a.next('1')
+	a.pos(1, 1)
+
+}
+
 func TestSimple(t *testing.T) {
 
 	for _, tc := range []struct {
 		name              string
 		input             []string
 		expected          []Token
-		expectError       *errpos.Position
-		expectedPositions []errpos.Position
+		expectError       *Position
+		expectedPositions []Position
 	}{{
+		name:        "error",
+		input:       []string{"\"\n"},
+		expectError: &Position{Line: 0, Column: 1},
+	}, {
 		name:  "assign",
 		input: []string{`ab=123`},
 		expected: []Token{
@@ -207,14 +268,14 @@ func TestSimple(t *testing.T) {
 		input: []string{
 			`vv = "value \ with invalid escape"`,
 		},
-		expectError: &errpos.Position{Line: 1, Column: 13},
+		expectError: &Position{Line: 0, Column: 12},
 	}, {
 		name: "Newline in string is bad",
 		input: []string{
 			`vv = "value`,
 			`with newline"`,
 		},
-		expectError: &errpos.Position{Line: 1, Column: 12},
+		expectError: &Position{Line: 0, Column: 11},
 	}, {
 		name: "Escaped is fine",
 		input: []string{
@@ -338,8 +399,8 @@ func TestSimple(t *testing.T) {
 				if pos == nil {
 					t.Fatalf("no error position")
 				}
-				if pos.String() != tc.expectError.String() {
-					t.Fatalf("expected error at %s, got %s", tc.expectError, pos)
+				if pos.Start.String() != tc.expectError.String() {
+					t.Fatalf("expected error at %d,%d, got %d,%d (%s %s)", tc.expectError.Line, tc.expectError.Column, pos.Start.Line, pos.Start.Column, pos, tc.expectError)
 				}
 
 				return
@@ -354,19 +415,21 @@ func TestSimple(t *testing.T) {
 	}
 }
 
-func tPos(line, col int) *errpos.Position {
-	return &errpos.Position{
-		Line:   line,
-		Column: col,
+func tPos(line, col int) *Position {
+	return &Position{
+		Line:   line - 1,
+		Column: col - 1,
 	}
 }
 
 func (t Token) tStart(line, col int) Token {
-	t.Start = errpos.Position{Column: col, Line: line}
+	t.Start.Line = line - 1
+	t.Start.Column = col - 1
 	return t
 }
 func (t Token) tEnd(line, col int) Token {
-	t.End = errpos.Position{Column: col, Line: line}
+	t.End.Line = line - 1
+	t.End.Column = col - 1
 	return t
 }
 

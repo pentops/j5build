@@ -7,18 +7,25 @@ import (
 	"github.com/pentops/bcl.go/bcl/errpos"
 )
 
+var HadErrors = fmt.Errorf("had errors, see Lexer.Errors")
+
 type Lexer struct {
-	pos    errpos.Position
+	line   int // 0 based
+	column int // 0 based
+
 	ch     rune
 	offset int
 	data   []rune
 	isEOL  bool
+
+	Errors errpos.Errors
 }
 
 func NewLexer(data string) *Lexer {
 	return &Lexer{
-		pos:  errpos.Position{Line: 1, Column: 0},
-		data: []rune(data),
+		data:   []rune(data),
+		line:   0,
+		column: -1,
 	}
 }
 
@@ -27,12 +34,11 @@ const eof = -1
 func (l *Lexer) next() {
 
 	if l.isEOL {
-		l.pos.Line++
-		// column begins at 0, incremented to 1 at the end of this function
-		l.pos.Column = 1
+		l.line++
+		l.column = 0
 		l.isEOL = false
 	} else {
-		l.pos.Column++
+		l.column++
 	}
 
 	if l.offset >= len(l.data) {
@@ -49,6 +55,19 @@ func (l *Lexer) next() {
 	}
 
 	l.ch = r
+
+	/*
+		fmt.Printf("%02d %q  ", l.column, l.ch)
+		if l.ch == '\n' {
+			fmt.Println()
+		}*/
+}
+
+func (l *Lexer) getPosition() Position {
+	return Position{
+		Line:   l.line,
+		Column: l.column,
+	}
 }
 
 func (l *Lexer) peek() rune {
@@ -77,29 +96,51 @@ func (l *Lexer) peekPastWhitespace() rune {
 func (l *Lexer) tokenOf(ty TokenType) Token {
 	return Token{
 		Type:  ty,
-		Start: l.pos,
-		End:   l.pos,
+		Start: l.getPosition(),
+		End:   l.getPosition(),
 	}
 }
 
-func (l *Lexer) AllTokens() ([]Token, error) {
+func (l *Lexer) AllTokens(failFast bool) ([]Token, error) {
 	var tokens []Token
 	for {
 		tok, err := l.NextToken()
 		if err != nil {
-			return nil, fmt.Errorf("scanning file: %w", err)
+			if failFast {
+				return nil, err
+			}
+			posErr, ok := errpos.AsError(err)
+			if !ok {
+				return nil, err
+			}
+
+			l.Errors = append(l.Errors, posErr)
+
 		}
 		if tok.Type == EOF {
-			return tokens, nil
+			break
 		}
 		tokens = append(tokens, tok)
 	}
+	if len(l.Errors) > 0 {
+		return nil, HadErrors
+	}
+	return tokens, nil
 }
 
 func (l *Lexer) errf(format string, args ...interface{}) error {
-	current := l.pos
+	current := l.getPosition()
 	return &errpos.Err{
-		Pos: &current,
+		Pos: &errpos.Position{
+			Start: errpos.Point{
+				Line:   current.Line,
+				Column: current.Column,
+			},
+			End: errpos.Point{
+				Line:   current.Line,
+				Column: current.Column,
+			},
+		},
 		Err: fmt.Errorf(format, args...),
 	}
 }
@@ -122,18 +163,18 @@ func (l *Lexer) NextToken() (Token, error) {
 			return l.tokenOf(op), nil
 		}
 
+		startPos := l.getPosition()
 		switch l.ch {
 		case '/':
 			opener := l.peek()
-			commentStart := l.pos
 			var lit string
 			switch opener {
 			case '/':
 				lit = l.lexLineComment()
 				return Token{
 					Type:  COMMENT,
-					Start: commentStart,
-					End:   l.pos,
+					Start: startPos,
+					End:   l.getPosition(),
 					Lit:   lit,
 				}, nil
 
@@ -144,8 +185,8 @@ func (l *Lexer) NextToken() (Token, error) {
 				}
 				return Token{
 					Type:  COMMENT,
-					Start: commentStart,
-					End:   l.pos,
+					Start: startPos,
+					End:   l.getPosition(),
 					Lit:   lit,
 				}, nil
 			default:
@@ -155,14 +196,13 @@ func (l *Lexer) NextToken() (Token, error) {
 				}
 				return Token{
 					Type:  REGEX,
-					Start: l.pos,
-					End:   l.pos,
+					Start: startPos,
+					End:   l.getPosition(),
 					Lit:   lit,
 				}, nil
 
 			}
 		case '"':
-			startPos := l.pos
 			lit, err := l.lexString()
 			if err != nil {
 				return Token{}, err
@@ -170,17 +210,16 @@ func (l *Lexer) NextToken() (Token, error) {
 			return Token{
 				Type:  STRING,
 				Start: startPos,
-				End:   l.pos,
+				End:   l.getPosition(),
 				Lit:   lit,
 			}, nil
 
 		case '|':
-			startPos := l.pos
 			lit := l.lexDescription()
 			return Token{
 				Type:  DESCRIPTION,
 				Start: startPos,
-				End:   l.pos,
+				End:   l.getPosition(),
 				Lit:   lit,
 			}, nil
 
@@ -193,20 +232,19 @@ func (l *Lexer) NextToken() (Token, error) {
 			} else if unicode.IsDigit(l.ch) {
 				return l.lexNumber()
 			} else if unicode.IsLetter(l.ch) {
-				startPos := l.pos
 				lit := l.lexIdent()
 				if keyword, ok := asKeyword(lit); ok {
 					return Token{
 						Type:  keyword,
 						Start: startPos,
-						End:   l.pos,
+						End:   l.getPosition(),
 					}, nil
 				}
 				if lit == "true" || lit == "false" {
 					return Token{
 						Type:  BOOL,
 						Start: startPos,
-						End:   l.pos,
+						End:   l.getPosition(),
 						Lit:   lit,
 					}, nil
 				}
@@ -214,7 +252,7 @@ func (l *Lexer) NextToken() (Token, error) {
 				return Token{
 					Type:  IDENT,
 					Start: startPos,
-					End:   l.pos,
+					End:   l.getPosition(),
 					Lit:   lit,
 				}, nil
 			} else {
@@ -229,8 +267,8 @@ func (l *Lexer) NextToken() (Token, error) {
 func (l *Lexer) lexNumber() (Token, error) {
 	tt := Token{
 		Type:  INT,
-		Start: l.pos,
-		End:   l.pos,
+		Start: l.getPosition(),
+		End:   l.getPosition(),
 		Lit:   string(l.ch),
 	}
 	var seenDot bool
@@ -250,7 +288,7 @@ func (l *Lexer) lexNumber() (Token, error) {
 
 		} else {
 			// scanned something not in the integer
-			tt.End = l.pos
+			tt.End = l.getPosition()
 			return tt, nil
 		}
 	}

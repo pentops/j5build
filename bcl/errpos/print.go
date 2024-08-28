@@ -66,14 +66,18 @@ func humanString(err *Err, lines []string, context int) string {
 
 		pos := *err.Pos
 
-		if pos.Line > len(lines) {
-			out.WriteString(fmt.Sprintf("<line %d out of range (%d)>", pos.Line, len(lines)))
+		startLine := pos.Start.Line + 1
+		startCol := pos.Start.Column + 1
+		if startLine > len(lines) {
+			out.WriteString(fmt.Sprintf("<line %d out of range (%d)>", startLine, len(lines)))
 			out.WriteString("\n")
 			return
 		}
 
-		for context > 0 && pos.Line-context > 0 {
-			lineNum := pos.Line - context
+		for lineNum := startLine - context; lineNum < startLine; lineNum++ {
+			if lineNum < 1 {
+				continue
+			}
 			line := lines[lineNum-1]
 			out.WriteString(fmt.Sprintf("  > %03d: ", lineNum))
 			out.WriteString(tabsToSpaces(line))
@@ -81,35 +85,35 @@ func humanString(err *Err, lines []string, context int) string {
 			context--
 		}
 
-		if pos.Line > len(lines) || pos.Line < 1 {
-			out.WriteString(fmt.Sprintf("<line %d out of range (%d)>", pos.Line, len(lines)))
+		if startLine > len(lines) || startLine < 1 {
+			out.WriteString(fmt.Sprintf("<line %d out of range (%d)>", startLine, len(lines)))
 			out.WriteString("\n")
 			return
 		}
 
-		errLine := lines[pos.Line-1]
+		errLine := lines[startLine-1]
 
-		prefix := fmt.Sprintf("  > %03d", pos.Line)
+		prefix := fmt.Sprintf("  > %03d", startLine)
 		out.WriteString(prefix)
 		out.WriteString(": ")
 		out.WriteString(tabsToSpaces(errLine))
 		out.WriteString("\n")
 
-		if pos.Column == len(errLine)+1 {
+		if startCol == len(errLine)+1 {
 			// allows for the column to reference the EOF or EOL
 			errLine += " "
 		}
 
-		if pos.Column < 1 || pos.Column > len(errLine) {
+		if startCol < 1 || startCol > len(errLine) {
 			// negative columns should not occur but let's not crash.
 			out.WriteString(strings.Repeat(">", len(prefix)))
 			out.WriteString(": ")
-			fmt.Fprintf(out, "<column %d out of range>\n", pos.Column)
+			fmt.Fprintf(out, "<column %d out of range>\n", startCol)
 			out.WriteString("\n")
 			return
 		}
 
-		errCol := replaceRunes(errLine[:pos.Column-1], func(r string) string {
+		errCol := replaceRunes(errLine[:startCol-1], func(r string) string {
 			if r == "\t" {
 				return "  "
 			}

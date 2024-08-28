@@ -6,41 +6,11 @@ import (
 	"testing"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/bcl.go/internal/lexer"
 )
-
-func ParseFile(input string) (*File, error) {
-	file, e1 := parseFile(input)
-	if e1 == nil {
-		return file, nil
-	}
-
-	se, e2 := errpos.MustAddSource(e1, input)
-	if e2 != nil {
-		return nil, e2
-	}
-	return nil, se
-}
-
-func parseFile(input string) (*File, error) {
-	l := lexer.NewLexer(input)
-
-	tokens, err := l.AllTokens()
-	if err != nil {
-		return nil, err
-	}
-
-	tree, err := Walk(tokens)
-	if err != nil {
-		return nil, err
-	}
-
-	return tree, nil
-}
 
 func tParseFile(t testing.TB, input string) *File {
 	t.Helper()
-	file, err := ParseFile(input)
+	file, err := ParseFile(input, false)
 	if err != nil {
 		printErr(t, err)
 		t.Fatal("FATAL: unexpected error")
@@ -52,24 +22,45 @@ func printErr(t testing.TB, err error) {
 	t.Helper()
 	posErrs, ok := errpos.AsErrorsWithSource(err)
 	if !ok {
-		t.Fatalf("FATAL: expected position error, got %T %s", err, err)
+		t.Fatalf("FATAL: expected position error, got %T %s", err, err.Error())
 	}
 	t.Log(posErrs.HumanString(2))
 }
 
 func TestErrors(t *testing.T) {
-	assertErr(t, `!`, errSet(errPos(1, 1)))
-	assertErr(t, "package foo\n!", errSet(errPos(2, 1)))
+	t.Run("unexpected character", func(t *testing.T) {
+		assertErr(t, `!`, errSet(errPos(1, 1)))
+		assertErr(t, "package foo\n!", errSet(errPos(2, 1)))
 
-	assertErr(t, `package pentops. `,
-		errSet(
-			errContains("IDENT"),
-			errContains("EOF"),
-			errPos(1, 16),
-		),
-	)
+	})
 
-	assertErr(t, `block Foo }`, errSet(errPos(1, 11)))
+	t.Run("context", func(t *testing.T) {
+		assertErr(t, `package pentops. `,
+			errSet(
+				errContains("IDENT"),
+				errContains("EOF"),
+				errPos(1, 16),
+			),
+		)
+	})
+
+	t.Run("unexpected close", func(t *testing.T) {
+		assertErr(t, `block Foo }`, errSet(errPos(1, 11)))
+	})
+
+	t.Run("multiple errors", func(t *testing.T) {
+		assertErr(t, strings.Join([]string{
+			"block }",
+			"good Foo",
+			"bad   }",
+			"good",
+			"",
+		}, "\n"), errSet(
+			errPos(1, 7),
+		), errSet(
+			errPos(3, 7),
+		))
+	})
 }
 
 func errSet(assertions ...errorAssertion) []errorAssertion {
@@ -81,24 +72,28 @@ type errorAssertion func(*testing.T, *errpos.Err)
 func assertErr(t *testing.T, input string, assertions ...[]errorAssertion) {
 	t.Helper()
 
-	_, err := ParseFile(input)
-	if err == nil {
-		t.Fatalf("FATAL: expected error, got nil")
+	file, err := ParseFile(input, false)
+	if err != HadErrors {
+		t.Fatalf("Err is not HadErrors, was: %v", err)
 	}
 
-	printErr(t, err)
+	if file.Errors == nil {
+		t.Fatalf("FATAL: expected errors, got none")
+	}
 
-	pe, ok := errpos.AsErrorsWithSource(err)
-	if !ok {
+	errors, err := errpos.MustAddSource(errpos.Errors(file.Errors), input)
+	if err != nil {
 		t.Fatalf("FATAL: expected error to have source, got %T", err)
 	}
-	t.Log(pe.HumanString(2))
+
+	printErr(t, errors)
+
 	for idx, assertionSet := range assertions {
-		if idx >= len(pe.Errors) {
+		if idx >= len(errors.Errors) {
 			t.Errorf("ERROR: Missing error %d", idx)
 			continue
 		}
-		got := pe.Errors[idx]
+		got := errors.Errors[idx]
 		for _, assertion := range assertionSet {
 			assertion(t, got)
 		}
@@ -117,6 +112,8 @@ func errContains(strs ...string) errorAssertion {
 }
 
 func errPos(line, col int) errorAssertion {
+	line--
+	col--
 	return func(t *testing.T, err *errpos.Err) {
 
 		if err.Pos == nil {
@@ -124,13 +121,13 @@ func errPos(line, col int) errorAssertion {
 		}
 		position := *err.Pos
 
-		if position.Line != line {
-			t.Errorf("ERROR: expected line %d, got %d", line, position.Line)
+		if position.Start.Line != line {
+			t.Errorf("ERROR: expected line %d, got %d", line, position.Start.Line)
 		}
 
 		if col > -1 {
-			if position.Column != col {
-				t.Errorf("ERROR: expected column %d, got %d", col, position.Column)
+			if position.Start.Column != col {
+				t.Errorf("ERROR: expected column %d, got %d", col, position.Start.Column)
 			}
 		}
 	}
@@ -276,23 +273,24 @@ func tAssign(key string, value string) tAssertion {
 	}
 }
 
-func tDirective(key string, value string) tAssertion {
-	return func(t *testing.T, s Statement) {
-		directive, ok := s.(Directive)
-		if !ok {
-			t.Fatalf("expected Directive, got %#v", s)
-		}
+/*
+	func tDirective(key string, value string) tAssertion {
+		return func(t *testing.T, s Statement) {
+			directive, ok := s.(Directive)
+			if !ok {
+				t.Fatalf("expected Directive, got %#v", s)
+			}
 
-		if directive.Key.String() != key {
-			t.Fatalf("expected key %q, got %#v", key, directive.Key)
-		}
+			if directive.Key.String() != key {
+				t.Fatalf("expected key %q, got %#v", key, directive.Key)
+			}
 
-		if directive.Value.token.Lit != value {
-			t.Fatalf("expected val %s, got %#v", value, directive.Value)
+			if directive.Value.token.Lit != value {
+				t.Fatalf("expected val %s, got %#v", value, directive.Value)
+			}
 		}
 	}
-}
-
+*/
 func tBlockName(parts ...string) blockAssertion {
 	return func(t *testing.T, block BlockStatement) {
 		if len(block.Name) != len(parts) {

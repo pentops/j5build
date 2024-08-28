@@ -40,6 +40,8 @@ const (
 	EXPORT  // export
 	INCLUDE // include
 	keyword_end
+
+	AnyLiteral
 )
 
 var tokens = [...]string{
@@ -74,18 +76,25 @@ var tokens = [...]string{
 	EXPORT:      "export",
 	INCLUDE:     "include",
 	keyword_end: "",
+
+	AnyLiteral: "<Literal>",
 }
 
+type Position = errpos.Point
+
 type Token struct {
-	Type  TokenType
-	Start errpos.Position
-	End   errpos.Position
-	Lit   string
+	Type       TokenType
+	Lit        string
+	Start, End Position
 }
 
 func (tok Token) String() string {
 	if tok.Type.IsLiteral() {
-		return fmt.Sprintf("%s(%s)", tok.Type.String(), tok.Lit)
+		short := tok.Lit
+		if len(short) > 8 {
+			short = short[:5] + "..."
+		}
+		return fmt.Sprintf("%s(%s)", tok.Type.String(), short)
 	}
 
 	if tok.Type.IsKeyword() {

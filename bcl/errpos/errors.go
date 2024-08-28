@@ -14,15 +14,25 @@ type Position struct {
 	// it is printed where a filename would usually be printed.
 	Filename *string
 
-	Line   int // File starts at line 1
-	Column int // Column starts at 1
+	Start Point
+	End   Point
+}
+
+type Point struct {
+	Line   int
+	Column int
+}
+
+func (p Point) String() string {
+	return fmt.Sprintf("<%d:%d>", p.Line+1, p.Column+1)
 }
 
 func (p Position) String() string {
-	if p.Filename == nil {
-		return fmt.Sprintf("<%d:%d>", p.Line, p.Column)
+	prefix := ""
+	if p.Filename != nil {
+		prefix = *p.Filename + ":"
 	}
-	return fmt.Sprintf("%s:<%d:%d>", *p.Filename, p.Line, p.Column)
+	return fmt.Sprintf("%s%s:%s", prefix, p.Start, p.End)
 }
 
 type HasPosition interface {
