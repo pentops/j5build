@@ -1,5 +1,7 @@
 package schema
 
+import "fmt"
+
 type containerSet []containerField
 
 type Container interface {
@@ -30,10 +32,11 @@ func (bs containerSet) listAttributes() []string {
 	possibleNames := make([]string, 0)
 	for _, blockSchema := range bs {
 		for blockName, spec := range blockSchema.spec.Children {
-			if !spec.IsScalar {
-				continue
+			if spec.IsScalar {
+				possibleNames = append(possibleNames, blockName)
+			} else if spec.IsContainer {
+				possibleNames = append(possibleNames, fmt.Sprintf("%s.", blockName))
 			}
-			possibleNames = append(possibleNames, blockName)
 		}
 	}
 

@@ -52,6 +52,16 @@ const (
 	TDSKIncremental
 )
 
+type TextDocumentSyncOptions struct {
+	OpenClose bool                 `json:"openClose,omitempty"`
+	Save      SaveOptions          `json:"save,omitempty"`
+	Change    TextDocumentSyncKind `json:"change,omitempty"`
+}
+
+type SaveOptions struct {
+	IncludeText bool `json:"includeText,omitempty"`
+}
+
 // CompletionProvider is
 type CompletionProvider struct {
 	ResolveProvider   bool     `json:"resolveProvider,omitempty"`
@@ -71,7 +81,7 @@ type ServerCapabilitiesWorkspace struct {
 
 // ServerCapabilities is
 type ServerCapabilities struct {
-	TextDocumentSync           TextDocumentSyncKind         `json:"textDocumentSync,omitempty"`
+	TextDocumentSync           TextDocumentSyncOptions      `json:"textDocumentSync,omitempty"`
 	DocumentSymbolProvider     bool                         `json:"documentSymbolProvider,omitempty"`
 	CompletionProvider         *CompletionProvider          `json:"completionProvider,omitempty"`
 	DefinitionProvider         bool                         `json:"definitionProvider,omitempty"`
@@ -191,7 +201,7 @@ type Diagnostic struct {
 	Source *string `json:"source,omitempty"`
 
 	Message            string                         `json:"message"`
-	RelatedInformation []DiagnosticRelatedInformation `json:"relatedInformation,omitempty"`
+	RelatedInformation []DiagnosticRelatedInformation `json:"relatedInformation"`
 }
 
 // PublishDiagnosticsParams is

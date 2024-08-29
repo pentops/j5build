@@ -18,6 +18,10 @@ type Position struct {
 	End   Point
 }
 
+func (p Position) Position() Position {
+	return p
+}
+
 type Point struct {
 	Line   int
 	Column int
@@ -32,6 +36,10 @@ func (p Position) String() string {
 	if p.Filename != nil {
 		prefix = *p.Filename + ":"
 	}
+	if p.End.Line == p.Start.Line && p.End.Column == p.Start.Column {
+		return fmt.Sprintf("%s%s", prefix, p.Start)
+	}
+
 	return fmt.Sprintf("%s%s:%s", prefix, p.Start, p.End)
 }
 

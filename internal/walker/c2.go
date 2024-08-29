@@ -40,10 +40,19 @@ var ErrUnexpectedQualifier = fmt.Errorf("unexpected qualifier")
 func doBody(sc Context, body ast.Body) error {
 	for _, decl := range body.Statements {
 		switch decl := decl.(type) {
+		case ast.ImportStatement:
+			if body.IsRoot {
+				continue // handled externally
+			}
+
+			return fmt.Errorf("import statement not allowed in non-root block")
+
 		case ast.Assignment:
-			sc.Logf("Assign Statement %#v <- %#v", decl.Key, decl.Value)
+			sc.Logf("Assign Statement %#v <- %#v (%s)", decl.Key, decl.Value, decl.SourceNode.Start)
 			err := doAssign(sc, decl)
 			if err != nil {
+				err = fmt.Errorf("doAssign: %w", err)
+				err = sc.WrapErr(err, decl)
 				return err
 			}
 			sc.Logf("Assign OK")
@@ -58,10 +67,10 @@ func doBody(sc Context, body ast.Body) error {
 			gotTags := newPopSet(decl.BlockHeader.Name)
 			typeTag, ok := gotTags.popFirst() // "Type".
 			if !ok {
-				return sc.WrapErr(&ErrExpectedTag{Label: "type"}, blockLocation)
+				return sc.WrapErr(&ErrExpectedTag{Label: "type"}, decl.BlockHeader)
 			}
 
-			err := sc.WithContainer(&blockLocation, nil, typeTag, ResetScope, func(sc Context, blockSpec schema.BlockSpec) error {
+			err := sc.WithContainer(&blockLocation, nil, typeTag.Idents, ResetScope, func(sc Context, blockSpec schema.BlockSpec) error {
 				return doBlock(sc, blockSpec, gotTags, decl)
 			})
 			if err != nil {
@@ -77,7 +86,7 @@ func doBody(sc Context, body ast.Body) error {
 }
 
 func doAssign(sc Context, a ast.Assignment) error {
-	return sc.SetAttribute(nil, a.Key, a.Value)
+	return sc.SetAttribute(nil, a.Key.Idents, a.Value)
 }
 
 func doScalarTag(searchPath Context, tagSpec schema.Tag, gotTag ast.Reference) error {
@@ -89,7 +98,7 @@ func doScalarTag(searchPath Context, tagSpec schema.Tag, gotTag ast.Reference) e
 
 	err = applyScalarTag(searchPath, tagSpec, gotTag)
 	if err != nil {
-		return searchPath.WrapErr(err, schema.SourceLocation{Start: gotTag[0].Start, End: gotTag[0].End})
+		return searchPath.WrapErr(err, gotTag)
 	}
 	return nil
 }
@@ -163,7 +172,7 @@ func walkTags(sc Context, spec schema.BlockSpec, gotTags popSet[ast.Reference], 
 				Label:  "name",
 				Schema: spec.ErrName(),
 			}
-			return sc.WrapErr(err, pointPosition(gotTags.lastItem[0].End))
+			return sc.WrapErr(err, pointPosition(gotTags.lastItem.End))
 		}
 
 		tagSpec := *spec.Name
@@ -182,20 +191,25 @@ func walkTags(sc Context, spec schema.BlockSpec, gotTags popSet[ast.Reference], 
 				Label:  "type-select",
 				Schema: spec.ErrName(),
 			}
-			return sc.WrapErr(err, pointPosition(gotTags.lastItem[0].End))
+			return sc.WrapErr(err, pointPosition(gotTags.lastItem.End))
 		}
 
 		tagSpec := *spec.TypeSelect
 
 		sc.Logf("TypeSelect %#v %s", tagSpec, gotTag)
-		return sc.WithContainer(nil, tagSpec.Path, gotTag, KeepScope, func(sc Context, spec schema.BlockSpec) error {
+		typeScope, err := sc.BuildScope(tagSpec.Path, gotTag.Idents, KeepScope)
+		if err != nil {
+			return err
+		}
+
+		return sc.WithScope(typeScope, func(sc Context, spec schema.BlockSpec) error {
 			return walkTags(sc, spec, gotTags, outerCallback)
 		})
 	}
 
 	if gotTags.hasMore() {
 		err := fmt.Errorf("no more tags expected for type %s", spec.ErrName())
-		return errpos.AddPosition(err, spanPosition(gotTags.items[0][0].Start, gotTags.items[len(gotTags.items)-1][0].End))
+		return errpos.AddPosition(err, spanPosition(gotTags.items[0].Start, gotTags.items[len(gotTags.items)-1].End))
 	}
 
 	return outerCallback(sc, spec)
@@ -209,7 +223,7 @@ func walkQualifiers(sc Context, spec schema.BlockSpec, gotQualifiers popSet[ast.
 	}
 	if spec.Qualifier == nil {
 		err := fmt.Errorf("not expecting a qualifier for type %s", spec.ErrName())
-		return sc.WrapErr(err, spanPosition(qualifier[0].Start, qualifier[0].End))
+		return sc.WrapErr(err, spanPosition(qualifier.Start, qualifier.End))
 	}
 
 	tagSpec := spec.Qualifier
@@ -221,7 +235,7 @@ func walkQualifiers(sc Context, spec schema.BlockSpec, gotQualifiers popSet[ast.
 		}
 
 		if gotQualifiers.hasMore() {
-			return errpos.AddPosition(ErrUnexpectedQualifier, spanPosition(gotQualifiers.items[0][0].Start, gotQualifiers.items[len(gotQualifiers.items)-1][0].End))
+			return errpos.AddPosition(ErrUnexpectedQualifier, spanPosition(gotQualifiers.items[0].Start, gotQualifiers.items[len(gotQualifiers.items)-1].End))
 		}
 
 		return outerCallback(sc, spec)
@@ -233,7 +247,7 @@ func walkQualifiers(sc Context, spec schema.BlockSpec, gotQualifiers popSet[ast.
 	// set, so the wrapper is not included in the callback scope.
 	// The node it finds at givenName should must be a block, which is appended to
 	// the scope and becomes the new leaf for the callback.
-	return sc.WithContainer(nil, tagSpec.Path, qualifier, KeepScope, func(sc Context, spec schema.BlockSpec) error {
+	return sc.WithContainer(nil, tagSpec.Path, qualifier.Idents, KeepScope, func(sc Context, spec schema.BlockSpec) error {
 		return walkQualifiers(sc, spec, gotQualifiers, outerCallback)
 	})
 
@@ -241,7 +255,7 @@ func walkQualifiers(sc Context, spec schema.BlockSpec, gotQualifiers popSet[ast.
 
 func applyScalarTag(sc Context, tagSpec schema.Tag, gotTag ast.Reference) error {
 	if len(tagSpec.SplitRef) == 0 {
-		err := sc.SetAttribute(tagSpec.Path, nil, gotTag.AsValue())
+		err := sc.SetAttribute(tagSpec.Path, nil, gotTag)
 		if err != nil {
 			return err
 		}
@@ -253,7 +267,7 @@ func applyScalarTag(sc Context, tagSpec schema.Tag, gotTag ast.Reference) error 
 		// element 0 is the 'remainder' of the tag, after popping idents off
 		// of the *RIGHT* side and setting the scalar at the TagSpec to the
 		// Ident.
-		tagVals := newPopSet(gotTag)
+		tagVals := newPopSet(gotTag.Idents)
 		refElements := newPopSet(tagSpec.SplitRef)
 
 		// [package, schema]
@@ -277,9 +291,9 @@ func applyScalarTag(sc Context, tagSpec schema.Tag, gotTag ast.Reference) error 
 		if !tagVals.hasMore() {
 			return nil
 		}
-		reconstructedReference := ast.Reference(tagVals.items)
+		reconstructedReference := ast.NewReference(tagVals.items)
 		remainderElement, _ := refElements.popFirst()
-		err := sc.SetAttribute(remainderElement, nil, reconstructedReference.AsStringValue())
+		err := sc.SetAttribute(remainderElement, nil, reconstructedReference)
 		if err != nil {
 			return err
 		}

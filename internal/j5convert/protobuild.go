@@ -1,4 +1,4 @@
-package protobuild
+package j5convert
 
 import (
 	"fmt"
@@ -15,26 +15,15 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-func BuildFile(source *sourcedef_j5pb.SourceFile) (*descriptorpb.FileDescriptorProto, error) {
-	fb := NewFileBuilder(source.Package, source.Path)
-
-	for _, element := range source.Elements {
-		if err := fb.AddRoot(element); err != nil {
-			return nil, err
-		}
-	}
-
-	return fb.File(), nil
-}
-
 type FileBuilder struct {
-	Package string
 	Name    string
+	Package string
 
 	fdp *descriptorpb.FileDescriptorProto
 }
 
 func NewFileBuilder(pkg string, name string) *FileBuilder {
+
 	return &FileBuilder{
 		Package: pkg,
 		Name:    name,
@@ -65,13 +54,11 @@ func (fb *FileBuilder) ensureImport(importPath string) {
 }
 
 func (fb *FileBuilder) File() *descriptorpb.FileDescriptorProto {
-
 	last := int32(1)
 	for _, loc := range fb.fdp.SourceCodeInfo.Location {
 		last += 2
 		loc.Span = []int32{last, 1, 1}
 	}
-
 	return fb.fdp
 }
 
@@ -108,120 +95,17 @@ func (fb *FileBuilder) AddRoot(schema *sourcedef_j5pb.RootElement) error {
 		}
 		return nil
 
+	case *sourcedef_j5pb.RootElement_Partial:
+		// Ignore, these are only used when included.
+		return nil
+
 	default:
 		return fmt.Errorf("AddRoot: Unknown %T", schema.Type)
 	}
 }
 
-func (fb *FileBuilder) AddEntity(entity *sourcedef_j5pb.Entity) error {
-	if entity.Keys == nil {
-		return fmt.Errorf("missing keys")
-	}
-	if entity.Status == nil {
-		return fmt.Errorf("missing status")
-	}
-
-	stateObj := &schema_j5pb.Object{
-		Name: strcase.ToCamel(entity.Name + "State"),
-		Entity: &schema_j5pb.EntityObject{
-			Entity: entity.Name,
-			Part:   schema_j5pb.EntityPart_STATE,
-		},
-	}
-
-	keysObj := &schema_j5pb.Object{
-		Name: strcase.ToCamel(entity.Name + "Keys"),
-		Entity: &schema_j5pb.EntityObject{
-			Entity: entity.Name,
-			Part:   schema_j5pb.EntityPart_KEYS,
-		},
-	}
-
-	dataObj := &schema_j5pb.Object{
-		Name: strcase.ToCamel(entity.Name + "Data"),
-		//	Entity: &schema_j5pb.EntityObject{
-		//		Entity: entity.Name,
-		//		Part:   schema_j5pb.EntityPart_DATA,
-		//	},
-	}
-
-	eventOneof := &schema_j5pb.Oneof{
-		Name: strcase.ToCamel(entity.Name + "EventType"),
-	}
-
-	for _, event := range entity.Events {
-		event.Def.Name = strcase.ToCamel(event.Def.Name)
-		if err := doMessage(fb, event.Def); err != nil {
-			return errpos.AddContext(err, "event", event.Def.Name)
-		}
-		eventOneof.Properties = append(eventOneof.Properties, &schema_j5pb.ObjectProperty{
-			Name: strcase.ToSnake(event.Def.Name),
-			Schema: &schema_j5pb.Field{
-				Type: &schema_j5pb.Field_Object{
-					Object: &schema_j5pb.ObjectField{
-						Schema: &schema_j5pb.ObjectField_Object{
-							Object: event.Def,
-						},
-					},
-				},
-			},
-		})
-	}
-
-	eventObj := &schema_j5pb.Object{
-		Name: strcase.ToCamel(entity.Name + "Event"),
-		Entity: &schema_j5pb.EntityObject{
-			Entity: entity.Name,
-			Part:   schema_j5pb.EntityPart_EVENT,
-		},
-
-		Properties: []*schema_j5pb.ObjectProperty{{
-			Name:       "event",
-			ProtoField: []int32{3},
-			Schema: &schema_j5pb.Field{
-				Type: &schema_j5pb.Field_Oneof{
-					Oneof: &schema_j5pb.OneofField{
-						Schema: &schema_j5pb.OneofField_Ref{
-							Ref: &schema_j5pb.Ref{
-								Package: "",
-								Schema:  eventOneof.Name,
-							},
-						},
-					},
-				},
-			},
-		}},
-	}
-
-	statusEnum := &schema_j5pb.Enum{
-		Name:    strcase.ToCamel(entity.Name + "Status"),
-		Prefix:  strcase.ToScreamingSnake(entity.Name) + "_",
-		Options: []*schema_j5pb.Enum_Option{},
-	}
-
-	if err := doMessage(fb, keysObj); err != nil {
-		return errpos.AddContext(err, "keys")
-	}
-	if err := doMessage(fb, stateObj); err != nil {
-		return errpos.AddContext(err, "state")
-	}
-	if err := doEnum(fb, statusEnum); err != nil {
-		return errpos.AddContext(err, "status")
-	}
-	if err := doMessage(fb, dataObj); err != nil {
-		return errpos.AddContext(err, "data")
-	}
-	if err := doMessage(fb, eventObj); err != nil {
-		return errpos.AddContext(err, "event")
-	}
-	if err := doOneof(fb, eventOneof); err != nil {
-		return errpos.AddContext(err, "event oneof")
-	}
-
-	return nil
-}
-
 func (fb *FileBuilder) addMessage(message *MessageBuilder) {
+	fmt.Printf("Adding message %s\n", message.descriptor.GetName())
 	idx := int32(len(fb.fdp.MessageType))
 	path := []int32{4, idx}
 
@@ -263,6 +147,7 @@ type parentFile interface {
 
 type MessageBuilder struct {
 	Parent     parentFile
+	isOneof    bool
 	descriptor *descriptorpb.DescriptorProto
 	commentSet
 }
@@ -273,29 +158,52 @@ func (cs *commentSet) comment(path []int32, description string) {
 	*cs = append(*cs, sourceLoc(path, description))
 }
 
-func doMessage(parent parentFile, schema *schema_j5pb.Object) error {
+func buildMessage(parent parentFile, name string) (*MessageBuilder, error) {
+
 	message := &MessageBuilder{
 		Parent: parent,
 		descriptor: &descriptorpb.DescriptorProto{
-			Name:    ptr(schema.Name),
+			Name:    ptr(name),
 			Options: &descriptorpb.MessageOptions{},
 		},
 	}
 
-	if schema.Entity != nil {
-		parent.ensureImport(j5ExtImport)
-		proto.SetExtension(message.descriptor.Options, ext_j5pb.E_Psm, &ext_j5pb.PSMOptions{
-			EntityName: schema.Entity.Entity,
-		})
+	/*
+		if schema.Entity != nil {
+			parent.ensureImport(j5ExtImport)
+			proto.SetExtension(message.descriptor.Options, ext_j5pb.E_Psm, &ext_j5pb.PSMOptions{
+				EntityName: schema.Entity.Entity,
+			})
 
-	}
-	message.comment([]int32{}, schema.Description)
-
-	for _, prop := range schema.Properties {
-		//prop.ProtoField = []int32{int32(idx) + 1}
-		if err := message.addProperty(prop); err != nil {
-			return errpos.AddContext(err, prop.Name)
 		}
+		message.comment([]int32{}, schema.Description)
+
+		for _, prop := range schema.Properties {
+			if err := message.addProperty(prop); err != nil {
+				return nil, errpos.AddContext(err, prop.Name)
+			}
+		}*/
+
+	return message, nil
+}
+
+func (msg *MessageBuilder) description(str string) {
+	msg.comment([]int32{}, str)
+}
+
+func (msg *MessageBuilder) entityType(name string, part schema_j5pb.EntityPart) {
+	msg.Parent.ensureImport(j5ExtImport)
+	proto.SetExtension(msg.descriptor.Options, ext_j5pb.E_Psm, &ext_j5pb.PSMOptions{
+		EntityName: name,
+		//EntityPart: part,
+	})
+}
+
+func doMessage(parent parentFile, schema *schema_j5pb.Object) error {
+
+	message, err := buildMessage(parent, schema.Name)
+	if err != nil {
+		return err
 	}
 
 	parent.addMessage(message)
@@ -309,23 +217,14 @@ type FieldBuilder struct {
 	comments *descriptorpb.SourceCodeInfo
 }
 
+func (msg *MessageBuilder) addMessage(message *MessageBuilder) {
+	msg.descriptor.NestedType = append(msg.descriptor.NestedType, message.descriptor)
+}
+
 func (msg *MessageBuilder) addProperty(prop *schema_j5pb.ObjectProperty) error {
+
 	if len(prop.ProtoField) == 0 {
-		var props []*schema_j5pb.ObjectProperty
-		switch st := prop.Schema.Type.(type) {
-		case *schema_j5pb.Field_Object:
-			props = st.Object.GetObject().Properties
-		case *schema_j5pb.Field_Oneof:
-			props = st.Oneof.GetOneof().Properties
-		default:
-			return fmt.Errorf("AddProperty: Invalid ObjectPRoperty.Schema.Type for 'unnumbered' field %T", prop.Schema.Type)
-		}
-		for _, p := range props {
-			if err := msg.addProperty(p); err != nil {
-				return err
-			}
-		}
-		return nil
+		return fmt.Errorf("No proto field set (Not supporting anon oneof)")
 	}
 
 	fb := &FieldBuilder{
@@ -334,17 +233,21 @@ func (msg *MessageBuilder) addProperty(prop *schema_j5pb.ObjectProperty) error {
 	}
 	if prop.Schema == nil {
 		fmt.Printf("Field: \n%s\n", prototext.Format(prop))
-
 		return fmt.Errorf("missing schema/type")
 	}
+
 	err := fb.build(prop.Schema)
 	if err != nil {
-
 		return err
+	}
+
+	if msg.isOneof {
+		fb.desc.OneofIndex = ptr(int32(0))
 	}
 
 	protoFieldName := strcase.ToSnake(prop.Name)
 	fb.desc.Name = ptr(protoFieldName)
+	fb.desc.JsonName = ptr(prop.Name)
 
 	// TODO: handle nested and flattened
 	if len(prop.ProtoField) != 1 {
@@ -352,6 +255,7 @@ func (msg *MessageBuilder) addProperty(prop *schema_j5pb.ObjectProperty) error {
 	}
 	fb.desc.Number = ptr(prop.ProtoField[0])
 	msg.comment([]int32{2, *fb.desc.Number}, prop.Description)
+
 	msg.descriptor.Field = append(msg.descriptor.Field, fb.desc)
 
 	return nil
@@ -372,6 +276,8 @@ func sourceLoc(path []int32, description string) *descriptorpb.SourceCodeInfo_Lo
 const (
 	bufValidateImport = "buf/validate/validate.proto"
 	j5ExtImport       = "j5/ext/v1/annotations.proto"
+	j5DateImport      = "j5/types/date/v1/date.proto"
+	j5DecimalImport   = "j5/types/decimal/v1/decimal.proto"
 )
 
 func (fb *FieldBuilder) build(schema *schema_j5pb.Field) error {
@@ -443,9 +349,14 @@ func (fb *FieldBuilder) build(schema *schema_j5pb.Field) error {
 		case *schema_j5pb.ObjectField_Object:
 			// object is inline
 
-			if err := doMessage(fb.msg.Parent, where.Object); err != nil {
+			built, err := buildMessage(fb.msg.Parent, where.Object)
+			if err != nil {
 				return err
 			}
+
+			fb.msg.addMessage(built)
+
+			field.TypeName = ptr(built.descriptor.GetName())
 		}
 
 		if st.Object.Ext != nil {
@@ -569,6 +480,7 @@ func (fb *FieldBuilder) build(schema *schema_j5pb.Field) error {
 		}
 
 	case *schema_j5pb.Field_Date:
+		fb.msg.Parent.ensureImport(j5DateImport)
 		field.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
 		field.TypeName = ptr(".j5.types.date.v1.Date")
 		proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
@@ -578,6 +490,7 @@ func (fb *FieldBuilder) build(schema *schema_j5pb.Field) error {
 		})
 
 	case *schema_j5pb.Field_Decimal:
+		fb.msg.Parent.ensureImport(j5DecimalImport)
 		field.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
 		field.TypeName = ptr(".j5.types.decimal.v1.Decimal")
 		proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
@@ -721,54 +634,78 @@ func (fb *FieldBuilder) build(schema *schema_j5pb.Field) error {
 }
 
 type EnumBuilder struct {
-	desc *descriptorpb.EnumDescriptorProto
+	desc   *descriptorpb.EnumDescriptorProto
+	prefix string
+
 	commentSet
 }
 
+func buildEnum(parent parentFile, name string, prefix string) *EnumBuilder {
+	return &EnumBuilder{
+		prefix: prefix,
+		desc: &descriptorpb.EnumDescriptorProto{
+			Name: ptr(name),
+			Value: []*descriptorpb.EnumValueDescriptorProto{{
+				Name:   ptr(fmt.Sprintf("%sUNSPECIFIED", prefix)),
+				Number: ptr(int32(0)),
+			}},
+		},
+	}
+}
+
+func (e *EnumBuilder) addValue(name string, number int32, description string) {
+	value := &descriptorpb.EnumValueDescriptorProto{
+		Name:   ptr(name),
+		Number: ptr(number),
+	}
+	e.desc.Value = append(e.desc.Value, value)
+	e.comment([]int32{2, number}, description)
+}
+
 func doEnum(parent parentFile, schema *schema_j5pb.Enum) error {
-	enum := &descriptorpb.EnumDescriptorProto{
-		Name: ptr(schema.Name),
+	eb := buildEnum(parent, schema.Name, schema.Prefix)
+	if schema.Description != "" {
+		eb.comment([]int32{}, schema.Description)
 	}
-
-	eb := &EnumBuilder{
-		desc: enum,
-	}
-
-	eb.comment([]int32{}, schema.Description)
 
 	for _, value := range schema.Options {
-		enumValue := &descriptorpb.EnumValueDescriptorProto{
-			Name:   ptr(fmt.Sprintf("%s%s", schema.Prefix, value.Name)),
-			Number: ptr(value.Number),
-		}
-		enum.Value = append(enum.Value, enumValue)
-
-		eb.comment([]int32{2, int32(value.Number)}, value.Description)
-
+		eb.addValue(value.Name, value.Number, value.Description)
 	}
 
 	parent.addEnum(eb)
 	return nil
 }
 
-func doOneof(parent parentFile, schema *schema_j5pb.Oneof) error {
+func buildOneof(parent parentFile, schema *schema_j5pb.Oneof) (*MessageBuilder, error) {
 	message := &MessageBuilder{
-		Parent: parent,
+		Parent:  parent,
+		isOneof: true,
 		descriptor: &descriptorpb.DescriptorProto{
 			Name:    ptr(schema.Name),
 			Options: &descriptorpb.MessageOptions{},
+			OneofDecl: []*descriptorpb.OneofDescriptorProto{{
+				Name: ptr("type"),
+			}},
 		},
 	}
 
 	message.comment([]int32{}, schema.Description)
 
-	for idx, prop := range schema.Properties {
-		prop.ProtoField = []int32{int32(idx) + 1}
+	for _, prop := range schema.Properties {
 		if err := message.addProperty(prop); err != nil {
-			return errpos.AddContext(err, prop.Name)
+			return nil, errpos.AddContext(err, prop.Name)
 		}
 	}
 
+	return message, nil
+}
+
+func doOneof(parent parentFile, schema *schema_j5pb.Oneof) error {
+
+	message, err := buildOneof(parent, schema)
+	if err != nil {
+		return err
+	}
 	parent.addMessage(message)
 
 	return nil

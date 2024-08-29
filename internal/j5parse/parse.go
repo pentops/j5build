@@ -3,8 +3,8 @@ package j5parse
 import (
 	"errors"
 	"fmt"
-	"log"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
@@ -49,7 +49,7 @@ func (p *Parser) fileStub(sourceFilename string) *sourcedef_j5pb.SourceFile {
 	dirName = strings.TrimSuffix(dirName, "/")
 
 	fileName = strings.TrimSuffix(fileName, ext)
-	genFilename := fileName + ".gen.proto"
+	genFilename := filepath.Join(dirName, fileName+".gen.proto")
 
 	pathPackage := strings.Join(strings.Split(dirName, "/"), ".")
 	file := &sourcedef_j5pb.SourceFile{
@@ -73,7 +73,18 @@ func (p *Parser) ParseFile(filename string, data string) (*sourcedef_j5pb.Source
 		if err == ast.HadErrors {
 			return nil, errpos.AddSource(tree.Errors, data)
 		}
-		return nil, err
+		return nil, fmt.Errorf("parse file not HadErrors - : %w", err)
+	}
+
+	for _, stmt := range tree.Body.Statements {
+		dep, ok := stmt.(*ast.ImportStatement)
+		if !ok {
+			continue
+		}
+		file.Imports = append(file.Imports, &sourcedef_j5pb.Import{
+			Path:  dep.Path,
+			Alias: dep.Alias,
+		})
 	}
 
 	scope, err := schema.NewRootSchemaWalker(J5SchemaSpec, obj, file.SourceLocations)
@@ -84,7 +95,7 @@ func (p *Parser) ParseFile(filename string, data string) (*sourcedef_j5pb.Source
 	err = walker.WalkSchema(scope, tree.Body, p.Verbose)
 	if err != nil {
 		err = errpos.AddSourceFile(err, filename, data)
-		return nil, err
+		return nil, fmt.Errorf("walkSchema: %w", err)
 	}
 
 	err = validateFile(p.validate, file)
@@ -114,7 +125,6 @@ func newSourceSet(locs *sourcedef_j5pb.SourceLocation) sourceSet {
 }
 
 func (s sourceSet) addViolation(violation *validate.Violation) {
-	log.Printf("VIOLATION %s %s", violation.FieldPath, violation.Message)
 	path := strings.Split(violation.FieldPath, ".")
 	fullPath := make([]string, 0)
 	for i, p := range path {
@@ -132,7 +142,6 @@ func (s sourceSet) addViolation(violation *validate.Violation) {
 	ss := s
 	for _, p := range fullPath {
 		ss = ss.field(p)
-		log.Printf("FIELD %s = %d,%d\n", p, ss.loc.StartLine, ss.loc.StartColumn)
 	}
 	ss.err(fmt.Errorf(violation.Message))
 }
@@ -170,7 +179,6 @@ func (ss sourceSet) err(err error) {
 		}
 	}
 
-	log.Printf("ERROR %s %s", ss.path, err.Error())
 	if ss.loc != nil && base.Pos == nil {
 		base.Pos = &errpos.Position{
 			Start: errpos.Point{Line: int(ss.loc.StartLine), Column: int(ss.loc.StartColumn)},
@@ -183,18 +191,20 @@ func (ss sourceSet) err(err error) {
 	ss.base.errors = append(ss.base.errors, base)
 }
 
+/*
 func printSource(loc *sourcedef_j5pb.SourceLocation, prefix string) {
 	fmt.Printf("%03d,%03d - %03d,%03d %s\n", loc.StartLine, loc.StartColumn, loc.EndLine, loc.EndColumn, prefix)
 	for name, child := range loc.Children {
 		printSource(child, prefix+"."+name)
 	}
 }
+*/
 
 func validateFile(pv *protovalidate.Validator, file *sourcedef_j5pb.SourceFile) error {
 
 	sources := newSourceSet(file.SourceLocations)
 
-	printSource(sources.loc, " ROOT")
+	//	printSource(sources.loc, " ROOT")
 
 	validationErr := pv.Validate(file)
 	if validationErr != nil {

@@ -101,20 +101,20 @@ func (l *Lexer) tokenOf(ty TokenType) Token {
 	}
 }
 
-func (l *Lexer) AllTokens(failFast bool) ([]Token, error) {
+func (l *Lexer) AllTokens(failFast bool) ([]Token, bool, error) {
 	var tokens []Token
 	for {
 		tok, err := l.NextToken()
 		if err != nil {
-			if failFast {
-				return nil, err
-			}
 			posErr, ok := errpos.AsError(err)
 			if !ok {
-				return nil, err
+				return nil, false, err
 			}
 
 			l.Errors = append(l.Errors, posErr)
+			if failFast {
+				return nil, false, nil
+			}
 
 		}
 		if tok.Type == EOF {
@@ -123,9 +123,9 @@ func (l *Lexer) AllTokens(failFast bool) ([]Token, error) {
 		tokens = append(tokens, tok)
 	}
 	if len(l.Errors) > 0 {
-		return nil, HadErrors
+		return nil, false, nil
 	}
-	return tokens, nil
+	return tokens, true, nil
 }
 
 func (l *Lexer) errf(format string, args ...interface{}) error {
@@ -152,7 +152,6 @@ func (l *Lexer) unexpectedEOF() error {
 // the token's type, and the literal value.
 func (l *Lexer) NextToken() (Token, error) {
 	// keep looping until we return a token
-	var err error
 	for {
 		l.next()
 		if l.ch == eof {
@@ -179,10 +178,7 @@ func (l *Lexer) NextToken() (Token, error) {
 				}, nil
 
 			case '*':
-				lit, err = l.lexBlockComment()
-				if err != nil {
-					return Token{}, err
-				}
+				lit = l.lexBlockComment()
 				return Token{
 					Type:  COMMENT,
 					Start: startPos,
@@ -383,16 +379,23 @@ func (l *Lexer) lexEscape(quote rune) error {
 
 // lexDescription scans the input lines the next line is not a description
 func (l *Lexer) lexDescription() string {
-	var lit string
+	var lit []rune
 	for {
 		line := l.lexDescriptionLine()
+		if line == "" {
+			lit = append(lit, '\n')
+		} else {
+			if len(lit) > 0 && !unicode.IsSpace(lit[len(lit)-1]) {
+				lit = append(lit, ' ')
+			}
+			lit = append(lit, []rune(line)...)
+		}
 		if l.peekPastWhitespace() != '|' {
-			lit = lit + line
-			return lit
+			return string(lit)
 		}
 		l.skipWhitespace() // leading whitespace on newline
 		l.next()           // consume the |
-		lit = lit + line + "\n"
+
 	}
 }
 
@@ -400,6 +403,10 @@ func (l *Lexer) lexDescriptionLine() string {
 	var lit string
 	l.next()
 	l.skipWhitespace()
+	if l.peek() == '|' {
+		return ""
+	}
+
 	for {
 		next := l.peek()
 		if next == eof {
@@ -413,17 +420,17 @@ func (l *Lexer) lexDescriptionLine() string {
 	}
 }
 
-func (l *Lexer) lexBlockComment() (string, error) {
+func (l *Lexer) lexBlockComment() string {
 	l.next() // consume the first *
 	commentText := ""
 	for {
 		l.next()
 		if l.ch == '*' && l.peek() == '/' {
 			l.next()
-			return commentText, nil
+			return commentText
 		}
 		if l.ch == eof {
-			return commentText, nil
+			return commentText
 		}
 		commentText = commentText + string(l.ch)
 	}

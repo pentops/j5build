@@ -14,6 +14,7 @@ type TokenType int
 const (
 	EOF TokenType = iota
 	EOL
+	INVALID
 
 	literal_beg
 	IDENT
@@ -45,8 +46,9 @@ const (
 )
 
 var tokens = [...]string{
-	EOF: "EOF",
-	EOL: "EOL",
+	EOF:     "EOF",
+	EOL:     "EOL",
+	INVALID: "INVALID",
 
 	// Literal
 	literal_beg: "",

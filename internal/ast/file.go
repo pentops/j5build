@@ -2,7 +2,6 @@ package ast
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
@@ -11,8 +10,8 @@ import (
 
 type File struct {
 	Package string
-	Imports []Import
-	BlockStatement
+
+	Body Body
 
 	Errors errpos.Errors
 }
@@ -32,16 +31,19 @@ type SourceNode struct {
 	Comment *Comment
 }
 
+func (sn SourceNode) Position() errpos.Position {
+	return errpos.Position{
+		Start: sn.Start,
+		End:   sn.End,
+	}
+}
+
 func (sn SourceNode) Source() SourceNode {
 	return sn
 }
 
-type Import struct {
-	Path  string
-	Alias string
-}
-
 type Body struct {
+	IsRoot     bool
 	Includes   []Reference
 	Statements []Statement
 }
@@ -74,63 +76,40 @@ func (i Ident) AsStringValue() Value {
 }
 
 // Reference is a dot separates set of Idents
-type Reference []Ident
+type Reference struct {
+	Idents []Ident
+	SourceNode
+	unknownValue
+}
 
-func (r Reference) AsStringValue() Value {
-	return Value{
+func NewReference(idents []Ident) Reference {
+	return Reference{
+		Idents: idents,
 		SourceNode: SourceNode{
-			Start: r[0].Start,
-			End:   r[len(r)-1].End,
-		},
-		token: lexer.Token{
-			Start: r[0].Start,
-			End:   r[len(r)-1].End,
-			Type:  lexer.STRING,
-			Lit:   r.String(),
-		},
-	}
-
-}
-
-func (r Reference) String() string {
-	return strings.Join(r.Strings(), ".")
-}
-
-func (r Reference) Strings() []string {
-	out := make([]string, len(r))
-	for i, part := range r {
-		out[i] = part.Value
-	}
-	return out
-}
-
-func ReferencesToStrings(refs []Reference) []string {
-	out := make([]string, len(refs))
-	for i, ref := range refs {
-		out[i] = ref.String()
-	}
-	return out
-}
-
-// AsValue converts the reference to a Value type, which is used when it is on
-// the RHS of an assignment or directive.
-func (r Reference) AsValue() Value {
-	return Value{
-		SourceNode: SourceNode{
-			Start: r[0].Start,
-			End:   r[len(r)-1].End,
-		},
-		token: lexer.Token{
-			Type:  lexer.IDENT,
-			Start: r[0].Start,
-			End:   r[len(r)-1].End,
-			Lit:   r.String(),
+			Start: idents[0].Start,
+			End:   idents[len(idents)-1].End,
 		},
 	}
 }
 
 func (r Reference) GoString() string {
 	return fmt.Sprintf("reference(%s)", r)
+}
+
+func (r Reference) String() string {
+	return strings.Join(r.Strings(), ".")
+}
+
+func (r Reference) AsString() (string, error) {
+	return r.String(), nil
+}
+
+func (r Reference) Strings() []string {
+	out := make([]string, len(r.Idents))
+	for i, part := range r.Idents {
+		out[i] = part.Value
+	}
+	return out
 }
 
 type BlockHeader struct {
@@ -142,25 +121,13 @@ type BlockHeader struct {
 	SourceNode
 }
 
-// ScanTags scans the tags after the first 'type' tag, all elements must be
-// single Ident, not joined references. (for other cases parse it directly)
-func (bs BlockHeader) ScanTags(into ...*string) error {
-	wantLen := 1 + len(into)
-	// idx 0 is the type
-	if len(bs.Name) != wantLen {
-		return fmt.Errorf("expected %d tags, got %v", wantLen, bs.Name) //ast.ReferencesToStrings(tags))
+func (bh BlockHeader) DescriptionString() string {
+	if bh.Description == nil {
+		return ""
 	}
 
-	for idx, dest := range into {
-		tag := bs.Name[1+idx]
-		if len(tag) != 1 {
-			return fmt.Errorf("expected single tag, got %v", tag)
-		}
-		str := tag[0].String()
-		*dest = str
-	}
+	return bh.Description.token.Lit
 
-	return nil
 }
 
 func (bs BlockHeader) GoString() string {
@@ -184,40 +151,17 @@ func (bs BlockHeader) NamePart(idx int) (string, bool) {
 type BlockStatement struct {
 	BlockHeader
 	Body Body
-	statement
 }
 
-type Statement interface {
-	fmt.GoStringer
-	Source() SourceNode
-	isStatement()
+func (bs BlockStatement) GoString() string {
+	return fmt.Sprintf("block(%s)", bs.Name)
 }
 
-type statement struct{}
-
-func (s statement) isStatement() {}
-
-type Assignment struct {
-	Key   Reference
-	Value Value
-	SourceNode
-	statement
+func (bs BlockStatement) Kind() StatementKind {
+	return StatementKindBlock
 }
 
-func (a Assignment) GoString() string {
-	return fmt.Sprintf("assign(%s = %#v)", a.Key, a.Value)
-}
-
-type Directive struct {
-	Key   Reference
-	Value *Value
-	SourceNode
-	statement
-}
-
-func (d Directive) GoString() string {
-	return fmt.Sprintf("directive(%s %#v)", d.Key, d.Value)
-}
+var _ Statement = BlockStatement{}
 
 type TypeError struct {
 	Expected string
@@ -228,71 +172,74 @@ func (te *TypeError) Error() string {
 	return fmt.Sprintf("expected a %s, got %s", te.Expected, te.Got)
 }
 
-type Value struct {
-	token lexer.Token
+type StatementKind int
+
+const (
+	StatementKindEOF StatementKind = iota
+	StatementKindAssignment
+	StatementKindDirective
+	StatementKindBlockHeader
+	StatementKindBlockClose
+	StatementKindImport
+
+	StatementKindBlock // allows a whole 'block' to act as a statement
+
+)
+
+type Statement interface {
+	fmt.GoStringer
+	Source() SourceNode
+	Kind() StatementKind
+}
+
+type ImportStatement struct {
+	// when true, the import was specified as a quoted file path, rather than a package, for compatibility with proto imports
+	IsFile bool
+	Path   string
+	Alias  string
 	SourceNode
 }
 
-func (v Value) GoString() string {
-	return fmt.Sprintf("value(%s:%s)", v.token.Type, v.token.Lit)
+func (is ImportStatement) Kind() StatementKind {
+	return StatementKindImport
 }
 
-func (v Value) AsString() (string, error) {
-	if v.token.Type != lexer.STRING && v.token.Type != lexer.DESCRIPTION && v.token.Type != lexer.IDENT {
-
-		return "", &TypeError{
-			Expected: "string",
-			Got:      v.token.String(),
-		}
+func (is ImportStatement) GoString() string {
+	if is.IsFile {
+		return fmt.Sprintf("import(%q)", is.Path)
 	}
-	return v.token.Lit, nil
+	if is.Alias != "" {
+		return fmt.Sprintf("import(%s as %s)", is.Path, is.Alias)
+	}
+	return fmt.Sprintf("import(%s)", is.Path)
 }
 
-func (v Value) AsBool() (bool, error) {
-	if v.token.Type != lexer.BOOL {
-		return false, &TypeError{
-			Expected: "bool",
-			Got:      v.token.String(),
-		}
-	}
-	return v.token.Lit == "true", nil
+var _ Statement = ImportStatement{}
+
+type Assignment struct {
+	Key   Reference
+	Value Value
+	SourceNode
 }
 
-func (v Value) AsUint(size int) (uint64, error) {
-	if v.token.Type != lexer.INT {
-		return 0, &TypeError{
-			Expected: fmt.Sprintf("uint%d", size),
-			Got:      v.token.String(),
-		}
-	}
-	parsed, err := strconv.ParseUint(v.token.Lit, 10, size)
-	return parsed, err
-
+func (a Assignment) Kind() StatementKind {
+	return StatementKindAssignment
 }
 
-func (v Value) AsInt(size int) (int64, error) {
-	if v.token.Type != lexer.INT {
-		return 0, &TypeError{
-			Expected: fmt.Sprintf("int%d", size),
-			Got:      v.token.String(),
-		}
-	}
-	parsed, err := strconv.ParseInt(v.token.Lit, 10, size)
-	return parsed, err
+func (a Assignment) GoString() string {
+	return fmt.Sprintf("assign(%s = %#v)", a.Key, a.Value)
 }
 
-func (v Value) AsFloat(size int) (float64, error) {
-	switch v.token.Type {
-	case lexer.INT:
-		parsed, err := strconv.ParseFloat(v.token.Lit, size)
-		return parsed, err
-	case lexer.DECIMAL:
-		parsed, err := strconv.ParseFloat(v.token.Lit, size)
-		return parsed, err
-	default:
-		return 0, &TypeError{
-			Expected: fmt.Sprintf("float%d", size),
-			Got:      v.token.String(),
-		}
-	}
+type Directive struct {
+	Key   Reference
+	Value *Value
+	SourceNode
+}
+
+func (d Directive) Kind() StatementKind {
+	return StatementKindDirective
+}
+
+func (d Directive) GoString() string {
+	return fmt.Sprintf("directive(%s %#v)", d.Key, d.Value)
 }

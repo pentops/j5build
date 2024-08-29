@@ -3,6 +3,7 @@ package ast
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/bcl.go/internal/lexer"
@@ -11,32 +12,22 @@ import (
 type Position = errpos.Point
 
 func ParseFile(input string, failFast bool) (*File, error) {
-	file, err := parseFile(input, failFast)
-	if err != nil {
-		return file, err
-	}
-
-	if len(file.Errors) > 0 {
-		return file, HadErrors
-	}
-
-	return file, nil
-}
-
-func parseFile(input string, failFast bool) (*File, error) {
 	l := lexer.NewLexer(input)
 
-	tokens, err := l.AllTokens(failFast)
+	tokens, ok, err := l.AllTokens(failFast)
 	if err != nil {
-		if err == lexer.HadErrors {
-			return &File{Errors: l.Errors}, HadErrors
-		}
-		return nil, err
+		return nil, fmt.Errorf("unexpected lexer error: %w", err)
 	}
+	if !ok {
+		return &File{Errors: l.Errors}, HadErrors
 
+	}
 	tree, err := Walk(tokens, failFast)
 	if err != nil {
-		return tree, err
+		if err == HadErrors {
+			return tree, HadErrors
+		}
+		return tree, fmt.Errorf("unexpected walk error: %w", err)
 	}
 
 	return tree, nil
@@ -65,13 +56,11 @@ func Walk(tokens []lexer.Token, failFast bool) (*File, error) {
 		tokens:   tokens,
 		failFast: failFast,
 	}
-	fmt.Printf("WALK, %v\n", failFast)
 	out, err := ww.walkFile()
-	if err != nil {
-		return nil, fmt.Errorf("walk: %w", err)
-	}
-
 	out.Errors = ww.errors
+	if err != nil {
+		return out, err
+	}
 
 	if len(ww.errors) > 0 {
 		return out, HadErrors
@@ -113,7 +102,11 @@ func (ww *Walker) nextType() lexer.TokenType {
 }
 
 func (ww *Walker) walkFile() (*File, error) {
-	file := &File{}
+	file := &File{
+		Body: Body{
+			IsRoot: true,
+		},
+	}
 	for {
 		err := ww.nextFileStatement(file)
 		if err != nil {
@@ -169,12 +162,29 @@ func (ww *Walker) nextFileStatement(file *File) *unexpectedTokenError {
 
 	case lexer.IMPORT:
 		ww.popToken()
-		packagePath, err := ww.popReference()
-		if err != nil {
-			return err
-		}
-		decl := Import{
-			Path: packagePath.String(),
+		decl := ImportStatement{}
+
+		switch ww.nextType() {
+		case lexer.STRING:
+			decl.Path = ww.popToken().Lit
+			decl.IsFile = true
+			comment, err := ww.endStatement()
+			if err != nil {
+				return err
+			}
+			if comment != nil {
+				decl.Comment = comment
+			}
+			file.Body.Statements = append(file.Body.Statements, decl)
+
+			return nil
+
+		case lexer.IDENT:
+			packagePath, err := ww.popReference()
+			if err != nil {
+				return err
+			}
+			decl.Path = strings.Join(packagePath.Strings(), ".")
 		}
 
 		if ww.nextType() == lexer.IDENT {
@@ -189,8 +199,14 @@ func (ww *Walker) nextFileStatement(file *File) *unexpectedTokenError {
 			}
 			decl.Alias = ident.Value
 		}
+		comment, err := ww.endStatement()
+		if err != nil {
+			return err
+		}
+		if comment != nil {
+			decl.Comment = comment
+		}
 
-		file.Imports = append(file.Imports, decl)
 		return nil
 
 	default:
@@ -305,6 +321,10 @@ func (ww *Walker) popValue() (Value, *unexpectedTokenError) {
 	if token.Type.IsLiteral() {
 		return Value{
 			token: token,
+			SourceNode: SourceNode{
+				Start: token.Start,
+				End:   token.End,
+			},
 		}, nil
 	}
 
@@ -327,16 +347,17 @@ func (ww *Walker) popIdent() (Ident, *unexpectedTokenError) {
 
 // popReference reads all dot separated idents, dot, ident etc
 func (ww *Walker) popReference() (Reference, *unexpectedTokenError) {
-	ref := make(Reference, 0)
+	ref := make([]Ident, 0)
 	for {
 		ident, err := ww.popIdent()
 		if err != nil {
-			err.context = fmt.Sprintf("after \"%s.\"", ref.String())
-			return ref, err
+			rr := NewReference(ref)
+			err.context = fmt.Sprintf("after \"%s.\"", rr.String())
+			return rr, err
 		}
 		ref = append(ref, ident)
 		if ww.nextType() != lexer.DOT {
-			return ref, nil
+			return NewReference(ref), nil
 		}
 		ww.popToken()
 	}
@@ -344,7 +365,7 @@ func (ww *Walker) popReference() (Reference, *unexpectedTokenError) {
 }
 
 func (ww *Walker) walkStatement(ref Reference) (Statement, *unexpectedTokenError) {
-	start := ref[0].Start
+	start := ref.SourceNode.Start
 
 	// Assignments can only take one LHS argument
 	if ww.nextType() == lexer.ASSIGN {
@@ -437,7 +458,7 @@ func (ww *Walker) walkValueAssign(ref Reference) (Assignment, *unexpectedTokenEr
 	assign := Assignment{
 		Key: ref,
 		SourceNode: SourceNode{
-			Start: ref[0].Start,
+			Start: ref.SourceNode.Start,
 		},
 	}
 

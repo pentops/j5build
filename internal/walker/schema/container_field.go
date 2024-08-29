@@ -25,15 +25,12 @@ type containerField struct {
 
 func (sc *containerField) RunCloseHooks() error {
 	if sc.spec.RunAfter != nil {
-		fmt.Printf("Hook %s\n", sc.schemaName)
 		if err := sc.spec.RunAfter.RunHook(sc.field); err != nil {
 			err := fmt.Errorf("In Close Hook for %s: %w", sc.schemaName, err)
 			err = errpos.AddPosition(err, sc.errPosition())
 			err = errpos.AddContext(err, sc.schemaName)
 			return err
 		}
-	} else {
-		fmt.Printf("No Hook %s\n", sc.schemaName)
 	}
 
 	for _, child := range sc.transparentPath {
@@ -182,12 +179,12 @@ func (container *containerField) walkPath(path []string, loc SourceLocation) ([]
 			Schema: container.SchemaName(),
 		}
 	}
-	/*
-		fmt.Printf("WALK PATH %s\n", path)
-		fmt.Printf("  Schema: %s\n", fieldWithContainer.SchemaName())
-		fmt.Printf("  Path:   %s\n", strings.Join(schemaPath, "."))
-		fmt.Printf("  Proto:  %s\n", strings.Join(protoPath, "."))
-	*/
+
+	//	fmt.Printf("WALK PATH %s\n", path)
+	//	fmt.Printf("  Schema: %s\n", fieldWithContainer.SchemaName())
+	//	fmt.Printf("  Path:   %s\n", strings.Join(schemaPath, "."))
+	//	fmt.Printf("  Proto:  %s\n", strings.Join(protoPath, "."))
+
 	sourceLocation := container.location
 	for _, elem := range protoPath {
 		sourceLocation = childSourceLocation(sourceLocation, elem, loc)

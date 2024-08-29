@@ -67,7 +67,9 @@ func (h *langHandler) linter() {
 				if _, ok := h.files[lintReq.URI]; ok {
 					version = h.files[lintReq.URI].Version
 				}
-				log.Printf("Pub Diag")
+				if diagnostics == nil {
+					diagnostics = []Diagnostic{}
+				}
 				err = h.conn.Notify(
 					ctx,
 					"textDocument/publishDiagnostics",
@@ -124,10 +126,7 @@ func (h *langHandler) lint(ctx context.Context, uri DocumentURI) (map[DocumentUR
 	}
 
 	uriToDiagnostics := make(map[DocumentURI][]Diagnostic)
-
-	diagURI := uri
-
-	uriToDiagnostics[diagURI] = results
+	uriToDiagnostics[uri] = results
 
 	return uriToDiagnostics, nil
 }

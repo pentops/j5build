@@ -7,16 +7,19 @@ import (
 	"log"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
+	"github.com/pentops/bcl.go/internal/ast"
 	"github.com/pentops/bcl.go/internal/j5parse"
 	"github.com/pentops/bcl.go/internal/linter"
 	"github.com/pentops/bcl.go/internal/protobuild"
 	"github.com/pentops/prototools/protoprint"
 	"github.com/pentops/runner/commander"
-	"google.golang.org/protobuf/types/descriptorpb"
+	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/pentops/bcl.go/internal/lsp"
+	"github.com/pentops/j5/lib/j5source"
 	"github.com/sourcegraph/jsonrpc2"
 )
 
@@ -26,7 +29,7 @@ func main() {
 	cmdGroup := commander.NewCommandSet()
 	cmdGroup.Add("j5gen", commander.NewCommand(runJ5Gen))
 	cmdGroup.Add("lint", commander.NewCommand(runLint))
-	cmdGroup.Add("fix", commander.NewCommand(runFix))
+	cmdGroup.Add("fmt", commander.NewCommand(runFmt))
 	cmdGroup.Add("lsp", commander.NewCommand(runLSP))
 	cmdGroup.RunMain("bcl", Version)
 }
@@ -75,6 +78,7 @@ func runLSP(ctx context.Context, cfg struct {
 		ctx,
 		jsonrpc2.NewBufferedStream(stdrwc{}, jsonrpc2.VSCodeObjectCodec{}),
 		lsp.NewHandler(config, handlers),
+		jsonrpc2.LogMessages(log.Default()),
 	)
 
 	select {
@@ -133,60 +137,47 @@ func runLint(ctx context.Context, cfg struct {
 	return nil
 }
 
-func runFix(ctx context.Context, cfg struct {
-}) error {
-	return fmt.Errorf("not implemented")
-}
-
-func runJ5Gen(ctx context.Context, cfg struct {
-	Dir     string `flag:"dir" default:"." desc:"Root schema directory"`
-	Verbose bool   `flag:"verbose" env:"BCL_VERBOSE" default:"false" desc:"Verbose output"`
+func runFmt(ctx context.Context, cfg struct {
+	Dir   string `flag:"dir" default:"." desc:"Root schema directory"`
+	Write bool   `flag:"write" default:"false" desc:"Write fixes to files"`
 }) error {
 
-	parser, err := j5parse.NewParser()
+	doFile := func(pathname string, data []byte) (string, error) {
+		tree, err := ast.ParseFile(string(data), true)
+		if err != nil {
+			if err == ast.HadErrors {
+				return "", errpos.AddSource(tree.Errors, string(data))
+			}
+			return "", fmt.Errorf("parse file not HadErrors: %w", err)
+		}
+
+		fixed := ast.Print(tree)
+		return fixed, nil
+	}
+
+	stat, err := os.Lstat(cfg.Dir)
 	if err != nil {
 		return err
 	}
-
-	parser.Verbose = cfg.Verbose
-	parser.FailFast = !cfg.Verbose
-
-	desc := &descriptorpb.FileDescriptorSet{
-		File: []*descriptorpb.FileDescriptorProto{},
-	}
-
-	doFile := func(filename, data string) error {
-		fmt.Printf("==========\n\nBEGIN %s\n", filename)
-
-		file, err := parser.ParseFile(filename, data)
+	if !stat.IsDir() {
+		data, err := os.ReadFile(cfg.Dir)
 		if err != nil {
 			return err
 		}
-
-		/*
-			jsonData, err := codec.NewCodec().ProtoToJSON(file.ProtoReflect())
-			if err != nil {
-				return err
-			}
-			buf := &bytes.Buffer{}
-			if err := json.Indent(buf, jsonData, "", "  "); err != nil {
-				return err
-			}
-			fmt.Println(buf.String())
-
-		*/
-		protoDesc, err := protobuild.BuildFile(file)
+		out, err := doFile(cfg.Dir, data)
 		if err != nil {
 			return err
 		}
-
-		//fmt.Println(protojson.Format(protoDesc))
-
-		desc.File = append(desc.File, protoDesc)
-
+		if !cfg.Write {
+			fmt.Printf("Fixed: %s\n", cfg.Dir)
+			fmt.Println(out)
+		} else {
+			return os.WriteFile(cfg.Dir, []byte(out), 0644)
+		}
 		return nil
 	}
 
+	outWriter := &fileWriter{dir: cfg.Dir}
 	root := os.DirFS(cfg.Dir)
 	err = fs.WalkDir(root, ".", func(pathname string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -195,6 +186,7 @@ func runJ5Gen(ctx context.Context, cfg struct {
 		if d.IsDir() {
 			return nil
 		}
+
 		if path.Ext(pathname) != ".j5s" {
 			return nil
 		}
@@ -204,8 +196,98 @@ func runJ5Gen(ctx context.Context, cfg struct {
 			return err
 		}
 
-		if err := doFile(pathname, string(data)); err != nil {
+		out, err := doFile(pathname, data)
+		if err != nil {
 			return err
+		}
+		if !cfg.Write {
+			fmt.Printf("Fixed: %s\n", pathname)
+			fmt.Println(out)
+			return nil
+		} else {
+			return outWriter.PutFile(ctx, pathname+".fied", []byte(out))
+		}
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func runJ5Gen(ctx context.Context, cfg struct {
+	Dir           string   `flag:"dir" default:"." desc:"Root schema directory"`
+	Bundle        string   `flag:"bundle" default:"" desc:"Bundle file"`
+	Verbose       bool     `flag:"verbose" env:"BCL_VERBOSE" default:"false" desc:"Verbose output"`
+	Files         []string `flag:"files" required:"false" desc:"Files to generate, otherwise all J5S"`
+	DebugProtoAST bool     `flag:"debug-proto-ast" default:"false" desc:"Print proto AST to output dir"`
+}) error {
+
+	outWriter := &fileWriter{dir: cfg.Dir}
+	j5Parser, err := j5parse.NewParser()
+	if err != nil {
+		return err
+	}
+
+	protoParser := protobuild.NewProtoParser()
+
+	source, err := j5source.NewFSSource(ctx, os.DirFS(cfg.Dir))
+	if err != nil {
+		return err
+	}
+
+	deps, err := source.BundleDependencies(ctx, cfg.Bundle)
+	if err != nil {
+		return err
+	}
+
+	link := protobuild.New(deps)
+
+	j5Parser.Verbose = cfg.Verbose
+	j5Parser.FailFast = !cfg.Verbose
+
+	root := os.DirFS(cfg.Dir)
+	err = fs.WalkDir(root, ".", func(pathname string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+
+		switch path.Ext(pathname) {
+		case ".proto":
+			if strings.HasSuffix(pathname, ".gen.proto") {
+				return nil
+			}
+			data, err := fs.ReadFile(root, pathname)
+			if err != nil {
+				return err
+			}
+			file, err := protoParser.ParseFile(pathname, data)
+			if err != nil {
+				return err
+			}
+
+			return link.AddProtoFile(file)
+
+		case ".j5s":
+			data, err := fs.ReadFile(root, pathname)
+			if err != nil {
+				return err
+			}
+
+			file, err := j5Parser.ParseFile(pathname, string(data))
+			if err != nil {
+				return err
+			}
+
+			if cfg.DebugProtoAST {
+				if err := outWriter.PutFile(ctx, pathname+".ast", []byte(prototext.Format(file))); err != nil {
+					return err
+				}
+			}
+
+			return link.AddJ5File(file)
 		}
 
 		return nil
@@ -221,7 +303,17 @@ func runJ5Gen(ctx context.Context, cfg struct {
 		fmt.Println(str)
 		os.Exit(1)
 	}
-	if err := protoprint.PrintProtoFiles(ctx, &fileWriter{dir: cfg.Dir}, desc, protoprint.Options{}); err != nil {
+
+	if err := link.ConvertJ5(); err != nil {
+		return err
+	}
+
+	descriptors, err := link.BuildDescriptors(ctx, cfg.Files)
+	if err != nil {
+		return err
+	}
+
+	if err := protoprint.PrintReflect(ctx, outWriter, descriptors, protoprint.Options{}); err != nil {
 		return err
 	}
 

@@ -19,8 +19,8 @@ type Scope interface {
 	PrintScope(func(string, ...interface{}))
 	SchemaNames() []string
 
-	ChildBlock(name string, src SourceLocation) (Scope, error)
-	Field(name string, src SourceLocation) (ScalarField, error)
+	ChildBlock(name string, src SourceLocation) (Scope, *WalkPathError)
+	Field(name string, src SourceLocation) (ScalarField, *WalkPathError)
 
 	CurrentBlock() Container
 
@@ -28,6 +28,8 @@ type Scope interface {
 	ListBlocks() []string
 
 	MergeScope(Scope) Scope
+
+	TailScope() Scope
 }
 
 type schemaWalker struct {
@@ -93,7 +95,7 @@ func (sw *schemaWalker) ListBlocks() []string {
 	return sw.blockSet.listBlocks()
 }
 
-func (sw *schemaWalker) Field(name string, source SourceLocation) (ScalarField, error) {
+func (sw *schemaWalker) Field(name string, source SourceLocation) (ScalarField, *WalkPathError) {
 	for _, blockSchema := range sw.blockSet {
 		childSpec, ok := blockSchema.spec.Children[name]
 		if !ok {
@@ -120,11 +122,11 @@ func (sw *schemaWalker) Field(name string, source SourceLocation) (ScalarField, 
 
 		}
 
-		finalField, err := walkContainer.container.NewValue(final)
-		if err != nil {
+		finalField, newVal := walkContainer.container.NewValue(final)
+		if newVal != nil {
 			return nil, &WalkPathError{
 				Type: UnknownPathError,
-				Err:  err,
+				Err:  newVal,
 			}
 		}
 
@@ -155,7 +157,7 @@ func (sw *schemaWalker) Field(name string, source SourceLocation) (ScalarField, 
 	}
 }
 
-func (sw *schemaWalker) walkToChild(blockSchema *containerField, path []string, sourceLocation SourceLocation) (*containerField, error) {
+func (sw *schemaWalker) walkToChild(blockSchema *containerField, path []string, sourceLocation SourceLocation) (*containerField, *WalkPathError) {
 	if len(path) == 0 {
 		return blockSchema, nil
 	}
@@ -169,7 +171,7 @@ func (sw *schemaWalker) walkToChild(blockSchema *containerField, path []string, 
 	for _, field := range visitedFields {
 		spec, err := sw.schemaSet.blockSpec(field.container)
 		if err != nil {
-			return nil, err
+			return nil, unexpectedPathError(field.name, err)
 		}
 		field.spec = *spec
 	}
@@ -179,7 +181,7 @@ func (sw *schemaWalker) walkToChild(blockSchema *containerField, path []string, 
 	return mainField, nil
 }
 
-func (sw *schemaWalker) ChildBlock(name string, source SourceLocation) (Scope, error) {
+func (sw *schemaWalker) ChildBlock(name string, source SourceLocation) (Scope, *WalkPathError) {
 
 	for _, blockSchema := range sw.blockSet {
 		childSpec, ok := blockSchema.spec.Children[name]
@@ -200,6 +202,14 @@ func (sw *schemaWalker) ChildBlock(name string, source SourceLocation) (Scope, e
 		Field:     name,
 		Type:      RootNotFound,
 		Available: sw.blockSet.listBlocks(),
+	}
+}
+
+func (sw *schemaWalker) TailScope() Scope {
+	return &schemaWalker{
+		blockSet:  containerSet{*sw.leafBlock},
+		leafBlock: sw.leafBlock,
+		schemaSet: sw.schemaSet,
 	}
 }
 

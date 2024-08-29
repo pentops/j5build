@@ -1,4 +1,4 @@
-package protobuild
+package j5convert
 
 import (
 	"context"
@@ -75,7 +75,10 @@ func TestSchemaToProto(t *testing.T) {
 		},
 	}
 
-	fb := NewFileBuilder("test.v1", "test/v1/test.proto")
+	pkg := &Package{
+		Name: "test.v1",
+	}
+	fb := NewFileBuilder(pkg, "test/v1/test.proto")
 
 	if err := fb.AddRoot(objectSchema); err != nil {
 		t.Fatalf("AddSchema failed: %v", err)

@@ -82,8 +82,6 @@ func (h *langHandler) handle(ctx context.Context, conn *jsonrpc2.Conn, req *json
 		//	return h.handleTextDocumentFormatting(ctx, conn, req)
 	}
 
-	log.Printf("FALLBACK TO ERROR")
-
 	return nil, &jsonrpc2.Error{Code: jsonrpc2.CodeMethodNotFound, Message: fmt.Sprintf("method not supported: %s", req.Method)}
 }
 
@@ -91,7 +89,13 @@ func (h *langHandler) handleInitialize(ctx context.Context, conn *jsonrpc2.Conn,
 	h.conn = conn
 	return &InitializeResult{
 		Capabilities: ServerCapabilities{
-			TextDocumentSync: TDSKFull,
+			TextDocumentSync: TextDocumentSyncOptions{
+				OpenClose: true,
+				Change:    TDSKFull,
+				Save: SaveOptions{
+					IncludeText: true,
+				},
+			},
 		},
 	}, nil
 }
@@ -128,8 +132,6 @@ func (h *langHandler) handleTextDocumentDidSave(_ context.Context, _ *jsonrpc2.C
 	if err := json.Unmarshal(*req.Params, &params); err != nil {
 		return nil, err
 	}
-
-	fmt.Printf("Document Save, had body: %v", params.Text != nil)
 
 	if params.Text != nil {
 		err = h.updateFile(params.TextDocument.URI, *params.Text, nil, eventTypeSave)
@@ -196,6 +198,7 @@ func (h *langHandler) closeFile(uri DocumentURI) error {
 }
 
 func (h *langHandler) saveFile(uri DocumentURI) error {
+
 	h.lintRequest(uri, eventTypeSave)
 	return nil
 }

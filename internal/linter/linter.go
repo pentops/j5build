@@ -21,8 +21,6 @@ func New(parser *j5parse.Parser) *Linter {
 
 func (l *Linter) LintFile(ctx context.Context, req lsp.LintFileRequest) ([]lsp.Diagnostic, error) {
 
-	log.Printf("CONTENT\n%s\n", req.Content)
-
 	_, mainError := l.parser.ParseFile(req.Filename, req.Content)
 	if mainError == nil {
 		return nil, nil
@@ -32,8 +30,6 @@ func (l *Linter) LintFile(ctx context.Context, req lsp.LintFileRequest) ([]lsp.D
 	if !ok {
 		return nil, mainError
 	}
-
-	log.Printf("OUTPUT\n")
 
 	log.Println(locErr.HumanString(2))
 
