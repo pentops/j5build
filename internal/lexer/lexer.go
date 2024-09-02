@@ -2,6 +2,7 @@ package lexer
 
 import (
 	"fmt"
+	"strings"
 	"unicode"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
@@ -379,19 +380,13 @@ func (l *Lexer) lexEscape(quote rune) error {
 
 // lexDescription scans the input lines the next line is not a description
 func (l *Lexer) lexDescription() string {
-	var lit []rune
+	var lit []string
 	for {
 		line := l.lexDescriptionLine()
-		if line == "" {
-			lit = append(lit, '\n')
-		} else {
-			if len(lit) > 0 && !unicode.IsSpace(lit[len(lit)-1]) {
-				lit = append(lit, ' ')
-			}
-			lit = append(lit, []rune(line)...)
-		}
+		lit = append(lit, line)
+
 		if l.peekPastWhitespace() != '|' {
-			return string(lit)
+			return strings.Join(lit, "\n")
 		}
 		l.skipWhitespace() // leading whitespace on newline
 		l.next()           // consume the |

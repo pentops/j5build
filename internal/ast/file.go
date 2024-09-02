@@ -16,6 +16,28 @@ type File struct {
 	Errors errpos.Errors
 }
 
+func (f *File) Imports() []*ImportStatement {
+	stmts := make([]*ImportStatement, 0, len(f.Body.Statements))
+	for _, stmt := range f.Body.Statements {
+		if is, ok := stmt.(*ImportStatement); ok {
+			stmts = append(stmts, is)
+		}
+
+	}
+	return stmts
+}
+
+func (f *File) Statements() []Statement {
+	stmts := make([]Statement, 0, len(f.Body.Statements))
+	for _, stmt := range f.Body.Statements {
+		if stmt.Kind() == StatementKindImport {
+			continue
+		}
+		stmts = append(stmts, stmt)
+	}
+	return stmts
+}
+
 type Error struct {
 	Err error
 	Pos errpos.Position

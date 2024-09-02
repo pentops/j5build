@@ -196,6 +196,7 @@ func AddSourceFile(err error, filename string, fileData string) error {
 	input, ok := AsErrors(err)
 	if !ok {
 		return err
+
 	}
 
 	input = setFilenames(input, filename)

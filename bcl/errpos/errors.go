@@ -5,6 +5,7 @@ package errpos
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 )
 
@@ -28,7 +29,7 @@ type Point struct {
 }
 
 func (p Point) String() string {
-	return fmt.Sprintf("<%d:%d>", p.Line+1, p.Column+1)
+	return fmt.Sprintf("%d:%d", p.Line+1, p.Column+1)
 }
 
 func (p Position) String() string {
@@ -36,11 +37,7 @@ func (p Position) String() string {
 	if p.Filename != nil {
 		prefix = *p.Filename + ":"
 	}
-	if p.End.Line == p.Start.Line && p.End.Column == p.Start.Column {
-		return fmt.Sprintf("%s%s", prefix, p.Start)
-	}
-
-	return fmt.Sprintf("%s%s:%s", prefix, p.Start, p.End)
+	return fmt.Sprintf("%s%d:%d", prefix, p.Start.Line+1, p.Start.Column+1)
 }
 
 type HasPosition interface {
@@ -115,8 +112,13 @@ func AsError(err error) (*Err, bool) {
 
 }
 
+type multiError interface {
+	Unwrap() []error
+}
+
 func AsErrors(err error) (Errors, bool) {
 	if err == nil {
+		log.Printf("is not an error")
 		return nil, false
 	}
 
@@ -128,6 +130,22 @@ func AsErrors(err error) (Errors, bool) {
 	if errors.As(err, &single) {
 		single.mergeErr(err, "Group")
 		return Errors{single}, true
+	}
+
+	if multi, ok := err.(multiError); ok {
+		errs := multi.Unwrap()
+		multiErrs := make(Errors, 0, len(errs))
+		for _, e := range errs {
+			wrapped, ok := AsErrors(e)
+			if ok {
+				multiErrs = append(multiErrs, wrapped...)
+			} else {
+				multiErrs = append(multiErrs, &Err{
+					Err: fmt.Errorf("<?>: %w", e),
+				})
+			}
+		}
+		return multiErrs, true
 	}
 
 	var posSingle HasPosition

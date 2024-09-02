@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"path"
-	"path/filepath"
 	"strings"
 
 	"buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
@@ -49,11 +48,10 @@ func (p *Parser) fileStub(sourceFilename string) *sourcedef_j5pb.SourceFile {
 	dirName = strings.TrimSuffix(dirName, "/")
 
 	fileName = strings.TrimSuffix(fileName, ext)
-	genFilename := filepath.Join(dirName, fileName+".gen.proto")
 
 	pathPackage := strings.Join(strings.Split(dirName, "/"), ".")
 	file := &sourcedef_j5pb.SourceFile{
-		Path:            genFilename,
+		Path:            sourceFilename,
 		Package:         pathPackage,
 		SourceLocations: &sourcedef_j5pb.SourceLocation{},
 	}

@@ -47,7 +47,7 @@ func runToErrors(t *testing.T, input string, cb ...func(*testing.T, *errpos.Erro
 	if err != nil {
 		t.Fatalf("FATAL: %s", err)
 	}
-	//parser.Verbose = true
+	parser.Verbose = true
 	got, err := parser.ParseFile("pentops/j5lang/example/example.ext", input)
 	if err == nil {
 		got.SourceLocations = nil

@@ -1,159 +1,171 @@
 package j5convert
 
 import (
-	"fmt"
+	"log"
+	"strconv"
 
 	"github.com/iancoleman/strcase"
-	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
 )
 
-func (fb *FileBuilder) AddEntity(entity *sourcedef_j5pb.Entity) error {
-	if entity.Keys == nil {
-		return fmt.Errorf("missing keys")
-	}
-	if entity.Status == nil {
-		return fmt.Errorf("missing status")
-	}
+func (ww *walkNode) doEntity(entity *sourcedef_j5pb.Entity) {
+	ww.root.ensureImport(psmStateImport)
 
-	stateObj := &schema_j5pb.Object{
-		Name: strcase.ToCamel(entity.Name + "State"),
-		Entity: &schema_j5pb.EntityObject{
-			Entity: entity.Name,
-			Part:   schema_j5pb.EntityPart_STATE,
-		},
-	}
+	converted := convertEntity(entity)
+	ww.at("keys").withAlias("properties", []string{}).doObject(converted.keys, nil)
+	ww.at("data").withAlias("properties", []string{}).doObject(converted.data, nil)
+	ww.at("status").doEnum(converted.status)
+	log.Printf("DoState")
+	ww.doObject(converted.state, nil)
+	log.Printf("DoEvent")
+	ww.doOneof(converted.eventType.Def, converted.eventType.Schemas)
+	log.Printf("DoEventObj")
+	ww.doObject(converted.event, nil)
 
-	keysObj := &schema_j5pb.Object{
+	for idx, msg := range entity.Schemas {
+		ww := ww.at("schemas", strconv.Itoa(idx))
+		switch st := msg.Type.(type) {
+		case *sourcedef_j5pb.NestedSchema_Enum:
+			ww.at("enum").doEnum(st.Enum)
+		case *sourcedef_j5pb.NestedSchema_Object:
+			ww.at("object", "def").doObject(st.Object.Def, st.Object.Schemas)
+		case *sourcedef_j5pb.NestedSchema_Oneof:
+			ww.at("oneof", "def").doOneof(st.Oneof.Def, st.Oneof.Schemas)
+		default:
+			ww.errorf("unknown schema type %T", st)
+		}
+	}
+}
+
+type entitySchemas struct {
+	keys      *schema_j5pb.Object
+	data      *schema_j5pb.Object
+	status    *schema_j5pb.Enum
+	state     *schema_j5pb.Object
+	event     *schema_j5pb.Object
+	eventType *sourcedef_j5pb.Oneof
+}
+
+func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
+	keys := &schema_j5pb.Object{
 		Name: strcase.ToCamel(entity.Name + "Keys"),
 		Entity: &schema_j5pb.EntityObject{
 			Entity: entity.Name,
 			Part:   schema_j5pb.EntityPart_KEYS,
 		},
+		Properties: entity.Keys,
 	}
 
-	dataObj := &schema_j5pb.Object{
+	data := &schema_j5pb.Object{
 		Name: strcase.ToCamel(entity.Name + "Data"),
-		//	Entity: &schema_j5pb.EntityObject{
-		//		Entity: entity.Name,
-		//		Part:   schema_j5pb.EntityPart_DATA,
-		//	},
+		Entity: &schema_j5pb.EntityObject{
+			Entity: entity.Name,
+			Part:   schema_j5pb.EntityPart_DATA,
+		},
+		Properties: entity.Data,
 	}
 
-	dataMessage, err := buildMessage(fb, dataObj)
-	if err != nil {
-		return errpos.AddContext(err, "data")
+	status := &schema_j5pb.Enum{
+		Name:    strcase.ToCamel(entity.Name + "Status"),
+		Options: entity.Status,
+		Prefix:  strcase.ToScreamingSnake(entity.Name) + "_STATUS_",
 	}
 
-	keysMessage, err := buildMessage(fb, keysObj)
-	if err != nil {
-		return errpos.AddContext(err, "keys")
-	}
-
-	stateMessage, err := buildMessage(fb, stateObj)
-	if err != nil {
-		return errpos.AddContext(err, "state")
-	}
-
-	eventOneof, err := buildOneof(fb, &schema_j5pb.Oneof{
-		Name: strcase.ToCamel(entity.Name + "EventType"),
-	})
-	if err != nil {
-		return err
-	}
-
-	for _, event := range entity.Events {
-		event.Def.Name = strcase.ToCamel(event.Def.Name)
-		eventMsg, err := buildMessage(fb, event.Def)
-		if err != nil {
-			return errpos.AddContext(err, "event", event.Def.Name)
-		}
-
-		if err := eventOneof.addProperty(&schema_j5pb.ObjectProperty{
-			Name:       strcase.ToSnake(event.Def.Name),
-			ProtoField: []int32{int32(len(eventOneof.descriptor.OneofDecl) + 1)},
+	state := &schema_j5pb.Object{
+		Name: strcase.ToCamel(entity.Name + "State"),
+		Entity: &schema_j5pb.EntityObject{
+			Entity: entity.Name,
+			Part:   schema_j5pb.EntityPart_STATE,
+		},
+		Properties: []*schema_j5pb.ObjectProperty{{
+			Name:       "metadata",
+			ProtoField: []int32{1},
+			Schema:     schemaRefField("j5.state.v1", "StateMetadata"),
+		}, {
+			Name:       "keys",
+			ProtoField: []int32{2},
+			Schema:     schemaRefField("", keys.Name),
+		}, {
+			Name:       "data",
+			ProtoField: []int32{3},
+			Schema:     schemaRefField("", data.Name),
+		}, {
+			Name:       "status",
+			ProtoField: []int32{4},
 			Schema: &schema_j5pb.Field{
-				Type: &schema_j5pb.Field_Object{
-					Object: &schema_j5pb.ObjectField{
-						Schema: &schema_j5pb.ObjectField_Ref{
+				Type: &schema_j5pb.Field_Enum{
+					Enum: &schema_j5pb.EnumField{
+						Schema: &schema_j5pb.EnumField_Ref{
 							Ref: &schema_j5pb.Ref{
-								Package: "",
-								Schema:  event.Def.Name,
+								Schema: status.Name,
 							},
 						},
 					},
 				},
 			},
-		}); err != nil {
-			return err
-		}
-
-		eventOneof.addMessage(eventMsg)
-
+		}},
 	}
 
-	eventObject, err := buildMessage(fb, &schema_j5pb.Object{
+	eventOneof := &schema_j5pb.Oneof{
+		Name:       strcase.ToCamel(entity.Name + "EventType"),
+		Properties: make([]*schema_j5pb.ObjectProperty, 0, len(entity.Events)),
+	}
+	eventParent := &sourcedef_j5pb.Oneof{
+		Def: eventOneof,
+	}
+
+	for idx, event := range entity.Events {
+		eventParent.Schemas = append(eventParent.Schemas, &sourcedef_j5pb.NestedSchema{
+			Type: &sourcedef_j5pb.NestedSchema_Object{
+				Object: event,
+			},
+		})
+
+		eventOneof.Properties = append(eventOneof.Properties, &schema_j5pb.ObjectProperty{
+			Name:       strcase.ToCamel(event.Def.Name),
+			ProtoField: []int32{int32(idx + 1)},
+			Schema:     schemaRefField("", event.Def.Name),
+		})
+	}
+
+	eventObject := &schema_j5pb.Object{
 		Name: strcase.ToCamel(entity.Name + "Event"),
 		Entity: &schema_j5pb.EntityObject{
 			Entity: entity.Name,
 			Part:   schema_j5pb.EntityPart_EVENT,
 		},
-	})
-	if err != nil {
-		return err
-	}
-
-	err = eventObject.addProperty(&schema_j5pb.ObjectProperty{
-		Name:       "type",
-		ProtoField: []int32{1},
-		Schema: &schema_j5pb.Field{
-			Type: &schema_j5pb.Field_Oneof{
-				Oneof: &schema_j5pb.OneofField{
-					Schema: &schema_j5pb.OneofField_Ref{
-						Ref: &schema_j5pb.Ref{
-							Package: "",
-							Schema:  eventOneof.descriptor.GetName(),
+		Properties: []*schema_j5pb.ObjectProperty{{
+			Name:       "metadata",
+			ProtoField: []int32{1},
+			Schema:     schemaRefField("j5.state.v1", "EventMetadata"),
+		}, {
+			Name:       "keys",
+			ProtoField: []int32{2},
+			Schema:     schemaRefField("", keys.Name),
+		}, {
+			Name:       "type",
+			ProtoField: []int32{1},
+			Schema: &schema_j5pb.Field{
+				Type: &schema_j5pb.Field_Oneof{
+					Oneof: &schema_j5pb.OneofField{
+						Schema: &schema_j5pb.OneofField_Ref{
+							Ref: &schema_j5pb.Ref{
+								Schema: eventOneof.Name,
+							},
 						},
 					},
 				},
 			},
-		},
-	})
-	if err != nil {
-		return err
+		}},
 	}
 
-	statusEnum := buildEnum(fb, strcase.ToCamel(entity.Name+"Status"), strcase.ToScreamingSnake(entity.Name)+"_STATUS_")
-	for _, value := range entity.Status {
-		statusEnum.addValue(value.Name, value.Number, value.Description)
+	return &entitySchemas{
+		keys:      keys,
+		data:      data,
+		status:    status,
+		state:     state,
+		event:     eventObject,
+		eventType: eventParent,
 	}
-
-	fb.addMessage(keysMessage)
-	fb.addMessage(stateMessage)
-	fb.addEnum(statusEnum)
-	fb.addMessage(dataMessage)
-	fb.addMessage(eventObject)
-	fb.addMessage(eventOneof)
-
-	for _, msg := range entity.Schemas {
-		switch st := msg.Type.(type) {
-		case *sourcedef_j5pb.NestedSchema_Enum:
-			if err := doEnum(fb, st.Enum); err != nil {
-				return errpos.AddContext(err, "schema", st.Enum.Name)
-			}
-		case *sourcedef_j5pb.NestedSchema_Object:
-			if err := doMessage(fb, st.Object.Def); err != nil {
-				return errpos.AddContext(err, "schema", st.Object.Def.Name)
-			}
-		case *sourcedef_j5pb.NestedSchema_Oneof:
-			if err := doOneof(fb, st.Oneof.Def); err != nil {
-				return errpos.AddContext(err, "schema", st.Oneof.Def.Name)
-			}
-		default:
-			return fmt.Errorf("AddEntity: Unknown %T", msg.Type)
-		}
-	}
-
-	return nil
 }

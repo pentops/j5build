@@ -182,12 +182,12 @@ func TestDirectives(t *testing.T) {
 
 	file := tParseFile(t, input)
 
-	assertImports(t, file.Imports,
-		Import{Path: "base.baz", Alias: "baz"},
-		Import{Path: "base.bar", Alias: ""},
+	assertImports(t, file.Imports(),
+		ImportStatement{Path: "base.baz", Alias: "baz"},
+		ImportStatement{Path: "base.bar", Alias: ""},
 	)
 
-	assertStatements(t, file.Body.Statements,
+	assertStatements(t, file.Statements(),
 		tBlock(
 			tBlockName("block", "Foo"),
 			tExport(),
@@ -199,7 +199,8 @@ func TestDirectives(t *testing.T) {
 	)
 }
 
-func assertImports(t *testing.T, imports []Import, expected ...Import) {
+func assertImports(t *testing.T, imports []*ImportStatement, expected ...ImportStatement) {
+	t.Helper()
 	if len(imports) != len(expected) {
 		t.Fatalf("expected %d imports, got %d", len(expected), len(imports))
 	}

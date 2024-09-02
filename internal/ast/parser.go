@@ -162,7 +162,7 @@ func (ww *Walker) nextFileStatement(file *File) *unexpectedTokenError {
 
 	case lexer.IMPORT:
 		ww.popToken()
-		decl := ImportStatement{}
+		decl := &ImportStatement{}
 
 		switch ww.nextType() {
 		case lexer.STRING:
@@ -206,6 +206,8 @@ func (ww *Walker) nextFileStatement(file *File) *unexpectedTokenError {
 		if comment != nil {
 			decl.Comment = comment
 		}
+
+		file.Body.Statements = append(file.Body.Statements, decl)
 
 		return nil
 

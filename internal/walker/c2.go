@@ -40,7 +40,7 @@ var ErrUnexpectedQualifier = fmt.Errorf("unexpected qualifier")
 func doBody(sc Context, body ast.Body) error {
 	for _, decl := range body.Statements {
 		switch decl := decl.(type) {
-		case ast.ImportStatement:
+		case *ast.ImportStatement:
 			if body.IsRoot {
 				continue // handled externally
 			}

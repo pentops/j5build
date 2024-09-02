@@ -1,15 +1,13 @@
 package j5convert
 
 import (
-	"context"
-	"os"
+	"errors"
 	"testing"
 
 	"buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
-	"github.com/pentops/prototools/protoprint"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -21,7 +19,67 @@ func withOption[T protoreflect.ProtoMessage](opt T, extType protoreflect.Extensi
 	return opt
 }
 
+type testDeps struct {
+	pkg   string
+	types map[string]*TypeRef
+}
+
+func (d *testDeps) PackageName() string {
+	return d.pkg
+}
+
+func (d *testDeps) ResolveType(pkg string, name string) (*TypeRef, error) {
+	if pkg == "" {
+		pkg = d.pkg
+	}
+
+	if tr, ok := d.types[pkg+"."+name]; ok {
+		return tr, nil
+	}
+
+	return nil, &TypeNotFoundError{
+		Package: pkg,
+		Name:    name,
+	}
+}
+func assertIsTypeNotFound(t *testing.T, err error, want *TypeNotFoundError) {
+	gotNotFound := &TypeNotFoundError{}
+	if !errors.As(err, &gotNotFound) {
+		t.Fatalf("got error %v, want TypeNotFoundError", err)
+	}
+	if gotNotFound.Package != want.Package || gotNotFound.Name != want.Name {
+		t.Fatalf("got error %v, want %v", gotNotFound, want)
+	}
+}
+
+func assertIsPackageNotFound(t *testing.T, err error, want *PackageNotFoundError) {
+	gotErr := &PackageNotFoundError{}
+	if !errors.As(err, &gotErr) {
+		t.Fatalf("got error %v, want TypeNotFoundError", err)
+	}
+	if gotErr.Package != want.Package {
+		t.Fatalf("got error %v, want %v", gotErr, want)
+	}
+}
+
 func TestSchemaToProto(t *testing.T) {
+
+	deps := &testDeps{
+		pkg: "test.v1",
+		types: map[string]*TypeRef{
+			"test.v1.TestEnum": {
+				Package: "test.v1",
+				Name:    "TestEnum",
+				File:    "test/v1/test.j5gen.proto",
+				EnumRef: &EnumRef{
+					Prefix: "TEST_ENUM_",
+					ValMap: map[string]int32{
+						"TEST_ENUM_FOO": 1,
+					},
+				},
+			},
+		},
+	}
 
 	objectSchema := &sourcedef_j5pb.RootElement{
 		Type: &sourcedef_j5pb.RootElement_Object{
@@ -45,7 +103,7 @@ func TestSchemaToProto(t *testing.T) {
 								Enum: &schema_j5pb.EnumField{
 									Schema: &schema_j5pb.EnumField_Ref{
 										Ref: &schema_j5pb.Ref{
-											Package: "test.v1",
+											Package: "",
 											Schema:  "TestEnum",
 										},
 									},
@@ -75,34 +133,30 @@ func TestSchemaToProto(t *testing.T) {
 		},
 	}
 
-	pkg := &Package{
-		Name: "test.v1",
+	gotFile, err := ConvertJ5File(deps, &sourcedef_j5pb.SourceFile{
+		Package:  "test.v1",
+		Path:     "test/v1/test.j5s",
+		Elements: []*sourcedef_j5pb.RootElement{objectSchema, enumSchema},
+	})
+	if err != nil {
+		t.Fatalf("ConvertJ5File failed: %v", err)
 	}
-	fb := NewFileBuilder(pkg, "test/v1/test.proto")
-
-	if err := fb.AddRoot(objectSchema); err != nil {
-		t.Fatalf("AddSchema failed: %v", err)
-	}
-	if err := fb.AddRoot(enumSchema); err != nil {
-		t.Fatalf("AddSchema failed: %v", err)
-	}
-
-	gotFile := fb.File()
 
 	wantFile := &descriptorpb.FileDescriptorProto{
 		Syntax:  proto.String("proto3"),
 		Options: &descriptorpb.FileOptions{
 			//GoPackage: proto.String("github.com/pentops/j5/test/v1/test_pb"),
 		},
-		Name:    proto.String("test/v1/test.proto"),
+		Name:    proto.String("test/v1/test.j5gen.proto"),
 		Package: proto.String("test.v1"),
 		MessageType: []*descriptorpb.DescriptorProto{{
 			Name: proto.String("Referenced"),
 			Field: []*descriptorpb.FieldDescriptorProto{{
-				Name:    proto.String("field_1"),
-				Type:    descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum(),
-				Number:  proto.Int32(1),
-				Options: &descriptorpb.FieldOptions{},
+				Name:     proto.String("field_1"),
+				Type:     descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum(),
+				Number:   proto.Int32(1),
+				Options:  &descriptorpb.FieldOptions{},
+				JsonName: proto.String("field1"),
 			}, {
 				Name:     proto.String("enum"),
 				Type:     descriptorpb.FieldDescriptorProto_TYPE_ENUM.Enum(),
@@ -115,6 +169,7 @@ func TestSchemaToProto(t *testing.T) {
 						},
 					},
 				}),
+				JsonName: proto.String("enum"),
 			}},
 			Options: &descriptorpb.MessageOptions{},
 		}},
@@ -133,19 +188,21 @@ func TestSchemaToProto(t *testing.T) {
 	gotFile.SourceCodeInfo = nil
 	equal(t, wantFile, gotFile)
 
-	fds := &descriptorpb.FileDescriptorSet{
-		File: []*descriptorpb.FileDescriptorProto{gotFile},
-	}
+	/*
+		fds := &descriptorpb.FileDescriptorSet{
+			File: []*descriptorpb.FileDescriptorProto{gotFile},
+		}
 
-	fm := NewFileMap()
+		fm := NewFileMap()
 
-	if err := protoprint.PrintProtoFiles(context.Background(), fm, fds, protoprint.Options{}); err != nil {
-		t.Fatalf("PrintProtoFiles failed: %v", err)
-	}
+		if err := protoprint.PrintProtoFiles(context.Background(), fm, fds, protoprint.Options{}); err != nil {
+			t.Fatalf("PrintProtoFiles failed: %v", err)
+		}
 
-	for filename, content := range fm {
-		t.Logf("\n====== %s ======\n%s", filename, content)
-	}
+		for filename, content := range fm {
+			t.Logf("\n====== %s ======\n%s", filename, content)
+		}
+	*/
 
 }
 func equal(t testing.TB, want, got proto.Message) {
@@ -157,6 +214,7 @@ func equal(t testing.TB, want, got proto.Message) {
 
 }
 
+/*
 type fileMap map[string][]byte
 
 func NewFileMap() fileMap {
@@ -174,4 +232,4 @@ func (fm fileMap) PutFile(ctx context.Context, filename string, content []byte) 
 
 	fm[filename] = content
 	return nil
-}
+}*/

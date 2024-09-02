@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package pack1.v1;
+
+import "buf/validate/validate.proto";
+import "j5/ext/v1/annotations.proto";
+
+message Foo {
+  string foo_id = 1 [
+    (buf.validate.field) = {"string":{"uuid":true}},
+    (j5.ext.v1.field) = {"key":{}}
+  ];
+}

@@ -224,7 +224,7 @@ func (bte BadTypeError) Error() string {
 }
 
 func (sc *walkContext) SetAttribute(path schema.PathSpec, ref []ast.Ident, val ast.ASTValue) error {
-	sc.Logf("SetAttribute(%#v, %#v, %#v)", path, ref, val, val.Position())
+	sc.Logf("SetAttribute(%#v, %#v, %#v, %s)", path, ref, val, val.Position())
 
 	fullPath := combinePath(path, ref)
 	if len(fullPath) == 0 {
@@ -241,9 +241,9 @@ func (sc *walkContext) SetAttribute(path schema.PathSpec, ref []ast.Ident, val a
 	field, walkPathErr := container.Field(last.name, val.Position())
 	if walkPathErr != nil {
 		if last.position != nil {
-			return sc.WrapErr(err, *last.position)
+			return sc.WrapErr(walkPathErr, *last.position)
 		} else {
-			return newSchemaError(err)
+			return newSchemaError(walkPathErr)
 		}
 	}
 
@@ -328,6 +328,10 @@ type HasPosition interface {
 }
 
 func (wc *walkContext) WrapErr(err error, pos HasPosition) error {
+	if err == nil {
+		panic("WrapErr called with nil error")
+	}
+
 	wc.Logf("Wrapping Error %s with %s", err, pos.Position())
 	err = errpos.AddContext(err, strings.Join(wc.path, "."))
 	err = errpos.AddPosition(err, pos.Position())

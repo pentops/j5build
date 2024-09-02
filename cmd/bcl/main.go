@@ -16,7 +16,6 @@ import (
 	"github.com/pentops/bcl.go/internal/protobuild"
 	"github.com/pentops/prototools/protoprint"
 	"github.com/pentops/runner/commander"
-	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/pentops/bcl.go/internal/lsp"
 	"github.com/pentops/j5/lib/j5source"
@@ -215,24 +214,37 @@ func runFmt(ctx context.Context, cfg struct {
 }
 
 func runJ5Gen(ctx context.Context, cfg struct {
-	Dir           string   `flag:"dir" default:"." desc:"Root schema directory"`
-	Bundle        string   `flag:"bundle" default:"" desc:"Bundle file"`
-	Verbose       bool     `flag:"verbose" env:"BCL_VERBOSE" default:"false" desc:"Verbose output"`
-	Files         []string `flag:"files" required:"false" desc:"Files to generate, otherwise all J5S"`
-	DebugProtoAST bool     `flag:"debug-proto-ast" default:"false" desc:"Print proto AST to output dir"`
+	Dir           string `flag:"dir" default:"." desc:"Root schema directory"`
+	Bundle        string `flag:"bundle" default:"" desc:"Bundle file"`
+	Verbose       bool   `flag:"verbose" env:"BCL_VERBOSE" default:"false" desc:"Verbose output"`
+	DebugProtoAST bool   `flag:"debug-proto-ast" default:"false" desc:"Print proto AST to output dir"`
 }) error {
 
 	outWriter := &fileWriter{dir: cfg.Dir}
-	j5Parser, err := j5parse.NewParser()
-	if err != nil {
-		return err
-	}
-
-	protoParser := protobuild.NewProtoParser()
 
 	source, err := j5source.NewFSSource(ctx, os.DirFS(cfg.Dir))
 	if err != nil {
 		return err
+	}
+
+	bundleConfig, err := source.BundleConfig(cfg.Bundle)
+	if err != nil {
+		return err
+	}
+
+	bundleFS, err := source.BundleFS(cfg.Bundle)
+	if err != nil {
+		return err
+	}
+
+	packages := []string{}
+	for _, pkg := range bundleConfig.Packages {
+		packages = append(packages, pkg.Name)
+	}
+
+	localFiles := &fileReader{
+		fs:       bundleFS,
+		packages: packages,
 	}
 
 	deps, err := source.BundleDependencies(ctx, cfg.Bundle)
@@ -240,81 +252,68 @@ func runJ5Gen(ctx context.Context, cfg struct {
 		return err
 	}
 
-	link := protobuild.New(deps)
+	resolver, err := protobuild.NewResolver(deps, localFiles)
+	if err != nil {
+		return err
+	}
 
-	j5Parser.Verbose = cfg.Verbose
-	j5Parser.FailFast = !cfg.Verbose
+	j5Files, err := localFiles.ListJ5Files(ctx)
+	if err != nil {
+		return err
+	}
 
-	root := os.DirFS(cfg.Dir)
-	err = fs.WalkDir(root, ".", func(pathname string, d fs.DirEntry, err error) error {
+	for _, filename := range j5Files {
+		log.Printf("pre-compile %s\n", filename)
+		_, err := resolver.ParseToDescriptor(ctx, filename)
 		if err != nil {
-			return err
+			debug, ok := errpos.AsErrorsWithSource(err)
+			if !ok {
+				return fmt.Errorf("unlinked error: %w", err)
+			}
+
+			str := debug.HumanString(3)
+			fmt.Println(str)
+			os.Exit(1)
 		}
-		if d.IsDir() {
-			return nil
-		}
-
-		switch path.Ext(pathname) {
-		case ".proto":
-			if strings.HasSuffix(pathname, ".gen.proto") {
-				return nil
-			}
-			data, err := fs.ReadFile(root, pathname)
-			if err != nil {
-				return err
-			}
-			file, err := protoParser.ParseFile(pathname, data)
-			if err != nil {
-				return err
-			}
-
-			return link.AddProtoFile(file)
-
-		case ".j5s":
-			data, err := fs.ReadFile(root, pathname)
-			if err != nil {
-				return err
-			}
-
-			file, err := j5Parser.ParseFile(pathname, string(data))
-			if err != nil {
-				return err
-			}
-
-			if cfg.DebugProtoAST {
-				if err := outWriter.PutFile(ctx, pathname+".ast", []byte(prototext.Format(file))); err != nil {
-					return err
-				}
-			}
-
-			return link.AddJ5File(file)
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		debug, ok := errpos.AsErrorsWithSource(err)
-		if !ok {
-			return fmt.Errorf("unlinked error: %w", err)
-		}
-
-		str := debug.HumanString(3)
-		fmt.Println(str)
-		os.Exit(1)
 	}
 
-	if err := link.ConvertJ5(); err != nil {
-		return err
-	}
+	log.Printf("Pre-Compiled %d files", len(j5Files))
 
-	descriptors, err := link.BuildDescriptors(ctx, cfg.Files)
-	if err != nil {
-		return err
-	}
+	for _, pkg := range packages {
+		pkgSrc, err := localFiles.ListSourceFiles(ctx, pkg)
+		if err != nil {
+			return fmt.Errorf("listing package %s: %w", pkg, err)
+		}
 
-	if err := protoprint.PrintReflect(ctx, outWriter, descriptors, protoprint.Options{}); err != nil {
-		return err
+		for _, filename := range pkgSrc {
+			if !strings.HasSuffix(filename, ".j5s") {
+				continue
+			}
+
+			log.Printf("Compiling %s", filename)
+
+			filename := strings.TrimSuffix(filename, ".j5s") + ".j5gen.proto"
+
+			built, err := resolver.Compile(ctx, filename)
+			if err != nil {
+				log.Printf("Error compiling %s: %v", filename, err)
+				return err
+			}
+			fileOut := built[0]
+
+			out, err := protoprint.PrintFile(ctx, fileOut)
+			if err != nil {
+				log.Printf("Error printing %s: %v", filename, err)
+				return err
+			}
+
+			err = outWriter.PutFile(ctx, filename, []byte(out))
+			if err != nil {
+				return err
+			}
+
+		}
+
 	}
 
 	return nil
@@ -331,4 +330,66 @@ func (f *fileWriter) PutFile(ctx context.Context, filename string, data []byte) 
 		return err
 	}
 	return os.WriteFile(path.Join(f.dir, filename), data, 0644)
+}
+
+type fileReader struct {
+	fs       fs.FS
+	packages []string
+}
+
+func (rr *fileReader) GetLocalFile(ctx context.Context, filename string) ([]byte, error) {
+	return fs.ReadFile(rr.fs, filename)
+}
+
+func (rr *fileReader) ListPackages() []string {
+	return rr.packages
+}
+
+func (rr *fileReader) ListSourceFiles(ctx context.Context, pkgName string) ([]string, error) {
+	pkgRoot := strings.ReplaceAll(pkgName, ".", "/")
+
+	files := make([]string, 0)
+	err := fs.WalkDir(rr.fs, pkgRoot, func(path string, dirEntry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if dirEntry.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".j5gen.proto") {
+			return nil
+		}
+		if strings.HasSuffix(path, ".proto") {
+			files = append(files, path)
+		}
+		if strings.HasSuffix(path, ".j5s") {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return files, nil
+}
+
+func (rr *fileReader) ListJ5Files(ctx context.Context) ([]string, error) {
+	files := make([]string, 0)
+	err := fs.WalkDir(rr.fs, ".", func(path string, dirEntry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if dirEntry.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".j5s") {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return files, nil
+
 }

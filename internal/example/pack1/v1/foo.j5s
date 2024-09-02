@@ -1,0 +1,5 @@
+package pack1.v1
+
+object Foo {
+	field foo_id key:uuid
+}

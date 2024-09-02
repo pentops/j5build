@@ -358,7 +358,7 @@ func TestSimple(t *testing.T) {
 			"vv = 123",
 		},
 		expected: []Token{
-			tDescription("line1 of description line2 of description"),
+			tDescription("line1 of description\nline2 of description"),
 			tEOL,
 			tIdent("vv"), tAssign, tInt("123"),
 			tEOF,
@@ -374,7 +374,7 @@ func TestSimple(t *testing.T) {
 			`  | line6`,
 		},
 		expected: []Token{
-			tDescription("line1\nline3 line4\nline6"),
+			tDescription("line1\n\nline3\nline4\n\nline6"),
 			tEOF,
 		},
 	}, {
@@ -457,7 +457,8 @@ func assertTokensEqual(t *testing.T, tokens, expected []Token) {
 		want := expected[idx]
 		if tok.Type != expected[idx].Type || tok.Lit != want.Lit {
 			t.Errorf("BAD % 3d: %s want %s", idx, tok, want)
-			t.Logf("Full Got: \n%q", tok.Lit)
+			t.Logf("Full  Got: %q", tok.Lit)
+			t.Logf("Full Want: %q", want.Lit)
 			continue
 		}
 		if want.Start.Line > 0 {

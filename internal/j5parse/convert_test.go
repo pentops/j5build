@@ -66,7 +66,7 @@ func TestValidateBase(t *testing.T) {
 		runToErrors(t, `
 		object Foo {
 			field bar object {
-				schema.object.name = bar
+				object.name = bar
 			}
 		}
 	`)
