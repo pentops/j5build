@@ -3,7 +3,6 @@ package j5convert
 import (
 	"errors"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 
@@ -37,105 +36,6 @@ type TypeRef struct {
 }
 
 type PartialField struct {
-}
-
-func (fb *FileBuilder) AddImports(spec ...*sourcedef_j5pb.Import) error {
-	for _, imp := range spec {
-		log.Printf("AddImports: %v", imp)
-		if strings.Contains(imp.Path, "/") {
-			fb.ensureImport(imp.Path)
-			pkg := PackageFromFilename(imp.Path)
-			fb.importAliases[pkg] = pkg
-			continue
-		}
-
-		pkg := imp.Path
-		if imp.Alias != "" {
-			fb.importAliases[imp.Alias] = pkg
-			continue
-		}
-		parts := strings.Split(pkg, ".")
-		if len(parts) > 2 {
-			return fmt.Errorf("AddImports: invalid package %q", pkg)
-		}
-		withoutVersion := parts[len(parts)-2]
-		fb.importAliases[withoutVersion] = pkg
-		fb.importAliases[pkg] = pkg
-	}
-	return nil
-}
-
-var implicitImports = map[string]*PackageSummary{
-	"j5.state.v1": &PackageSummary{
-		Exports: map[string]*TypeRef{
-			"StateMetadata": &TypeRef{
-				Package:    "j5.state.v1",
-				Name:       "StateMetadata",
-				File:       "j5/state/v1/metadata.proto",
-				MessageRef: &MessageRef{},
-			},
-			"EventMetadata": &TypeRef{
-				Package:    "j5.state.v1",
-				Name:       "EventMetadata",
-				File:       "j5/state/v1/metadata.proto",
-				MessageRef: &MessageRef{},
-			},
-		},
-	},
-}
-
-func (fb *FileBuilder) resolveType(pkg string, name string) (*TypeRef, error) {
-	thisPackage := fb.fdp.GetPackage()
-	if pkg == "" || pkg == thisPackage {
-
-		pkg = thisPackage
-		typeRef, err := fb.Package.ResolveType(pkg, name)
-		if err != nil {
-			return nil, err
-		}
-		fb.ensureImport(typeRef.File)
-		return typeRef, nil
-	}
-
-	if implicit, ok := implicitImports[pkg]; ok {
-		typeRef, ok := implicit.Exports[name]
-		if ok {
-			fb.ensureImport(typeRef.File)
-			return typeRef, nil
-		}
-	}
-
-	alias, ok := fb.importAliases[pkg]
-	if !ok {
-		log.Printf("resolveType: %q not found in %v", pkg, fb.importAliases)
-		return nil, &PackageNotFoundError{
-			Package: pkg,
-			Name:    name,
-		}
-	}
-
-	typeRef, err := fb.Package.ResolveType(alias, name)
-	if err != nil {
-		return nil, err
-	}
-	fb.ensureImport(typeRef.File)
-	return typeRef, nil
-
-}
-
-func (fb *FileBuilder) ensureImport(importPath string) {
-	if strings.HasSuffix(importPath, ".j5s") {
-		importPath = strings.TrimSuffix(importPath, ".j5s") + ".j5gen.proto"
-	}
-	if importPath == fb.Name {
-		return
-	}
-	for _, imp := range fb.fdp.Dependency {
-		if imp == importPath {
-			return
-		}
-	}
-	fb.fdp.Dependency = append(fb.fdp.Dependency, importPath)
 }
 
 // SourceSummary collects the exports and imports for a file
@@ -283,7 +183,9 @@ func (cc *collector) file(node *sourcedef_j5pb.SourceFile) {
 				continue
 			}
 			path = append(path, "def")
-			cc.object(path, st.Object.Def, st.Object.Schemas)
+			cc.object(path, st.Object.Def, &objectCollect{
+				nested: st.Object.Schemas,
+			})
 
 		case *sourcedef_j5pb.RootElement_Enum:
 			path := append(path, "enum")
@@ -295,7 +197,9 @@ func (cc *collector) file(node *sourcedef_j5pb.SourceFile) {
 				cc.addErr(path, fmt.Errorf("missing oneof definition"))
 			}
 			path = append(path, "def")
-			cc.oneof(path, st.Oneof.Def, st.Oneof.Schemas)
+			cc.oneof(path, st.Oneof.Def, &objectCollect{
+				nested: st.Oneof.Schemas,
+			})
 
 		case *sourcedef_j5pb.RootElement_Entity:
 			path := append(path, "entity")
@@ -341,9 +245,19 @@ func (c *collector) prop(path []string, prop *schema_j5pb.ObjectProperty) {
 	}
 }
 
-func (c *collector) object(path []string, msg *schema_j5pb.Object, nested []*sourcedef_j5pb.NestedSchema) {
+type objectCollect struct {
+	nameParent []string
+	nested     []*sourcedef_j5pb.NestedSchema
+}
+
+func (c *collector) object(path []string, msg *schema_j5pb.Object, opts *objectCollect) {
+	name := msg.Name
+	if opts != nil && opts.nameParent != nil {
+		name = strings.Join(append(opts.nameParent, msg.Name), ".")
+	}
+
 	c.exports = append(c.exports, &TypeRef{
-		Name:       msg.Name,
+		Name:       name,
 		MessageRef: &MessageRef{},
 		Position:   c.source.getPos(path),
 	})
@@ -352,12 +266,18 @@ func (c *collector) object(path []string, msg *schema_j5pb.Object, nested []*sou
 		path := append(path, "properties", strconv.Itoa(idx))
 		c.prop(path, prop)
 	}
-	c.nested(path, nested)
+	if opts != nil && len(opts.nested) > 0 {
+		c.nested(path, opts.nested, append(opts.nameParent, msg.Name))
+	}
 }
 
-func (c *collector) oneof(path []string, msg *schema_j5pb.Oneof, nested []*sourcedef_j5pb.NestedSchema) {
+func (c *collector) oneof(path []string, msg *schema_j5pb.Oneof, opts *objectCollect) {
+	name := msg.Name
+	if opts != nil && opts.nameParent != nil {
+		name = strings.Join(append(opts.nameParent, msg.Name), ".")
+	}
 	c.exports = append(c.exports, &TypeRef{
-		Name:       msg.Name,
+		Name:       name,
 		MessageRef: &MessageRef{},
 		Position:   c.source.getPos(path),
 	})
@@ -365,10 +285,12 @@ func (c *collector) oneof(path []string, msg *schema_j5pb.Oneof, nested []*sourc
 		path := append(path, "properties", strconv.Itoa(idx))
 		c.prop(path, prop)
 	}
-	c.nested(path, nested)
+	if opts != nil && len(opts.nested) > 0 {
+		c.nested(path, opts.nested, append(opts.nameParent, msg.Name))
+	}
 }
 
-func (c *collector) nested(path []string, nested []*sourcedef_j5pb.NestedSchema) {
+func (c *collector) nested(path []string, nested []*sourcedef_j5pb.NestedSchema, nameParent []string) {
 	for idx, nested := range nested {
 		path := append(path, "nested", strconv.Itoa(idx))
 
@@ -377,13 +299,19 @@ func (c *collector) nested(path []string, nested []*sourcedef_j5pb.NestedSchema)
 			if st.Object.Def == nil {
 				c.addErr(path, fmt.Errorf("missing object definition"))
 			}
-			c.object(path, st.Object.Def, st.Object.Schemas)
+			c.object(path, st.Object.Def, &objectCollect{
+				nested:     st.Object.Schemas,
+				nameParent: nameParent,
+			})
 
 		case *sourcedef_j5pb.NestedSchema_Oneof:
 			if st.Oneof.Def == nil {
 				c.addErr(path, fmt.Errorf("missing oneof definition"))
 			}
-			c.oneof(path, st.Oneof.Def, st.Oneof.Schemas)
+			c.oneof(path, st.Oneof.Def, &objectCollect{
+				nested:     st.Oneof.Schemas,
+				nameParent: nameParent,
+			})
 
 		case *sourcedef_j5pb.NestedSchema_Enum:
 			if st.Enum == nil {
@@ -415,8 +343,10 @@ func (c *collector) entity(path []string, entity *sourcedef_j5pb.Entity) {
 	c.object(append(path, "data"), converted.data, nil)
 	c.enum(append(path, "status"), converted.status)
 	c.object(append(path, "state"), converted.state, nil)
-	c.oneof(append(path, "eventType"), converted.eventType.Def, converted.eventType.Schemas)
+	c.oneof(append(path, "eventType"), converted.eventType.Def, &objectCollect{
+		nested: converted.eventType.Schemas,
+	})
 	c.object(append(path, "event"), converted.event, nil)
 
-	c.nested(path, entity.Schemas)
+	c.nested(path, entity.Schemas, nil)
 }

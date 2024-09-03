@@ -77,6 +77,12 @@ var globalDefs = map[string]*schema.BlockSpec{
 			},
 		},
 	},
+	"j5.schema.v1.EnumField": {
+		Qualifier: &schema.Tag{
+			Path:     []string{"ref"},
+			SplitRef: [][]string{{"package"}, {"schema"}},
+		},
+	},
 	"j5.sourcedef.v1.Object": {
 		Description: []string{"description"},
 		Name: &schema.Tag{

@@ -25,14 +25,14 @@ func runField(t *testing.T,
 	if err != nil {
 		t.Fatalf("ConvertJ5File failed: %v", err)
 	}
-	if len(gotFile.MessageType) != 1 {
-		t.Fatalf("Expected 1 message, got %d", len(gotFile.MessageType))
+	if len(gotFile[0].MessageType) != 1 {
+		t.Fatalf("Expected 1 message, got %d", len(gotFile[0].MessageType))
 	}
-	if len(gotFile.MessageType[0].Field) != 1 {
-		t.Fatalf("Expected 1 field, got %d", len(gotFile.MessageType[0].Field))
+	if len(gotFile[0].MessageType[0].Field) != 1 {
+		t.Fatalf("Expected 1 field, got %d", len(gotFile[0].MessageType[0].Field))
 	}
 
-	gotField := gotFile.MessageType[0].Field[0]
+	gotField := gotFile[0].MessageType[0].Field[0]
 	equal(t, wantField, gotField)
 }
 
@@ -101,7 +101,7 @@ func TestImports(t *testing.T) {
 		sad             *sad
 	}{{
 		name:     "same file",
-		filename: "baz/v1/referenced.proto",
+		filename: "baz/v1/referenced.j5s",
 		ref: &schema_j5pb.Ref{
 			Package: "",
 			Schema:  "Referenced",
@@ -111,7 +111,7 @@ func TestImports(t *testing.T) {
 		},
 	}, {
 		name:     "same package",
-		filename: "baz/v1/other.proto",
+		filename: "baz/v1/other.j5s",
 		ref: &schema_j5pb.Ref{
 			Package: "",
 			Schema:  "Referenced",
@@ -121,19 +121,19 @@ func TestImports(t *testing.T) {
 		},
 	}, {
 		name:     "qualified same file",
-		filename: "baz/v1/referenced.proto",
+		filename: "baz/v1/referenced.j5s",
 		happy: &happy{
 			shouldImport: false,
 		},
 	}, {
 		name:     "qualified same package",
-		filename: "baz/v1/other.proto",
+		filename: "baz/v1/other.j5s",
 		happy: &happy{
 			shouldImport: true,
 		},
 	}, {
 		name:     "missing local",
-		filename: "baz/v1/other.proto",
+		filename: "baz/v1/other.j5s",
 		ref: &schema_j5pb.Ref{
 			Package: "baz.v1",
 			Schema:  "Missing",
@@ -147,7 +147,7 @@ func TestImports(t *testing.T) {
 	}, {
 		name: "cross package",
 		explicitImports: []*sourcedef_j5pb.Import{{
-			Path: "baz/v1/referenced.proto",
+			Path: "baz/v1/referenced.j5s.proto",
 		}},
 		happy: &happy{
 			shouldImport: true,
@@ -217,7 +217,7 @@ func TestImports(t *testing.T) {
 					"baz.v1.Referenced": {
 						Package:    "baz.v1",
 						Name:       "Referenced",
-						File:       "baz/v1/referenced.proto",
+						File:       "baz/v1/referenced.j5s.proto",
 						MessageRef: &MessageRef{},
 					},
 				},
@@ -241,21 +241,21 @@ func TestImports(t *testing.T) {
 					t.Fatalf("FATAL: tSimpleObject failed: %v", gotErr)
 				}
 
-				if len(gotFile.MessageType) != 1 {
-					t.Fatalf("Expected 1 message, got %d", len(gotFile.MessageType))
+				if len(gotFile[0].MessageType) != 1 {
+					t.Fatalf("Expected 1 message, got %d", len(gotFile[0].MessageType))
 				}
-				if len(gotFile.MessageType[0].Field) != 1 {
-					t.Fatalf("Expected 1 field, got %d", len(gotFile.MessageType[0].Field))
+				if len(gotFile[0].MessageType[0].Field) != 1 {
+					t.Fatalf("Expected 1 field, got %d", len(gotFile[0].MessageType[0].Field))
 				}
 
-				gotField := gotFile.MessageType[0].Field[0]
+				gotField := gotFile[0].MessageType[0].Field[0]
 				equal(t, wantField, gotField)
 				wantImports := []string{}
 				if tc.happy.shouldImport {
-					wantImports = []string{"baz/v1/referenced.proto"}
+					wantImports = []string{"baz/v1/referenced.j5s.proto"}
 				}
 
-				assertImportsMatch(t, wantImports, gotFile.Dependency)
+				assertImportsMatch(t, wantImports, gotFile[0].Dependency)
 			}
 
 		})
@@ -264,6 +264,7 @@ func TestImports(t *testing.T) {
 }
 
 func assertImportsMatch(t *testing.T, wantImports, gotImports []string) {
+	t.Helper()
 	for idx := 0; idx < len(wantImports) || idx < len(gotImports); idx++ {
 		want := "<nothing>"
 		got := "<missing>"

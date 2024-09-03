@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/iancoleman/strcase"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
@@ -15,7 +16,10 @@ type EnumBuilder struct {
 	commentSet
 }
 
-func emptyEnum(parent parentContext, name string, prefix string) *EnumBuilder {
+func emptyEnum(name string, prefix string) *EnumBuilder {
+	if prefix == "" {
+		prefix = strcase.ToScreamingSnake(name) + "_"
+	}
 	return &EnumBuilder{
 		prefix: prefix,
 		desc: &descriptorpb.EnumDescriptorProto{
@@ -44,8 +48,8 @@ func (e *EnumBuilder) addValue(name string, number int32, description string) {
 	e.comment([]int32{2, number}, description)
 }
 
-func buildEnum(parent parentContext, schema *schema_j5pb.Enum) *EnumBuilder {
-	eb := emptyEnum(parent, schema.Name, schema.Prefix)
+func buildEnum(schema *schema_j5pb.Enum) *EnumBuilder {
+	eb := emptyEnum(schema.Name, schema.Prefix)
 	if schema.Description != "" {
 		eb.comment([]int32{}, schema.Description)
 	}

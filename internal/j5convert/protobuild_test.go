@@ -14,6 +14,55 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
+func TestPackageParse(t *testing.T) {
+
+	for _, tc := range []struct {
+		input   string
+		wantPkg string
+		wantSub string
+		wantErr bool
+	}{{
+		input:   "test/v1/foo.j5s",
+		wantPkg: "test.v1",
+		wantSub: "",
+	}, {
+		input:   "test/v1/sub/foo.j5s",
+		wantPkg: "test.v1",
+		wantSub: "sub",
+	}, {
+		input:   "test/v1/sub/subsub/foo.j5s",
+		wantErr: true,
+	}, {
+		input:   "test",
+		wantErr: true,
+	}, {
+		input:   "foo/bar/v1/foo.j5s",
+		wantPkg: "foo.bar.v1",
+		wantSub: "",
+	}, {
+		input:   "foo/bar/v1/sub/foo.j5s",
+		wantPkg: "foo.bar.v1",
+		wantSub: "sub",
+	}} {
+		t.Run(tc.input, func(t *testing.T) {
+			gotPkg, gotSub, err := SplitPackageFromFilename(tc.input)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("parsePackage(%q) = %q, %q, nil, want error", tc.input, gotPkg, gotSub)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("returned error: %s", err)
+			}
+			if gotPkg != tc.wantPkg || gotSub != tc.wantSub {
+				t.Fatalf("%q -> %q, %q want %q, %q", tc.input, gotPkg, gotSub, tc.wantPkg, tc.wantSub)
+
+			}
+		})
+	}
+
+}
 func withOption[T protoreflect.ProtoMessage](opt T, extType protoreflect.ExtensionType, extVal proto.Message) T {
 	proto.SetExtension(opt, extType, extVal)
 	return opt
@@ -70,7 +119,7 @@ func TestSchemaToProto(t *testing.T) {
 			"test.v1.TestEnum": {
 				Package: "test.v1",
 				Name:    "TestEnum",
-				File:    "test/v1/test.j5gen.proto",
+				File:    "test/v1/test.j5s.proto",
 				EnumRef: &EnumRef{
 					Prefix: "TEST_ENUM_",
 					ValMap: map[string]int32{
@@ -147,7 +196,7 @@ func TestSchemaToProto(t *testing.T) {
 		Options: &descriptorpb.FileOptions{
 			//GoPackage: proto.String("github.com/pentops/j5/test/v1/test_pb"),
 		},
-		Name:    proto.String("test/v1/test.j5gen.proto"),
+		Name:    proto.String("test/v1/test.j5s.proto"),
 		Package: proto.String("test.v1"),
 		MessageType: []*descriptorpb.DescriptorProto{{
 			Name: proto.String("Referenced"),
@@ -185,8 +234,8 @@ func TestSchemaToProto(t *testing.T) {
 		}},
 	}
 
-	gotFile.SourceCodeInfo = nil
-	equal(t, wantFile, gotFile)
+	gotFile[0].SourceCodeInfo = nil
+	equal(t, wantFile, gotFile[0])
 
 	/*
 		fds := &descriptorpb.FileDescriptorSet{

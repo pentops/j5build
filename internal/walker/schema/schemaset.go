@@ -307,13 +307,18 @@ func (ss *SchemaSet) _buildSpec(node j5reflect.PropertySet) (*BlockSpec, error) 
 			spec.IsScalar = true
 
 		case *schema_j5pb.Field_Array:
+			if field.Array != nil && field.Array.Ext != nil && field.Array.Ext.SingleForm != nil {
+				spec.IsScalar = true
+				name = *field.Array.Ext.SingleForm
+			}
+			spec.IsCollection = true
+
 			items := field.Array.Items
 			switch itemSchema := items.Type.(type) {
 			case *schema_j5pb.Field_Object:
-				name := objectName(itemSchema.Object)
-				if name != "" {
-					spec.IsCollection = true
-					spec.IsContainer = true
+				spec.IsContainer = true
+				if name == "" {
+					name = arrayName(itemSchema.Object)
 				}
 			}
 
@@ -367,7 +372,8 @@ func (ss *SchemaSet) blockSpec(node j5reflect.PropertySet) (*BlockSpec, error) {
 	return spec, nil
 }
 
-func objectName(obj *schema_j5pb.ObjectField) string {
+func arrayName(obj *schema_j5pb.ObjectField) string {
+
 	var name string
 	if ref := obj.GetRef(); ref != nil {
 		name = ref.Schema

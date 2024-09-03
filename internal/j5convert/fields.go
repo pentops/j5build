@@ -71,7 +71,7 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 
 		switch where := st.Object.Schema.(type) {
 		case *schema_j5pb.ObjectField_Ref:
-			typeRef, err := ww.root.resolveType(where.Ref.Package, where.Ref.Schema)
+			typeRef, err := ww.resolveType(where.Ref.Package, where.Ref.Schema)
 			if err != nil {
 				ww.at("ref").error(err)
 				return nil
@@ -87,10 +87,19 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 		case *schema_j5pb.ObjectField_Object:
 			// object is inline
 
-			ww.at("object").doObject(where.Object, nil)
+			ww.at("object").doObject(where.Object)
 			desc.TypeName = ptr(where.Object.Name)
 		}
 
+		if st.Object.Flatten {
+			proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
+				Type: &ext_j5pb.FieldOptions_Message{
+					Message: &ext_j5pb.MessageFieldOptions{
+						Flatten: true,
+					},
+				},
+			})
+		}
 		if st.Object.Ext != nil {
 			proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
 				Type: &ext_j5pb.FieldOptions_Object{
@@ -114,7 +123,7 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 
 		switch where := st.Oneof.Schema.(type) {
 		case *schema_j5pb.OneofField_Ref:
-			typeRef, err := ww.root.resolveType(where.Ref.Package, where.Ref.Schema)
+			typeRef, err := ww.resolveType(where.Ref.Package, where.Ref.Schema)
 			if err != nil {
 				ww.at("ref").error(err)
 				return nil
@@ -128,6 +137,7 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 		case *schema_j5pb.OneofField_Oneof:
 			// oneof is inline
 			ww.errorf("TODO: inline oneof not implemented")
+			return nil
 		}
 
 		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
@@ -140,6 +150,7 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 			rules := &validate.FieldConstraints{}
 			proto.SetExtension(desc.Options, validate.E_Field, rules)
 			ww.errorf("TODO: oneof rules not implemented")
+			return nil
 		}
 		return desc
 
@@ -150,7 +161,7 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 		switch where := st.Enum.Schema.(type) {
 
 		case *schema_j5pb.EnumField_Ref:
-			typeRef, err := ww.root.resolveType(where.Ref.Package, where.Ref.Schema)
+			typeRef, err := ww.resolveType(where.Ref.Package, where.Ref.Schema)
 			if err != nil {
 				ww.at("ref").error(err)
 				return nil
@@ -164,7 +175,9 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 
 		case *schema_j5pb.EnumField_Enum:
 			// enum is inline
-			ww.errorf("TODO: inline enum not implemented")
+			ww.at("enum").doEnum(where.Enum)
+			desc.TypeName = ptr(where.Enum.Name)
+			return nil
 		}
 
 		if st.Enum.Ext != nil {
@@ -247,7 +260,7 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 
 	case *schema_j5pb.Field_Date:
 		ww := ww.at("date")
-		ww.root.ensureImport(j5DateImport)
+		ww.file.ensureImport(j5DateImport)
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
 		desc.TypeName = ptr(".j5.types.date.v1.Date")
 		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
@@ -259,7 +272,7 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 
 	case *schema_j5pb.Field_Decimal:
 		ww := ww.at("decimal")
-		ww.root.ensureImport(j5DecimalImport)
+		ww.file.ensureImport(j5DecimalImport)
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
 		desc.TypeName = ptr(".j5.types.decimal.v1.Decimal")
 		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
@@ -321,7 +334,7 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 	case *schema_j5pb.Field_Key:
 		ww := ww.at("key")
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum()
-		ww.root.ensureImport(j5ExtImport)
+		ww.file.ensureImport(j5ExtImport)
 
 		if st.Key.Ext != nil {
 			if st.Key.Ext.PrimaryKey {
@@ -351,7 +364,7 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 				ww.errorf("unknown key format %T", st.Key.Format.Type)
 				return nil
 			}
-			ww.root.ensureImport(bufValidateImport)
+			ww.file.ensureImport(bufValidateImport)
 			proto.SetExtension(desc.Options, validate.E_Field, &validate.FieldConstraints{
 				Type: &validate.FieldConstraints_String_{
 					String_: stringRules,
@@ -392,7 +405,7 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
 		desc.TypeName = ptr(".google.protobuf.Timestamp")
-		ww.root.ensureImport(pbTimestamp)
+		ww.file.ensureImport(pbTimestamp)
 		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
 			Type: &ext_j5pb.FieldOptions_Timestamp{
 				Timestamp: st.Timestamp.Ext,
@@ -414,7 +427,7 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
 		desc.TypeName = ptr(".google.protobuf.Any")
-		ww.root.ensureImport(pbAnyImport)
+		ww.file.ensureImport(pbAnyImport)
 		/*
 			proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
 				Type: &ext_j5pb.FieldOptions_Any{},

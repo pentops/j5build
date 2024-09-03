@@ -69,7 +69,7 @@ func (p *Parser) ParseFile(filename string, data string) (*sourcedef_j5pb.Source
 	tree, err := ast.ParseFile(data, p.FailFast)
 	if err != nil {
 		if err == ast.HadErrors {
-			return nil, errpos.AddSource(tree.Errors, data)
+			return nil, errpos.AddSourceFile(tree.Errors, data, filename)
 		}
 		return nil, fmt.Errorf("parse file not HadErrors - : %w", err)
 	}
@@ -141,7 +141,7 @@ func (s sourceSet) addViolation(violation *validate.Violation) {
 	for _, p := range fullPath {
 		ss = ss.field(p)
 	}
-	ss.err(fmt.Errorf(violation.Message))
+	ss.err(fmt.Errorf("%s: %s", violation.FieldPath, violation.Message))
 }
 
 func (s sourceSet) field(name string) sourceSet {

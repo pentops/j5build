@@ -8,13 +8,13 @@ import (
 )
 
 type MessageBuilder struct {
-	root       rootContext
+	root       fileContext
 	isOneof    bool
 	descriptor *descriptorpb.DescriptorProto
 	commentSet
 }
 
-func blankMessage(root rootContext, name string) *MessageBuilder {
+func blankMessage(root fileContext, name string) *MessageBuilder {
 	message := &MessageBuilder{
 		root: root,
 		descriptor: &descriptorpb.DescriptorProto{
@@ -26,46 +26,30 @@ func blankMessage(root rootContext, name string) *MessageBuilder {
 	return message
 }
 
-func blankOneof(root rootContext, name string) *MessageBuilder {
+func blankOneof(root fileContext, name string) *MessageBuilder {
 	message := blankMessage(root, name)
 	message.isOneof = true
+	proto.SetExtension(message.descriptor.Options, ext_j5pb.E_Message, &ext_j5pb.MessageOptions{
+		IsOneofWrapper: true,
+	})
 	return message
-}
-
-func (msg *MessageBuilder) setDescription(str string) {
-	msg.comment([]int32{}, str)
 }
 
 func (msg *MessageBuilder) entityType(name string, part schema_j5pb.EntityPart) {
 	msg.root.ensureImport(j5ExtImport)
 	proto.SetExtension(msg.descriptor.Options, ext_j5pb.E_Psm, &ext_j5pb.PSMOptions{
 		EntityName: name,
+		EntityPart: &part,
 	})
 }
 
 func (msg *MessageBuilder) addMessage(message *MessageBuilder) {
+	msg.commentSet.mergeAt([]int32{3, int32(len(msg.descriptor.NestedType))}, message.commentSet)
 	msg.descriptor.NestedType = append(msg.descriptor.NestedType, message.descriptor)
 }
 
 func (msg *MessageBuilder) addEnum(enum *EnumBuilder) {
+	msg.commentSet.mergeAt([]int32{4, int32(len(msg.descriptor.EnumType))}, enum.commentSet)
 	msg.descriptor.EnumType = append(msg.descriptor.EnumType, enum.desc)
-}
 
-func (msg *MessageBuilder) schemaRefField() *schema_j5pb.Field {
-	return schemaRefField("", *msg.descriptor.Name)
-}
-
-func schemaRefField(pkg, desc string) *schema_j5pb.Field {
-	return &schema_j5pb.Field{
-		Type: &schema_j5pb.Field_Object{
-			Object: &schema_j5pb.ObjectField{
-				Schema: &schema_j5pb.ObjectField_Ref{
-					Ref: &schema_j5pb.Ref{
-						Package: pkg,
-						Schema:  desc,
-					},
-				},
-			},
-		},
-	}
 }

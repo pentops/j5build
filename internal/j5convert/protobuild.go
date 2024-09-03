@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"path"
+	"regexp"
 	"strings"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
@@ -19,16 +20,6 @@ type Package interface {
 	ResolveType(pkg string, name string) (*TypeRef, error)
 }
 
-type rootContext interface {
-	ensureImport(string)
-	resolveType(string, string) (*TypeRef, error)
-}
-
-type parentContext interface {
-	addMessage(*MessageBuilder)
-	addEnum(*EnumBuilder)
-}
-
 func PackageFromFilename(filename string) string {
 	dirName, _ := path.Split(filename)
 	dirName = strings.TrimSuffix(dirName, "/")
@@ -36,22 +27,27 @@ func PackageFromFilename(filename string) string {
 	return pathPackage
 }
 
-type TypeNotFoundError struct {
-	Package string
-	Name    string
-}
+var reVersion = regexp.MustCompile(`^v\d+$`)
 
-func (e *TypeNotFoundError) Error() string {
-	return fmt.Sprintf("type %s not found in package %s", e.Name, e.Package)
-}
+func SplitPackageFromFilename(filename string) (string, string, error) {
+	pkg := PackageFromFilename(filename)
+	parts := strings.Split(pkg, ".")
+	if len(parts) < 2 {
+		return "", "", fmt.Errorf("invalid package %q %q", filename, pkg)
+	}
 
-type PackageNotFoundError struct {
-	Package string
-	Name    string
-}
+	// foo.v1 -> foo, v1
+	// foo.v1.service -> foo.v1, service
+	// foo.bar.v1.service -> foo.bar.v1, service
 
-func (e *PackageNotFoundError) Error() string {
-	return fmt.Sprintf("namespace %s not found (looking for %s.%s), missing import?", e.Package, e.Package, e.Name)
+	if reVersion.MatchString(parts[len(parts)-1]) {
+		return pkg, "", nil
+	}
+	if reVersion.MatchString(parts[len(parts)-2]) {
+		upToVersion := parts[:len(parts)-1]
+		return strings.Join(upToVersion, "."), parts[len(parts)-1], nil
+	}
+	return pkg, "", fmt.Errorf("no version in package %q", pkg)
 }
 
 type J5Result struct {
@@ -89,7 +85,7 @@ type sourceLink struct {
 	root *sourcedef_j5pb.SourceLocation
 }
 
-func (c *sourceLink) getPos(path []string) *errpos.Position {
+func (c *sourceLink) getSource(path []string) *sourcedef_j5pb.SourceLocation {
 	loc := c.root
 	if loc == nil {
 		return nil
@@ -101,6 +97,14 @@ func (c *sourceLink) getPos(path []string) *errpos.Position {
 			return nil
 		}
 		loc = next
+	}
+	return loc
+}
+
+func (c *sourceLink) getPos(path []string) *errpos.Position {
+	loc := c.getSource(path)
+	if loc == nil {
+		return nil
 	}
 	return &errpos.Position{
 		Start: errpos.Point{

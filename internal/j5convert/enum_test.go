@@ -16,7 +16,7 @@ func TestEnumNormal(t *testing.T) {
 		Options: &descriptorpb.FileOptions{
 			//GoPackage: proto.String("github.com/pentops/j5/test/v1/test_pb"),
 		},
-		Name:    proto.String("test/v1/test.proto"),
+		Name:    proto.String("test/v1/test.j5s.proto"),
 		Package: proto.String("test.v1"),
 		EnumType: []*descriptorpb.EnumDescriptorProto{{
 			Name: proto.String("TestEnum"),
@@ -47,14 +47,15 @@ func TestEnumNormal(t *testing.T) {
 		pkg: "test.v1",
 	}
 
-	gotFile, err := ConvertJ5File(deps, &sourcedef_j5pb.SourceFile{
-		Path:     "test/v1/test.proto",
+	gotFiles, err := ConvertJ5File(deps, &sourcedef_j5pb.SourceFile{
+		Path:     "test/v1/test.j5s",
 		Package:  "test.v1",
 		Elements: []*sourcedef_j5pb.RootElement{enumSchema},
 	})
 	if err != nil {
 		t.Fatalf("ConvertJ5File failed: %v", err)
 	}
+	gotFile := gotFiles[0]
 
 	gotFile.SourceCodeInfo = nil
 	equal(t, wantFile, gotFile)
@@ -67,7 +68,7 @@ func TestEnumFlexibility(t *testing.T) {
 		Options: &descriptorpb.FileOptions{
 			//GoPackage: proto.String("github.com/pentops/j5/test/v1/test_pb"),
 		},
-		Name:    proto.String("test/v1/test.proto"),
+		Name:    proto.String("test/v1/test.j5s.proto"),
 		Package: proto.String("test.v1"),
 		EnumType: []*descriptorpb.EnumDescriptorProto{{
 			Name: proto.String("TestEnum"),
@@ -89,14 +90,15 @@ func TestEnumFlexibility(t *testing.T) {
 			deps := &testDeps{
 				pkg: "test.v1",
 			}
-			gotFile, err := ConvertJ5File(deps, &sourcedef_j5pb.SourceFile{
-				Path:     "test/v1/test.proto",
+			gotFiles, err := ConvertJ5File(deps, &sourcedef_j5pb.SourceFile{
+				Path:     "test/v1/test.j5s",
 				Elements: []*sourcedef_j5pb.RootElement{schema},
 			})
 			if err != nil {
 				t.Fatalf("ConvertJ5File failed: %v", err)
 			}
 
+			gotFile := gotFiles[0]
 			gotFile.SourceCodeInfo = nil
 			equal(t, wantFile, gotFile)
 		})

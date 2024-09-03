@@ -8,6 +8,8 @@ import (
 	proto_parser "github.com/bufbuild/protocompile/parser"
 	"github.com/bufbuild/protocompile/reporter"
 	"github.com/pentops/bcl.go/internal/j5convert"
+	"google.golang.org/protobuf/reflect/protodesc"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -20,26 +22,25 @@ func NewProtoParser(rep reporter.Reporter) *ProtoParser {
 	return &ProtoParser{handler: reportHandler}
 }
 
-func (pp ProtoParser) protoToDescriptor(filename string, data []byte) (*descriptorpb.FileDescriptorProto, error) {
+func (pp ProtoParser) protoToDescriptor(filename string, data []byte) (proto_parser.Result, *j5convert.FileSummary, error) {
 	fileNode, err := proto_parser.Parse(filename, bytes.NewReader(data), pp.handler)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	result, err := proto_parser.ResultFromAST(fileNode, true, pp.handler)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return result.FileDescriptorProto(), nil
+
+	summary, err := pp.buildSummaryFromDescriptor(result.FileDescriptorProto())
+	if err != nil {
+		return nil, nil, err
+	}
+	return result, summary, nil
 }
 
-func (pp ProtoParser) buildSummary(filename string, data []byte) (*j5convert.FileSummary, error) {
-
-	res, err := pp.protoToDescriptor(filename, data)
-	if err != nil {
-		return nil, err
-	}
-
-	return pp.buildSummaryFromDescriptor(res)
+func (pp ProtoParser) buildSummaryFromReflect(res protoreflect.FileDescriptor) (*j5convert.FileSummary, error) {
+	return pp.buildSummaryFromDescriptor(protodesc.ToFileDescriptorProto(res))
 }
 
 func (pp ProtoParser) buildSummaryFromDescriptor(res *descriptorpb.FileDescriptorProto) (*j5convert.FileSummary, error) {
@@ -50,6 +51,7 @@ func (pp ProtoParser) buildSummaryFromDescriptor(res *descriptorpb.FileDescripto
 		exports[msg.GetName()] = &j5convert.TypeRef{
 			Name:       msg.GetName(),
 			File:       filename,
+			Package:    res.GetPackage(),
 			MessageRef: &j5convert.MessageRef{},
 		}
 	}
@@ -60,6 +62,7 @@ func (pp ProtoParser) buildSummaryFromDescriptor(res *descriptorpb.FileDescripto
 		}
 		exports[en.GetName()] = &j5convert.TypeRef{
 			Name:    en.GetName(),
+			Package: res.GetPackage(),
 			File:    filename,
 			EnumRef: built,
 		}

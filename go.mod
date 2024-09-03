@@ -52,3 +52,5 @@ replace github.com/pentops/prototools => /Users/daemonl/pentops/prototools
 replace github.com/pentops/runner => /Users/daemonl/pentops/runner
 
 replace github.com/bufbuild/protovalidate-go v0.6.4 => github.com/bufbuild/protovalidate-go v0.6.5-0.20240828223213-2e83672b747d
+
+replace github.com/bufbuild/protocompile => /Users/daemonl/projects/protocompile

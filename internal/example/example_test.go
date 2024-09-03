@@ -9,13 +9,23 @@ import (
 	"testing"
 
 	"github.com/pentops/bcl.go/internal/protobuild"
-	"github.com/pentops/bcl.go/internal/protoprint"
+	"github.com/pentops/prototools/protoprint"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
 type testDeps struct {
 	files map[string]*descriptorpb.FileDescriptorProto
+}
+
+func (td *testDeps) ListDependencyFiles(root string) []string {
+	files := make([]string, 0, len(td.files))
+	for k := range td.files {
+		if strings.HasPrefix(k, root) {
+			files = append(files, k)
+		}
+	}
+	return files
 }
 
 func (td *testDeps) GetDependencyFile(filename string) (*descriptorpb.FileDescriptorProto, error) {
@@ -45,9 +55,11 @@ func TestFull(t *testing.T) {
 		t.Fatalf("failed to create resolver: %v", err)
 	}
 
-	filename := "pack1/v1/foo.j5gen.proto"
+	compiler := protobuild.NewCompiler(resolver)
 
-	built, err := resolver.Compile(ctx, filename)
+	filename := "pack1/v1/foo.j5s.proto"
+
+	built, err := compiler.CompilePackage(ctx, "pack1.v1")
 	if err != nil {
 		t.Fatal(err.Error())
 	}

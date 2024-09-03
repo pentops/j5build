@@ -257,51 +257,21 @@ func runJ5Gen(ctx context.Context, cfg struct {
 		return err
 	}
 
-	j5Files, err := localFiles.ListJ5Files(ctx)
-	if err != nil {
-		return err
-	}
-
-	for _, filename := range j5Files {
-		log.Printf("pre-compile %s\n", filename)
-		_, err := resolver.ParseToDescriptor(ctx, filename)
-		if err != nil {
-			debug, ok := errpos.AsErrorsWithSource(err)
-			if !ok {
-				return fmt.Errorf("unlinked error: %w", err)
-			}
-
-			str := debug.HumanString(3)
-			fmt.Println(str)
-			os.Exit(1)
-		}
-	}
-
-	log.Printf("Pre-Compiled %d files", len(j5Files))
+	compiler := protobuild.NewCompiler(resolver)
 
 	for _, pkg := range packages {
-		pkgSrc, err := localFiles.ListSourceFiles(ctx, pkg)
+		out, err := compiler.CompilePackage(ctx, pkg)
 		if err != nil {
-			return fmt.Errorf("listing package %s: %w", pkg, err)
+			return err
 		}
 
-		for _, filename := range pkgSrc {
-			if !strings.HasSuffix(filename, ".j5s") {
+		for _, file := range out {
+			filename := file.Path()
+			if !strings.HasSuffix(filename, ".j5s.proto") {
 				continue
 			}
 
-			log.Printf("Compiling %s", filename)
-
-			filename := strings.TrimSuffix(filename, ".j5s") + ".j5gen.proto"
-
-			built, err := resolver.Compile(ctx, filename)
-			if err != nil {
-				log.Printf("Error compiling %s: %v", filename, err)
-				return err
-			}
-			fileOut := built[0]
-
-			out, err := protoprint.PrintFile(ctx, fileOut)
+			out, err := protoprint.PrintFile(ctx, file)
 			if err != nil {
 				log.Printf("Error printing %s: %v", filename, err)
 				return err

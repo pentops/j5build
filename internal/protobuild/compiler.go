@@ -2,26 +2,42 @@ package protobuild
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 
 	"github.com/bufbuild/protocompile"
 	"github.com/bufbuild/protocompile/linker"
+	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/bcl.go/internal/j5convert"
 )
 
 type Package struct {
-	Files              []*SourceFile
+	Name               string
+	SourceFiles        []*SourceFile
+	BuildFiles         map[string]protocompile.SearchResult
 	DirectDependencies map[string]*Package
 
 	Exports map[string]*j5convert.TypeRef
 }
 
 func (pkg *Package) ResolveType(pkgName string, name string) (*j5convert.TypeRef, error) {
+	if pkgName == pkg.Name {
+		gotType, ok := pkg.Exports[name]
+		if ok {
+			return gotType, nil
+		}
+		return nil, &j5convert.TypeNotFoundError{
+			Package: "(SELF)",
+			Name:    name,
+		}
+	}
+
 	pkg, ok := pkg.DirectDependencies[pkgName]
 	if !ok {
-		return nil, fmt.Errorf("package %s not found", pkgName)
+		return nil, fmt.Errorf("ResolveType: package %s not loaded", pkgName)
 	}
 
 	gotType, ok := pkg.Exports[name]
@@ -50,32 +66,30 @@ func NewCompiler(resolver *Resolver) *Compiler {
 }
 
 func (c *Compiler) FindFileByPath(filename string) (protocompile.SearchResult, error) {
-	pkgName := j5convert.PackageFromFilename(filename)
+
+	if hasAPrefix(filename, inbuiltPrefixes) {
+		return c.Resolver.GetInbuilt(filename)
+	}
+
+	pkgName, _, err := j5convert.SplitPackageFromFilename(filename)
+	if err != nil {
+		return protocompile.SearchResult{}, err
+	}
 	pkg, ok := c.Packages[pkgName]
 	if !ok {
-		return protocompile.SearchResult{}, fmt.Errorf("package %s not found", pkgName)
+		return protocompile.SearchResult{}, fmt.Errorf("FindFileByPath: package %s not found", pkgName)
 	}
 
-	if strings.HasSuffix(filename, ".j5s.proto") {
-		filename = strings.TrimSuffix(filename, ".proto")
+	res, ok := pkg.BuildFiles[filename]
+	if ok {
+		return res, nil
 	}
 
-	for _, file := range pkg.Files {
-		if file.Filename == filename {
-			if file.Result == nil {
-				return protocompile.SearchResult{}, fmt.Errorf("file %s not compiled", filename)
-			}
-			return *file.Result, nil
-		}
-	}
-
-	return protocompile.SearchResult{}, fmt.Errorf("file %s not found in package %s", filename, pkgName)
+	return protocompile.SearchResult{}, fmt.Errorf("FindPackageByPath: file %s not found in package %s", filename, pkgName)
 
 }
 
 func (c *Compiler) loadPackage(ctx context.Context, name string, chain []string) (*Package, error) {
-
-	log.Printf("loading package %s, chain %s", name, strings.Join(chain, " -> "))
 
 	for _, ancestor := range chain {
 		if name == ancestor {
@@ -84,8 +98,11 @@ func (c *Compiler) loadPackage(ctx context.Context, name string, chain []string)
 	}
 
 	if pkg, ok := c.Packages[name]; ok {
+		log.Printf("package %s already loaded", name)
 		return pkg, nil
 	}
+
+	log.Printf("loading package %s, chain %s", name, strings.Join(chain, " -> "))
 
 	files, err := c.Resolver.PackageFiles(ctx, name)
 	if err != nil {
@@ -93,7 +110,8 @@ func (c *Compiler) loadPackage(ctx context.Context, name string, chain []string)
 	}
 
 	pkg := &Package{
-		Files:              files,
+		Name:               name,
+		SourceFiles:        files,
 		DirectDependencies: map[string]*Package{},
 		Exports:            map[string]*j5convert.TypeRef{},
 	}
@@ -103,13 +121,15 @@ func (c *Compiler) loadPackage(ctx context.Context, name string, chain []string)
 			return nil, fmt.Errorf("file %s has no summary", file.Filename)
 		}
 		for _, exp := range file.Summary.Exports {
-			log.Printf("file %s exports %s as %s", file.Filename, exp.Name, exp.File)
 			pkg.Exports[exp.Name] = exp
 		}
 	}
 
 	depPackages := listDependencies(files)
 	for dep := range depPackages {
+		if dep == name {
+			continue
+		}
 		depPkg, err := c.loadPackage(ctx, dep, append(chain, name))
 		if err != nil {
 			return nil, err
@@ -119,21 +139,26 @@ func (c *Compiler) loadPackage(ctx context.Context, name string, chain []string)
 
 	c.Packages[name] = pkg
 
+	pkg.BuildFiles = map[string]protocompile.SearchResult{}
 	for _, file := range files {
-		if file.Result == nil {
-			if strings.HasSuffix(file.Filename, ".j5s") {
-				searchResult, err := j5convert.ConvertJ5File(pkg, file.J5Source)
-				if err != nil {
-					return nil, err
-				}
-				file.Result = &protocompile.SearchResult{
-					Proto: searchResult,
-				}
-			} else {
-				return nil, fmt.Errorf("unknown file type: %s", file.Filename)
-			}
+		if file.Result != nil {
+			pkg.BuildFiles[file.Filename] = *file.Result
+			continue
+		}
+		if !strings.HasSuffix(file.Filename, ".j5s") {
+			return nil, fmt.Errorf("file %s has no result", file.Filename)
 		}
 
+		builtFiles, err := j5convert.ConvertJ5File(pkg, file.J5Source)
+		if err != nil {
+			return nil, errpos.AddFilename(err, file.Filename)
+		}
+
+		for _, file := range builtFiles {
+			pkg.BuildFiles[*file.Name] = protocompile.SearchResult{
+				Proto: file,
+			}
+		}
 	}
 
 	return pkg, nil
@@ -152,17 +177,22 @@ func (c *Compiler) CompilePackage(ctx context.Context, packageName string) (link
 		Reporter:       c.Resolver.reporter,
 	}
 
-	filenames := make([]string, len(pkg.Files))
-	for idx, file := range pkg.Files {
-		if strings.HasSuffix(file.Filename, ".j5s") {
-			filenames[idx] = file.Filename + ".proto"
-		} else {
-			filenames[idx] = file.Filename
-		}
+	filenames := make([]string, 0)
+	for filename := range pkg.BuildFiles {
+		filenames = append(filenames, filename)
 	}
+	sort.Strings(filenames) // for consistent error ordering
+
+	log.Printf("running compile package %s: %s", packageName, strings.Join(filenames, ", "))
 
 	files, err := cc.Compile(ctx, filenames...)
 	if err != nil {
+		log.Printf("Compile failed: %s", err)
+		panicErr := protocompile.PanicError{}
+		if ok := errors.As(err, &panicErr); ok {
+			log.Printf("STACK\n%s", panicErr.Stack)
+			return nil, panicErr
+		}
 		return nil, err
 	}
 
