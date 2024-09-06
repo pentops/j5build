@@ -28,6 +28,21 @@ func (bs containerSet) hasBlock(name string) bool {
 	return false
 }
 
+func (bs containerSet) listChildren() []string {
+
+	possibleNames := make([]string, 0)
+	for _, blockSchema := range bs {
+		for blockName := range blockSchema.spec.Children {
+			possibleNames = append(possibleNames, blockName)
+		}
+	}
+
+	if len(possibleNames) == 0 {
+		return []string{"<no children>"}
+	}
+
+	return possibleNames
+}
 func (bs containerSet) listAttributes() []string {
 	possibleNames := make([]string, 0)
 	for _, blockSchema := range bs {

@@ -69,7 +69,7 @@ func humanString(err *Err, lines []string, context int) string {
 		startLine := pos.Start.Line + 1
 		startCol := pos.Start.Column + 1
 		if startLine > len(lines) {
-			out.WriteString(fmt.Sprintf("<line %d out of range (%d)>", startLine, len(lines)))
+			out.WriteString(fmt.Sprintf("<line %d out of range (len %d)>", startLine, len(lines)))
 			out.WriteString("\n")
 			return
 		}
@@ -86,7 +86,7 @@ func humanString(err *Err, lines []string, context int) string {
 		}
 
 		if startLine > len(lines) || startLine < 1 {
-			out.WriteString(fmt.Sprintf("<line %d out of range (%d)>", startLine, len(lines)))
+			out.WriteString(fmt.Sprintf("<line %d out of range (len %d)>", startLine, len(lines)))
 			out.WriteString("\n")
 			return
 		}

@@ -1,0 +1,16 @@
+
+
+
+schema {
+	block j5.schema.v1.Ref {
+		scalarSplit {
+			required = ["schema"]
+			remainder = ["package"]
+			rightToLeft = true
+		}
+	}
+
+	block j5.schema.v1.KeyFormat {
+		typeSelect = []
+	}
+}

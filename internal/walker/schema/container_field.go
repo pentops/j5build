@@ -2,9 +2,10 @@ package schema
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
+	"github.com/pentops/j5/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
 )
 
@@ -20,7 +21,7 @@ type containerField struct {
 	field     j5reflect.ContainerField
 	spec      BlockSpec
 	isRoot    bool
-	location  *sourcedef_j5pb.SourceLocation
+	location  *bcl_j5pb.SourceLocation
 }
 
 func (sc *containerField) RunCloseHooks() error {
@@ -60,12 +61,12 @@ func (sc *containerField) SchemaName() string {
 	return sc.schemaName
 }
 
-func childSourceLocation(in *sourcedef_j5pb.SourceLocation, name string, hint SourceLocation) *sourcedef_j5pb.SourceLocation {
+func childSourceLocation(in *bcl_j5pb.SourceLocation, name string, hint SourceLocation) *bcl_j5pb.SourceLocation {
 	if in.Children == nil {
-		in.Children = map[string]*sourcedef_j5pb.SourceLocation{}
+		in.Children = map[string]*bcl_j5pb.SourceLocation{}
 	}
 	if _, ok := in.Children[name]; !ok {
-		in.Children[name] = &sourcedef_j5pb.SourceLocation{
+		in.Children[name] = &bcl_j5pb.SourceLocation{
 			StartLine:   int32(hint.Start.Line),
 			StartColumn: int32(hint.Start.Column),
 			EndLine:     int32(hint.End.Line),
@@ -94,6 +95,7 @@ const (
 	UnknownPathError PathErrorType = iota
 	NodeNotContainer
 	NodeNotScalar
+	NodeNotScalarArray
 	NodeNotFound
 	RootNotFound
 )
@@ -118,11 +120,17 @@ func (wpe *WalkPathError) Error() string {
 func (wpe *WalkPathError) LongMessage() string {
 	switch wpe.Type {
 	case NodeNotContainer:
-		return fmt.Sprintf("wanted a container field, got %s", wpe.Schema)
+		return fmt.Sprintf("node at %q is not a container (is %s)", strings.Join(wpe.Path, "."), wpe.Schema)
 	case NodeNotScalar:
-		return fmt.Sprintf("wanted a scalar, got %s", wpe.Schema)
+		return fmt.Sprintf("node at %q is not a scalar (is %s)", strings.Join(wpe.Path, "."), wpe.Schema)
+	case NodeNotScalarArray:
+		return fmt.Sprintf("node at %q is not a scalar array (is %s)", strings.Join(wpe.Path, "."), wpe.Schema)
 	case RootNotFound:
+		if wpe.Schema != "" {
+			return fmt.Sprintf("root %q unknown in %s, available: %v", wpe.Field, wpe.Schema, wpe.Available)
+		}
 		return fmt.Sprintf("root %q unknown, available: %v", wpe.Field, wpe.Available)
+
 	case NodeNotFound:
 		return fmt.Sprintf("node %q not found in %s", wpe.Field, wpe.Schema)
 	}

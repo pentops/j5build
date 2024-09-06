@@ -16,6 +16,10 @@ type ASTValue interface {
 	AsFloat(bits int) (float64, error)
 
 	Position() errpos.Position
+
+	IsArray() bool
+	IsScalar() bool
+	AsArray() ([]ASTValue, bool)
 }
 
 type unknownValue struct {
@@ -42,6 +46,18 @@ func (uv unknownValue) AsFloat(size int) (float64, error) {
 	return 0, fmt.Errorf("value is %s is not a float%d", uv.typeName, size)
 }
 
+func (uv unknownValue) IsArray() bool {
+	return false
+}
+
+func (uv unknownValue) IsScalar() bool {
+	return false
+}
+
+func (uv unknownValue) AsArray() ([]ASTValue, bool) {
+	return nil, false
+}
+
 /*
 
 type IntValue struct {
@@ -66,11 +82,40 @@ func (iv IntValue) AsInt(size int) (int64, error) {
 
 type Value struct {
 	token lexer.Token
+	array []Value
 	SourceNode
 }
 
+var _ ASTValue = Value{}
+
 func (v Value) GoString() string {
+	if v.IsArray() {
+		return fmt.Sprintf("[%#v]", v.array)
+	}
 	return fmt.Sprintf("value(%s:%s)", v.token.Type, v.token.Lit)
+}
+
+func (v Value) IsArray() bool {
+	return len(v.array) > 0
+}
+
+func (v Value) IsScalar() bool {
+	return !v.IsArray()
+}
+
+func (v Value) AsArray() ([]ASTValue, bool) {
+	if !v.IsArray() {
+		return nil, false
+	}
+	out := make([]ASTValue, len(v.array))
+	for idx, val := range v.array {
+		out[idx] = val
+	}
+	return out, true
+}
+
+func (v Value) Position() errpos.Position {
+	return v.SourceNode.Position()
 }
 
 func (v Value) AsString() (string, error) {

@@ -2,126 +2,12 @@ package schema
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/iancoleman/strcase"
+	"github.com/pentops/j5/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
-	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
 )
-
-type TagType int
-
-const (
-	_noTag TagType = iota
-
-	// Set the scalar value at Path to the value of Tag. Oneofs are allowed at
-	// the leaf, the default value of the property matching the tag is set.
-	TagTypeScalar
-
-	// The leaf node at Path + Tag must be a container. Used on 'type select'
-	// fields
-	TagTypeTypeSelect
-
-	// Leaf can be either type.
-	// If it is a container, it must have a property matching the given name.
-	// Then the container is included in the search path for attributes and
-	// blocks.
-	// If it is a scalar, the value is set, the search path does not change.
-	// If it is a SplitRef scalar, the value is set, and if there are any
-	// remaining blocks in the item they are added to the search path.
-	TagTypeQualifier
-
-	_lastType
-)
-
-type StringCase int
-
-const (
-	// No change to the case of the string
-	StringCaseNone StringCase = iota
-
-	StringCaseScreamingSnake
-	StringCaseLowerCamel
-
-	_lastCase
-)
-
-var stringCaseStrings = map[StringCase]string{
-	StringCaseNone:           "lEavE aS-iS",
-	StringCaseScreamingSnake: "SCREAMING_SNAKE",
-	StringCaseLowerCamel:     "lowerCamel",
-}
-
-type Tag struct {
-	Path []string
-
-	IsBlock bool
-
-	StringCase StringCase
-
-	SplitRef [][]string
-}
-
-func (t *Tag) Validate(tagType TagType) error {
-	if tagType >= _lastType || tagType <= _noTag {
-		return fmt.Errorf("invalid TagType: %d", tagType)
-	}
-	if t.StringCase > _lastCase {
-		return fmt.Errorf("invalid StringCase: %d", t.StringCase)
-	}
-
-	if tagType == TagTypeTypeSelect {
-		if len(t.SplitRef) > 0 {
-			return fmt.Errorf("SplitRef not valid for TypeSelect")
-		}
-	} else {
-		if len(t.Path) == 0 && len(t.SplitRef) == 0 {
-			return fmt.Errorf("Path or SplitRef are required")
-		}
-		if t.IsBlock && tagType == TagTypeScalar {
-			return fmt.Errorf("IsBlock not valid for Scalar")
-		}
-	}
-	return nil
-}
-
-func (t Tag) GoString() string {
-	sb := &strings.Builder{}
-	sb.WriteString("Tag(")
-	split := false
-	if len(t.Path) > 0 {
-		sb.WriteString("Path: ")
-		sb.WriteString(strings.Join(t.Path, "."))
-		split = true
-	}
-
-	if t.StringCase != StringCaseNone {
-		if split {
-			sb.WriteString(", ")
-		}
-		sb.WriteString("StringCase: ")
-		sb.WriteString(stringCaseStrings[t.StringCase])
-		split = true
-
-	}
-	if len(t.SplitRef) > 0 {
-		if split {
-			sb.WriteString(", ")
-		}
-		sb.WriteString("SplitRef(")
-		for idx, split := range t.SplitRef {
-			if idx > 0 {
-				sb.WriteString(", ")
-			}
-			sb.WriteString(strings.Join(split, "."))
-		}
-		sb.WriteString(")")
-	}
-	sb.WriteString(")")
-
-	return sb.String()
-}
 
 type specSource string
 
@@ -130,69 +16,6 @@ const (
 	specSourceSchema specSource = "global"
 )
 
-type ChildSpec struct {
-	Path         PathSpec
-	IsContainer  bool
-	IsScalar     bool
-	IsCollection bool
-}
-
-func (cs ChildSpec) TagString() string {
-	prefix := []rune{'-', '-', '-'}
-	if cs.IsContainer {
-		prefix[0] = 'C'
-	}
-	if cs.IsScalar {
-		prefix[1] = 'S'
-	}
-	if cs.IsCollection {
-		prefix[2] = 'A'
-	}
-	return string(prefix)
-}
-
-type PathSpec []string
-
-func (sp PathSpec) GoString() string {
-	return fmt.Sprintf("PathSpec(%s)", strings.Join(sp, "."))
-}
-
-// Defines customizations for a 'type', these should be set in the schema
-type BlockSpec struct {
-	DebugName string // Prints as context to the user
-
-	source specSource // Set by the parser, notes on how the spec came to be
-	schema string     // Set by the parser
-
-	Description PathSpec // Field to place the description in
-
-	Children map[string]ChildSpec
-
-	Name       *Tag
-	TypeSelect *Tag
-
-	Qualifier *Tag // A qualifier maps to a new child block at this field
-
-	// A list of paths to include when searching for blocks
-	//IncludeNestedContext []string
-
-	OnlyDefined bool // Only allows blocks and attributes explicitly defined in Spec, otherwise merges all available in the schema
-
-	// Callback to run after closing the block, to run validation, automatic
-	// cleanup etc.
-	RunAfter BlockHook
-}
-
-type BlockHookFunc func(j5reflect.ContainerField) error
-
-func (bh BlockHookFunc) RunHook(cf j5reflect.ContainerField) error {
-	return bh(cf)
-}
-
-type BlockHook interface {
-	RunHook(j5reflect.ContainerField) error
-}
-
 func (bs *BlockSpec) ErrName() string {
 	if bs.DebugName != "" {
 		return fmt.Sprintf("%s from %s as %q", bs.schema, bs.source, bs.DebugName)
@@ -200,60 +23,90 @@ func (bs *BlockSpec) ErrName() string {
 	return fmt.Sprintf("%s from %s", bs.schema, bs.source)
 }
 
-func (bs *BlockSpec) Validate() error {
-	if bs == nil {
-		// Nil is fine, allows for aliases without specification
-		return nil
-	}
-	if bs.Name != nil {
-		err := bs.Name.Validate(TagTypeScalar)
-		if err != nil {
-			return fmt.Errorf("name: %s", err)
-		}
-	}
-
-	if bs.TypeSelect != nil {
-		err := bs.TypeSelect.Validate(TagTypeTypeSelect)
-		if err != nil {
-			return fmt.Errorf("typeSelect: %s", err)
-		}
-	}
-
-	if bs.Qualifier != nil {
-		err := bs.Qualifier.Validate(TagTypeQualifier)
-		if err != nil {
-			return fmt.Errorf("qualifier: %w", err)
-		}
-	}
-	return nil
-}
-
 type SchemaSet struct {
 	givenSpecs  map[string]*BlockSpec
 	cachedSpecs map[string]*BlockSpec
 }
 
-type ConversionSpec struct {
-	GlobalDefs map[string]*BlockSpec
+func convertTag(tag *bcl_j5pb.Tag) *Tag {
+	if tag == nil {
+		return nil
+	}
+	return &Tag{
+		Path:    tag.Path.Path,
+		IsBlock: tag.IsBlock,
+	}
 }
 
-func (sc *ConversionSpec) Validate() error {
-	for name, spec := range sc.GlobalDefs {
-		err := spec.Validate()
-		if err != nil {
-			return fmt.Errorf("GlobalDefs[%q]: %w", name, err)
+func convertBlocks(given []*bcl_j5pb.Block) (map[string]*BlockSpec, error) {
+	givenBlocks := map[string]*BlockSpec{}
+	for _, src := range given {
+		children := map[string]ChildSpec{}
+		for _, child := range src.Children {
+			children[child.Name] = ChildSpec{
+				Path:         PathSpec(child.Path.Path),
+				IsContainer:  child.IsContainer,
+				IsScalar:     child.IsScalar,
+				IsCollection: child.IsCollection,
+			}
 		}
+
+		block := &BlockSpec{
+			Name:        convertTag(src.Name),
+			TypeSelect:  convertTag(src.TypeSelect),
+			Qualifier:   convertTag(src.Qualifier),
+			OnlyDefined: !src.IncludeAuto,
+			Children:    children,
+		}
+		if src.Description != nil {
+			block.Description = src.Description.Path
+		}
+
+		if src.ScalarSplit != nil {
+			ss := src.ScalarSplit
+			block.ScalarSplit = &ScalarSplit{
+				Delimiter:   ss.Delimiter,
+				RightToLeft: ss.RightToLeft,
+			}
+			for _, required := range ss.RequiredFields {
+				block.ScalarSplit.Required = append(block.ScalarSplit.Required, PathSpec(required.Path))
+			}
+			for _, optional := range ss.OptionalFields {
+				block.ScalarSplit.Optional = append(block.ScalarSplit.Optional, PathSpec(optional.Path))
+			}
+			if ss.RemainderField != nil {
+				ps := PathSpec(ss.RemainderField.Path)
+				block.ScalarSplit.Remainder = &ps
+			}
+		}
+
+		if err := block.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid block spec for %s: %s", src.SchemaName, err)
+		}
+
+		givenBlocks[src.SchemaName] = block
 	}
-	return nil
+	return givenBlocks, nil
+}
+
+func NewSchemaSet(given *bcl_j5pb.Schema) (*SchemaSet, error) {
+	givenBlocks, err := convertBlocks(given.Blocks)
+	if err != nil {
+		return nil, err
+	}
+
+	return &SchemaSet{
+		givenSpecs:  givenBlocks,
+		cachedSpecs: map[string]*BlockSpec{},
+	}, nil
 }
 
 func (ss *SchemaSet) _buildSpec(node j5reflect.PropertySet) (*BlockSpec, error) {
 	schemaName := node.SchemaName()
 	blockSpec := ss.givenSpecs[schemaName]
 	if blockSpec == nil {
-		blockSpec = &BlockSpec{
-			source: specSourceAuto,
-		}
+		blockSpec = &BlockSpec{}
+		blockSpec.source = specSourceAuto
 	} else {
 		blockSpec.source = specSourceSchema
 	}
@@ -340,7 +193,7 @@ func (ss *SchemaSet) _buildSpec(node j5reflect.PropertySet) (*BlockSpec, error) 
 	return blockSpec, nil
 }
 
-func (ss *SchemaSet) wrapContainer(node j5reflect.PropertySet, path []string, loc *sourcedef_j5pb.SourceLocation) (*containerField, error) {
+func (ss *SchemaSet) wrapContainer(node j5reflect.PropertySet, path []string, loc *bcl_j5pb.SourceLocation) (*containerField, error) {
 	spec, err := ss.blockSpec(node)
 	if err != nil {
 		return nil, err

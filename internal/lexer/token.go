@@ -12,9 +12,9 @@ import (
 type TokenType int
 
 const (
-	EOF TokenType = iota
+	INVALID TokenType = iota
+	EOF
 	EOL
-	INVALID
 
 	literal_beg
 	IDENT
@@ -31,24 +31,27 @@ const (
 	ASSIGN // =
 	LBRACE // {
 	RBRACE // }
+	LBRACK // [
+	RBRACK // ]
 	DOT    // .
+	COMMA  // ,
 	COLON  // :
 	operator_end
 
 	keyword_beg
-	PACKAGE // package
-	IMPORT  // import
-	EXPORT  // export
-	INCLUDE // include
+	//PACKAGE // package
+	//IMPORT  // import
+	//EXPORT  // export
+	//INCLUDE // include
 	keyword_end
 
 	AnyLiteral
 )
 
 var tokens = [...]string{
+	INVALID: "INVALID",
 	EOF:     "EOF",
 	EOL:     "EOL",
-	INVALID: "INVALID",
 
 	// Literal
 	literal_beg: "",
@@ -67,16 +70,19 @@ var tokens = [...]string{
 	ASSIGN:       "=",
 	LBRACE:       "{",
 	RBRACE:       "}",
+	LBRACK:       "[",
+	RBRACK:       "]",
 	DOT:          ".",
+	COMMA:        ",",
 	COLON:        ":",
 	operator_end: "",
 
 	// Keywords
 	keyword_beg: "",
-	PACKAGE:     "package",
-	IMPORT:      "import",
-	EXPORT:      "export",
-	INCLUDE:     "include",
+	//PACKAGE:     "package",
+	//IMPORT:      "import",
+	//EXPORT:      "export",
+	//INCLUDE:     "include",
 	keyword_end: "",
 
 	AnyLiteral: "<Literal>",

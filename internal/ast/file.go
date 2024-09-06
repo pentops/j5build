@@ -9,33 +9,27 @@ import (
 )
 
 type File struct {
-	Package string
+	//Package string
 
 	Body Body
 
 	Errors errpos.Errors
 }
 
-func (f *File) Imports() []*ImportStatement {
-	stmts := make([]*ImportStatement, 0, len(f.Body.Statements))
-	for _, stmt := range f.Body.Statements {
-		if is, ok := stmt.(*ImportStatement); ok {
-			stmts = append(stmts, is)
+/*
+	func (f *File) Imports() []*ImportStatement {
+		stmts := make([]*ImportStatement, 0, len(f.Body.Statements))
+		for _, stmt := range f.Body.Statements {
+			if is, ok := stmt.(*ImportStatement); ok {
+				stmts = append(stmts, is)
+			}
+
 		}
-
+		return stmts
 	}
-	return stmts
-}
-
+*/
 func (f *File) Statements() []Statement {
-	stmts := make([]Statement, 0, len(f.Body.Statements))
-	for _, stmt := range f.Body.Statements {
-		if stmt.Kind() == StatementKindImport {
-			continue
-		}
-		stmts = append(stmts, stmt)
-	}
-	return stmts
+	return f.Body.Statements
 }
 
 type Error struct {
@@ -106,6 +100,9 @@ type Reference struct {
 
 func NewReference(idents []Ident) Reference {
 	return Reference{
+		unknownValue: unknownValue{
+			typeName: "reference",
+		},
 		Idents: idents,
 		SourceNode: SourceNode{
 			Start: idents[0].Start,
@@ -199,10 +196,10 @@ type StatementKind int
 const (
 	StatementKindEOF StatementKind = iota
 	StatementKindAssignment
-	StatementKindDirective
 	StatementKindBlockHeader
 	StatementKindBlockClose
-	StatementKindImport
+	//StatementKindImport
+	//StatementKindPackage
 
 	StatementKindBlock // allows a whole 'block' to act as a statement
 
@@ -214,6 +211,7 @@ type Statement interface {
 	Kind() StatementKind
 }
 
+/*
 type ImportStatement struct {
 	// when true, the import was specified as a quoted file path, rather than a package, for compatibility with proto imports
 	IsFile bool
@@ -238,6 +236,22 @@ func (is ImportStatement) GoString() string {
 
 var _ Statement = ImportStatement{}
 
+type PackageStatement struct {
+	Name string
+	SourceNode
+}
+
+var _ Statement = PackageStatement{}
+
+func (ps PackageStatement) Kind() StatementKind {
+	return StatementKindPackage
+}
+
+func (ps PackageStatement) GoString() string {
+	return fmt.Sprintf("package(%s)", ps.Name)
+}
+*/
+
 type Assignment struct {
 	Key   Reference
 	Value Value
@@ -252,6 +266,7 @@ func (a Assignment) GoString() string {
 	return fmt.Sprintf("assign(%s = %#v)", a.Key, a.Value)
 }
 
+/*
 type Directive struct {
 	Key   Reference
 	Value *Value
@@ -264,4 +279,4 @@ func (d Directive) Kind() StatementKind {
 
 func (d Directive) GoString() string {
 	return fmt.Sprintf("directive(%s %#v)", d.Key, d.Value)
-}
+}*/

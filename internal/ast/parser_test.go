@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
+	"github.com/pentops/bcl.go/internal/lexer"
 )
 
 func tParseFile(t testing.TB, input string) *File {
@@ -72,17 +73,13 @@ type errorAssertion func(*testing.T, *errpos.Err)
 func assertErr(t *testing.T, input string, assertions ...[]errorAssertion) {
 	t.Helper()
 
-	file, err := ParseFile(input, false)
-	if err != HadErrors {
-		t.Fatalf("Err is not HadErrors, was: %v", err)
-	}
-
-	if file.Errors == nil {
+	_, err := ParseFile(input, false)
+	if err == nil {
 		t.Fatalf("FATAL: expected errors, got none")
 	}
 
-	errors, err := errpos.MustAddSource(errpos.Errors(file.Errors), input)
-	if err != nil {
+	errors, ok := errpos.AsErrorsWithSource(err)
+	if !ok {
 		t.Fatalf("FATAL: expected error to have source, got %T", err)
 	}
 
@@ -144,14 +141,38 @@ float = 1.23
 
 	file := tParseFile(t, input)
 
-	if file.Package != "pentops.j5lang.example" {
-		t.Errorf("expected package pentops.j5lang.example, got %s", file.Package)
-	}
 	assertStatements(t, file.Body.Statements,
-		tAssign("version", "v1"),
-		tAssign("number", "123"),
-		tAssign("bool", "true"),
-		tAssign("float", "1.23"),
+		tBlock(tBlockName("package", "pentops.j5lang.example")),
+		tAssign("version", tString("v1")),
+		tAssign("number", tDecimal("123")),
+		tAssign("bool", tTrue),
+		tAssign("float", tDecimal("1.23")),
+	)
+}
+
+func TestArrayAssign(t *testing.T) {
+	input := `
+v1 = [1, 2, 3]
+v2 = ["a", "b", "c"]
+v3 = [true, false]
+v4 = [1, true, "a"]
+v5 = [1, [2, 3], [4, 5]]
+v6 = []
+`
+
+	file := tParseFile(t, input)
+
+	assertStatements(t, file.Body.Statements,
+		tAssign("v1", tArray(tDecimal("1"), tDecimal("2"), tDecimal("3"))),
+		tAssign("v2", tArray(tString("a"), tString("b"), tString("c"))),
+		tAssign("v3", tArray(tTrue, tFalse)),
+		tAssign("v4", tArray(tDecimal("1"), tTrue, tString("a"))),
+		tAssign("v5", tArray(
+			tDecimal("1"),
+			tArray(tDecimal("2"), tDecimal("3")),
+			tArray(tDecimal("4"), tDecimal("5")),
+		)),
+		tAssign("v6", tArray()),
 	)
 }
 
@@ -170,7 +191,7 @@ func TestBlockQualifier(t *testing.T) {
 
 func TestDirectives(t *testing.T) {
 	input := strings.Join([]string{
-		`import base.baz as baz`,
+		`import base.baz : baz`,
 		`import base.bar`,
 		`block Foo {`,
 		`  export`,
@@ -182,38 +203,19 @@ func TestDirectives(t *testing.T) {
 
 	file := tParseFile(t, input)
 
-	assertImports(t, file.Imports(),
-		ImportStatement{Path: "base.baz", Alias: "baz"},
-		ImportStatement{Path: "base.bar", Alias: ""},
-	)
-
 	assertStatements(t, file.Statements(),
+		tBlock(tBlockName("import", "base.baz"), tBlockQualifier("baz")),
+		tBlock(tBlockName("import", "base.bar")),
 		tBlock(
 			tBlockName("block", "Foo"),
-			tExport(),
-			tIncludes("bar.a", "baz.b"),
 			tBlockBody(
-				tAssign("k", "v"),
+				tBlock(tBlockName("export")),
+				tBlock(tBlockName("include", "bar.a")),
+				tBlock(tBlockName("include", "baz.b")),
+				tAssign("k", tString("v")),
 			),
 		),
 	)
-}
-
-func assertImports(t *testing.T, imports []*ImportStatement, expected ...ImportStatement) {
-	t.Helper()
-	if len(imports) != len(expected) {
-		t.Fatalf("expected %d imports, got %d", len(expected), len(imports))
-	}
-
-	for idx, imp := range imports {
-		if imp.Path != expected[idx].Path {
-			t.Errorf("expected path %q, got %q", expected[idx].Path, imp.Path)
-		}
-
-		if imp.Alias != expected[idx].Alias {
-			t.Errorf("expected alias %q, got %q", expected[idx].Alias, imp.Alias)
-		}
-	}
 }
 
 func TestBlockDescriptions(t *testing.T) {
@@ -257,7 +259,22 @@ func TestBlockDescriptions(t *testing.T) {
 
 }
 
-func tAssign(key string, value string) tAssertion {
+func tString(s string) Value {
+	return Value{token: lexer.Token{Type: lexer.STRING, Lit: s}}
+}
+
+func tDecimal(s string) Value {
+	return Value{token: lexer.Token{Type: lexer.DECIMAL, Lit: s}}
+}
+
+var tTrue = Value{token: lexer.Token{Type: lexer.BOOL, Lit: "true"}}
+var tFalse = Value{token: lexer.Token{Type: lexer.BOOL, Lit: "false"}}
+
+func tArray(values ...Value) Value {
+	return Value{array: values}
+}
+
+func tAssign(key string, value ASTValue) tAssertion {
 	return func(t *testing.T, s Statement) {
 		assign, ok := s.(Assignment)
 		if !ok {
@@ -268,13 +285,54 @@ func tAssign(key string, value string) tAssertion {
 			t.Fatalf("expected key %q, got %#v", key, assign.Key)
 		}
 
-		if assign.Value.token.Lit != value {
-			t.Fatalf("expected val %s, got %#v", value, assign.Value)
+		if !valuesEqual(assign.Value, value) {
+			t.Fatalf("expected val %#v, got %#v", value, assign.Value)
 		}
 	}
 }
 
+func valuesEqual(a, b ASTValue) bool {
+	aa, aIs := a.AsArray()
+	bb, bIs := b.AsArray()
+	if aIs || bIs {
+		if !aIs || !bIs {
+			return false
+		}
+
+		if len(aa) != len(bb) {
+			return false
+		}
+		for idx, val := range aa {
+			if !valuesEqual(val, bb[idx]) {
+				return false
+			}
+		}
+		return true
+	}
+
+	av, _ := a.AsString()
+	bv, _ := b.AsString()
+	return av == bv
+}
+
 /*
+	func tImport(path, alias string) tAssertion {
+		return func(t *testing.T, s Statement) {
+			imp, ok := s.(ImportStatement)
+			if !ok {
+				t.Fatalf("expected ImportStatement, got %T", s)
+			}
+
+			if imp.Path != path {
+				t.Fatalf("expected path %q, got %q", path, imp.Path)
+			}
+
+			if imp.Alias != alias {
+				t.Fatalf("expected alias %q, got %q", alias, imp.Alias)
+			}
+		}
+	}
+
 	func tDirective(key string, value string) tAssertion {
 		return func(t *testing.T, s Statement) {
 			directive, ok := s.(Directive)
@@ -343,6 +401,7 @@ func tExport() blockAssertion {
 	}
 }
 
+/*
 func tIncludes(includes ...string) blockAssertion {
 	return func(t *testing.T, block BlockStatement) {
 		if len(block.Body.Includes) != len(includes) {
@@ -355,7 +414,7 @@ func tIncludes(includes ...string) blockAssertion {
 			}
 		}
 	}
-}
+}*/
 
 type blockAssertion func(*testing.T, BlockStatement)
 
@@ -375,6 +434,7 @@ func tBlock(assertions ...blockAssertion) tAssertion {
 type tAssertion func(t *testing.T, s Statement)
 
 func assertStatements(t *testing.T, statements []Statement, expected ...tAssertion) {
+	t.Helper()
 	for idx, opt := range statements {
 		if idx >= len(expected) {
 			t.Errorf("unexpected %#v", opt)
@@ -382,6 +442,7 @@ func assertStatements(t *testing.T, statements []Statement, expected ...tAsserti
 		}
 		runner := expected[idx]
 		t.Run(fmt.Sprintf("S%d", idx), func(t *testing.T) {
+			t.Helper()
 			t.Logf("statement %d: %#v", idx, opt)
 			runner(t, opt)
 		})

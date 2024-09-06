@@ -3,36 +3,122 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"log"
 	"os"
-	"path"
-	"strings"
 
+	"github.com/pentops/bcl.go/bcl"
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/bcl.go/internal/ast"
-	"github.com/pentops/bcl.go/internal/j5parse"
-	"github.com/pentops/bcl.go/internal/linter"
-	"github.com/pentops/bcl.go/internal/protobuild"
-	"github.com/pentops/prototools/protoprint"
+	"github.com/pentops/j5/gen/j5/bcl/v1/bcl_j5pb"
+	"github.com/pentops/j5/lib/j5schema"
 	"github.com/pentops/runner/commander"
-
-	"github.com/pentops/bcl.go/internal/lsp"
-	"github.com/pentops/j5/lib/j5source"
-	"github.com/sourcegraph/jsonrpc2"
+	"google.golang.org/protobuf/encoding/prototext"
 )
 
 var Version = "dev"
 
 func main() {
 	cmdGroup := commander.NewCommandSet()
-	cmdGroup.Add("j5gen", commander.NewCommand(runJ5Gen))
 	cmdGroup.Add("lint", commander.NewCommand(runLint))
-	cmdGroup.Add("fmt", commander.NewCommand(runFmt))
-	cmdGroup.Add("lsp", commander.NewCommand(runLSP))
+	//cmdGroup.Add("fmt", commander.NewCommand(runFmt))
+	//cmdGroup.Add("lsp", commander.NewCommand(runLSP))
 	cmdGroup.RunMain("bcl", Version)
 }
 
+type RootConfig struct {
+	ProjectRoot string `flag:"project-root" default:"" desc:"Project root directory"`
+	Verbose     bool   `flag:"verbose" env:"BCL_VERBOSE" default:"false" desc:"Verbose output"`
+}
+
+//func (rc *RootConfig) SchemaConfig() *bcl_j5pb.Schema {
+
+//}
+
+func runLint(ctx context.Context, cfg struct {
+	RootConfig
+	Filename string `flag:"filename" desc:"Filename to lint"`
+}) error {
+
+	schemaSpec := &bcl_j5pb.Schema{
+		Blocks: []*bcl_j5pb.Block{{
+			SchemaName: "j5.bcl.v1.Block",
+			Name: &bcl_j5pb.Tag{
+				Path: &bcl_j5pb.Path{
+					Path: []string{"schemaName"},
+				},
+			},
+			IncludeAuto: true,
+			Children: []*bcl_j5pb.Child{{
+				Name: "schemaName",
+				Path: &bcl_j5pb.Path{
+					Path: []string{"schemaName"},
+				},
+				IsScalar: true,
+			}, {
+				Name: "name",
+				Path: &bcl_j5pb.Path{
+					Path: []string{"name"},
+				},
+			}},
+		}, {
+			SchemaName: "j5.bcl.v1.ScalarSplit",
+			Children: []*bcl_j5pb.Child{{
+				Name: "required",
+				Path: &bcl_j5pb.Path{Path: []string{"requiredFields", "path"}},
+			}, {
+				Name: "optional",
+				Path: &bcl_j5pb.Path{Path: []string{"optionalFields", "path"}},
+			}, {
+				Name: "remainder",
+				Path: &bcl_j5pb.Path{Path: []string{"remainderField", "path"}},
+			}},
+			IncludeAuto: true,
+		}, {
+			SchemaName: "j5.bcl.v1.Tag",
+			Children: []*bcl_j5pb.Child{{
+				Name: "splitRef",
+				Path: &bcl_j5pb.Path{
+					Path: []string{"splitRef", "path"},
+				},
+			}},
+		}},
+	}
+
+	sc := j5schema.NewSchemaCache()
+	msg := &bcl_j5pb.SchemaFile{}
+	rootSchema, err := sc.Schema(msg.ProtoReflect().Descriptor())
+	if err != nil {
+		return err
+	}
+
+	parser, err := bcl.NewParser(schemaSpec, rootSchema.(*j5schema.ObjectSchema))
+	if err != nil {
+		return err
+	}
+	parser.Verbose = cfg.Verbose
+
+	content, err := os.ReadFile(cfg.Filename)
+	if err != nil {
+		return err
+	}
+
+	_, mainError := parser.ParseFile(cfg.Filename, string(content), msg.ProtoReflect())
+	if mainError == nil {
+		fmt.Println(prototext.Format(msg))
+		return nil
+	}
+
+	locErr, ok := errpos.AsErrorsWithSource(mainError)
+	if !ok {
+		return mainError
+	}
+
+	log.Println(locErr.HumanString(2))
+
+	os.Exit(100)
+	return nil
+}
+
+/*
 func runLSP(ctx context.Context, cfg struct {
 	ProjectRoot string `flag:"project-root" default:"" desc:"Project root directory"`
 }) error {
@@ -60,7 +146,7 @@ func runLSP(ctx context.Context, cfg struct {
 		return err
 	}
 
-	parser, err := j5parse.NewParser()
+	parser, err := bcl.NewParser()
 	if err != nil {
 		return err
 	}
@@ -111,31 +197,8 @@ func (c stdrwc) Close() error {
 	}
 	return os.Stdout.Close()
 }
-
-func runLint(ctx context.Context, cfg struct {
-	ProjectRoot string `flag:"project-root" default:"" desc:"Project root directory"`
-}) error {
-	parser, err := j5parse.NewParser()
-	if err != nil {
-		return err
-	}
-	bclLinter := linter.New(parser)
-	_ = bclLinter
-
-	if cfg.ProjectRoot == "" {
-		pwd, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		cfg.ProjectRoot = pwd
-	}
-
-	log.Printf("ProjectRoot: %v", cfg.ProjectRoot)
-
-	os.Exit(100)
-	return nil
-}
-
+*/
+/*
 func runFmt(ctx context.Context, cfg struct {
 	Dir   string `flag:"dir" default:"." desc:"Root schema directory"`
 	Write bool   `flag:"write" default:"false" desc:"Write fixes to files"`
@@ -213,83 +276,6 @@ func runFmt(ctx context.Context, cfg struct {
 	return nil
 }
 
-func runJ5Gen(ctx context.Context, cfg struct {
-	Dir           string `flag:"dir" default:"." desc:"Root schema directory"`
-	Bundle        string `flag:"bundle" default:"" desc:"Bundle file"`
-	Verbose       bool   `flag:"verbose" env:"BCL_VERBOSE" default:"false" desc:"Verbose output"`
-	DebugProtoAST bool   `flag:"debug-proto-ast" default:"false" desc:"Print proto AST to output dir"`
-}) error {
-
-	outWriter := &fileWriter{dir: cfg.Dir}
-
-	source, err := j5source.NewFSSource(ctx, os.DirFS(cfg.Dir))
-	if err != nil {
-		return err
-	}
-
-	bundleConfig, err := source.BundleConfig(cfg.Bundle)
-	if err != nil {
-		return err
-	}
-
-	bundleFS, err := source.BundleFS(cfg.Bundle)
-	if err != nil {
-		return err
-	}
-
-	packages := []string{}
-	for _, pkg := range bundleConfig.Packages {
-		packages = append(packages, pkg.Name)
-	}
-
-	localFiles := &fileReader{
-		fs:       bundleFS,
-		packages: packages,
-	}
-
-	deps, err := source.BundleDependencies(ctx, cfg.Bundle)
-	if err != nil {
-		return err
-	}
-
-	resolver, err := protobuild.NewResolver(deps, localFiles)
-	if err != nil {
-		return err
-	}
-
-	compiler := protobuild.NewCompiler(resolver)
-
-	for _, pkg := range packages {
-		out, err := compiler.CompilePackage(ctx, pkg)
-		if err != nil {
-			return err
-		}
-
-		for _, file := range out {
-			filename := file.Path()
-			if !strings.HasSuffix(filename, ".j5s.proto") {
-				continue
-			}
-
-			out, err := protoprint.PrintFile(ctx, file)
-			if err != nil {
-				log.Printf("Error printing %s: %v", filename, err)
-				return err
-			}
-
-			err = outWriter.PutFile(ctx, filename, []byte(out))
-			if err != nil {
-				return err
-			}
-
-		}
-
-	}
-
-	return nil
-
-}
-
 type fileWriter struct {
 	dir string
 }
@@ -362,4 +348,4 @@ func (rr *fileReader) ListJ5Files(ctx context.Context) ([]string, error) {
 	}
 	return files, nil
 
-}
+}*/

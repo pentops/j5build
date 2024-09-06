@@ -4,24 +4,25 @@ import (
 	"context"
 	"log"
 
+	"github.com/pentops/bcl.go/bcl"
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/bcl.go/internal/j5parse"
 	"github.com/pentops/bcl.go/internal/lsp"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 type Linter struct {
-	parser *j5parse.Parser
+	parser *bcl.Parser
 }
 
-func New(parser *j5parse.Parser) *Linter {
+func New(parser *bcl.Parser) *Linter {
 	return &Linter{
 		parser: parser,
 	}
 }
 
-func (l *Linter) LintFile(ctx context.Context, req lsp.LintFileRequest) ([]lsp.Diagnostic, error) {
+func (l *Linter) LintFile(ctx context.Context, req lsp.LintFileRequest, msg protoreflect.Message) ([]lsp.Diagnostic, error) {
 
-	_, mainError := l.parser.ParseFile(req.Filename, req.Content)
+	_, mainError := l.parser.ParseFile(req.Filename, req.Content, msg)
 	if mainError == nil {
 		return nil, nil
 	}

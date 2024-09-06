@@ -84,8 +84,14 @@ var (
 	tEOL = Token{
 		Type: EOL,
 	}
-	tPackage = Token{
-		Type: PACKAGE,
+	tLBracket = Token{
+		Type: LBRACK,
+	}
+	tRBracket = Token{
+		Type: RBRACK,
+	}
+	tComma = Token{
+		Type: COMMA,
 	}
 )
 
@@ -217,6 +223,20 @@ func TestSimple(t *testing.T) {
 			tIdent("vv"), tAssign, tDecimal("123.456"), tEOL,
 			tIdent("vv"), tAssign, tBool("true"), tEOL,
 			tIdent("vv"), tAssign, tBool("false"), tEOF,
+		},
+	}, {
+		name: "array",
+		input: []string{
+			`vv = [1, 2, 3]`,
+			`vv = []`,
+			`vv = [1, "2", 3.4, true, false]`,
+			`vv = ["a", ["b", "c"], "d"]`,
+		},
+		expected: []Token{
+			tIdent("vv"), tAssign, tLBracket, tInt("1"), tComma, tInt("2"), tComma, tInt("3"), tRBracket, tEOL,
+			tIdent("vv"), tAssign, tLBracket, tRBracket, tEOL,
+			tIdent("vv"), tAssign, tLBracket, tInt("1"), tComma, tString("2"), tComma, tDecimal("3.4"), tComma, tBool("true"), tComma, tBool("false"), tRBracket, tEOL,
+			tIdent("vv"), tAssign, tLBracket, tString("a"), tComma, tLBracket, tString("b"), tComma, tString("c"), tRBracket, tComma, tString("d"), tRBracket, tEOF,
 		},
 	}, {
 		name: "type declaration",
@@ -528,7 +548,7 @@ With Lines
 
 	assertTokensEqual(t, tokens, []Token{
 		tEOL,
-		tPackage, tIdent("pentops"), tDot, tIdent("j5lang"), tDot, tIdent("example"), tEOL,
+		tIdent("package"), tIdent("pentops"), tDot, tIdent("j5lang"), tDot, tIdent("example"), tEOL,
 		tIdent("version"), tAssign, tString("v1"), tEOL,
 		tEOL,
 		tComment(" Comment Line"), tEOL,

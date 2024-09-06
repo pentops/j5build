@@ -141,7 +141,7 @@ func (sc *walkContext) walkScopePath(path []pathElement) (schema.Scope, error) {
 		case schema.RootNotFound:
 			blocks := scope.SchemaNames()
 			if len(blocks) == 1 {
-				err = fmt.Errorf("type %q has no field %s - expecting %q",
+				err = fmt.Errorf("root type %q has no field %s - expecting %q",
 					blocks[0],
 					werr.Field,
 					werr.Available) // ", "))
@@ -233,12 +233,12 @@ func (sc *walkContext) SetAttribute(path schema.PathSpec, ref []ast.Ident, val a
 
 	last := fullPath[len(fullPath)-1]
 	pathToBlock := fullPath[:len(fullPath)-1]
-	container, err := sc.walkScopePath(pathToBlock)
+	parentScope, err := sc.walkScopePath(pathToBlock)
 	if err != nil {
 		return err
 	}
 
-	field, walkPathErr := container.Field(last.name, val.Position())
+	field, walkPathErr := parentScope.Field(last.name, val.Position())
 	if walkPathErr != nil {
 		if last.position != nil {
 			return sc.WrapErr(walkPathErr, *last.position)
@@ -247,12 +247,65 @@ func (sc *walkContext) SetAttribute(path schema.PathSpec, ref []ast.Ident, val a
 		}
 	}
 
-	err = field.SetASTValue(val)
+	vals, isArray := val.AsArray()
+	if isArray {
+		sc.Logf("Attribute is Array")
+		fieldArray, ok := field.AsArrayOfScalar()
+		if ok { // Field and Value are both arrays.
+			for _, val := range vals {
+				_, err := fieldArray.AppendASTValue(val)
+				if err != nil {
+					err = fmt.Errorf("SetAttribute %s, Append value: %w", field.FullTypeName(), err)
+					return sc.WrapErr(err, val.Position())
+				}
+			}
+			return nil
+		}
+
+		fieldContainer, ok := field.AsContainer()
+		if ok {
+			containerScope, err := parentScope.WrapContainer(fieldContainer)
+			if err != nil {
+				return sc.WrapErr(err, val.Position())
+			}
+
+			container := containerScope.CurrentBlock()
+			return setContainerFromArray(container, vals)
+
+		}
+
+		return sc.WrapErr(BadTypeError{
+			WantType: "ArrayOfScalar",
+			GotType:  field.FullTypeName(),
+		}, val.Position())
+	}
+
+	sc.Logf("Attribute is not Array")
+
+	scalarField, ok := field.AsScalar()
+	if !ok {
+		return sc.WrapErr(BadTypeError{
+			WantType: "Scalar",
+			GotType:  field.FullTypeName(),
+		}, val.Position())
+	}
+
+	err = scalarField.SetASTValue(val)
 	if err != nil {
 		err = fmt.Errorf("SetAttribute %s: %w", field.FullTypeName(), err)
 		return sc.WrapErr(err, val.Position())
 	}
 	return nil
+}
+
+func setContainerFromArray(container schema.Container, vals []ast.ASTValue) error {
+	spec := container.Spec()
+	if spec.ScalarSplit == nil {
+		return fmt.Errorf("container %s has no method to set from array", spec.ErrName())
+	}
+
+	return fmt.Errorf("Not Implemented")
+
 }
 
 func (wc *walkContext) run(fn func(Context) error) error {

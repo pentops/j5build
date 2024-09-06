@@ -4,12 +4,17 @@ import (
 	"fmt"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
+	"github.com/pentops/j5/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
 )
 
 type ScalarField interface {
 	SetASTValue(j5reflect.ASTValue) error
+	FullTypeName() string
+}
+
+type ArrayOfScalarField interface {
+	AppendASTValue(j5reflect.ASTValue) (int, error)
 	FullTypeName() string
 }
 
@@ -20,7 +25,10 @@ type Scope interface {
 	SchemaNames() []string
 
 	ChildBlock(name string, src SourceLocation) (Scope, *WalkPathError)
-	Field(name string, src SourceLocation) (ScalarField, *WalkPathError)
+	ScalarField(name string, src SourceLocation) (ScalarField, *WalkPathError)
+	Field(name string, src SourceLocation) (j5reflect.Field, *WalkPathError)
+
+	WrapContainer(j5reflect.ContainerField) (Scope, error)
 
 	CurrentBlock() Container
 
@@ -42,11 +50,7 @@ func (sw *schemaWalker) CurrentBlock() Container {
 	return sw.leafBlock
 }
 
-func NewRootSchemaWalker(spec *ConversionSpec, root j5reflect.Object, sourceLoc *sourcedef_j5pb.SourceLocation) (Scope, error) {
-	ss := &SchemaSet{
-		givenSpecs:  spec.GlobalDefs,
-		cachedSpecs: map[string]*BlockSpec{},
-	}
+func NewRootSchemaWalker(ss *SchemaSet, root j5reflect.Object, sourceLoc *bcl_j5pb.SourceLocation) (Scope, error) {
 	if ss.givenSpecs == nil {
 		ss.givenSpecs = map[string]*BlockSpec{}
 	}
@@ -95,66 +99,114 @@ func (sw *schemaWalker) ListBlocks() []string {
 	return sw.blockSet.listBlocks()
 }
 
-func (sw *schemaWalker) Field(name string, source SourceLocation) (ScalarField, *WalkPathError) {
-	for _, blockSchema := range sw.blockSet {
-		childSpec, ok := blockSchema.spec.Children[name]
-		if !ok {
-			continue
-		}
-		if !childSpec.IsScalar {
-			return nil, &WalkPathError{
-				Path: []string{name},
-				Type: NodeNotScalar,
-			}
-		}
-
-		pathToContainer, final := childSpec.Path[:len(childSpec.Path)-1], childSpec.Path[len(childSpec.Path)-1]
-
-		walkContainer, err := sw.walkToChild(&blockSchema, pathToContainer, source)
-		if err != nil {
-			return nil, err
-		}
-
-		if !walkContainer.container.HasProperty(final) {
-			return nil, &WalkPathError{
-				Type: NodeNotFound,
-			}
-
-		}
-
-		finalField, newVal := walkContainer.container.NewValue(final)
-		if newVal != nil {
-			return nil, &WalkPathError{
-				Type: UnknownPathError,
-				Err:  newVal,
-			}
-		}
-
-		asScalar, ok := finalField.AsScalar()
-		if ok {
-			return asScalar, nil
-		}
-
+func (sw *schemaWalker) ChildBlock(name string, source SourceLocation) (Scope, *WalkPathError) {
+	root, spec, ok := sw.findBlock(name)
+	if !ok {
 		return nil, &WalkPathError{
-			Path:   []string{name},
-			Type:   NodeNotScalar,
-			Schema: finalField.FullTypeName(),
+			Field:     name,
+			Type:      RootNotFound,
+			Available: sw.blockSet.listChildren(),
 		}
 	}
 
-	if sw.blockSet.hasBlock(name) {
+	container, err := sw.walkToChild(root, spec.Path, source)
+	if err != nil {
+		return nil, err
+	}
+
+	newWalker := sw.newChild(container, true)
+	return newWalker, nil
+}
+
+func (sw *schemaWalker) ScalarField(name string, source SourceLocation) (ScalarField, *WalkPathError) {
+	finalField, spec, err := sw.field(name, source)
+	if err != nil {
+		return nil, err
+	}
+
+	if !spec.IsScalar {
 		return nil, &WalkPathError{
 			Path:   []string{name},
 			Type:   NodeNotScalar,
-			Schema: "block",
+			Schema: finalField.TypeName(),
 		}
+	}
+
+	asScalar, ok := finalField.AsScalar()
+	if ok {
+		return asScalar, nil
 	}
 
 	return nil, &WalkPathError{
-		Field:     name,
-		Type:      RootNotFound,
-		Available: sw.blockSet.listAttributes(),
+		Path:   []string{name},
+		Type:   NodeNotScalar,
+		Schema: finalField.FullTypeName(),
 	}
+}
+
+func (sw *schemaWalker) Field(name string, source SourceLocation) (j5reflect.Field, *WalkPathError) {
+	finalField, _, err := sw.field(name, source)
+	if err != nil {
+		return nil, err
+	}
+
+	return finalField, nil
+}
+
+func (sw *schemaWalker) field(name string, source SourceLocation) (j5reflect.Field, *ChildSpec, *WalkPathError) {
+	// Root, Parent and Field.
+	// The 'Root' is the container within the current scope which is identified
+	// by the block name.
+
+	// Parent is the second last element in the path, the object/oneof etc which
+	// holds the field we are looking for.
+
+	// The 'Field' is the leaf at the end of the path.
+
+	// A Path from 'Root' to 'Parent' gives us the place we can get the field,
+	// but we can't walk all the way to the field because it is a scalar, so we
+	// need it in context.
+
+	root, spec, ok := sw.findBlock(name)
+	if !ok {
+		return nil, nil, &WalkPathError{
+			Field:     name,
+			Type:      RootNotFound,
+			Schema:    sw.leafBlock.schemaName,
+			Available: sw.blockSet.listChildren(),
+		}
+	}
+	if len(spec.Path) == 0 {
+		return nil, nil, &WalkPathError{
+			Field:  name,
+			Type:   UnknownPathError,
+			Schema: root.schemaName,
+			Err:    fmt.Errorf("empty path, spec issue"),
+		}
+	}
+
+	final, pathToParent := popLast(spec.Path)
+	parentScope, err := sw.walkToChild(root, pathToParent, source)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !parentScope.container.HasProperty(final) {
+		return nil, nil, &WalkPathError{
+			Type:      NodeNotFound,
+			Available: sw.blockSet.listChildren(),
+		}
+	}
+
+	finalField, newValErr := parentScope.container.NewValue(final)
+	if newValErr != nil {
+		return nil, nil, &WalkPathError{
+			Type: UnknownPathError,
+			Err:  newValErr,
+		}
+	}
+
+	return finalField, spec, nil
 }
 
 func (sw *schemaWalker) walkToChild(blockSchema *containerField, path []string, sourceLocation SourceLocation) (*containerField, *WalkPathError) {
@@ -181,28 +233,29 @@ func (sw *schemaWalker) walkToChild(blockSchema *containerField, path []string, 
 	return mainField, nil
 }
 
-func (sw *schemaWalker) ChildBlock(name string, source SourceLocation) (Scope, *WalkPathError) {
+func (sw *schemaWalker) WrapContainer(container j5reflect.ContainerField) (Scope, error) {
+	wrapped, err := sw.schemaSet.wrapContainer(container, []string{}, nil)
+	if err != nil {
+		return nil, err
+	}
 
+	return sw.newChild(wrapped, true), nil
+}
+
+func (sw *schemaWalker) findBlock(name string) (*containerField, *ChildSpec, bool) {
 	for _, blockSchema := range sw.blockSet {
 		childSpec, ok := blockSchema.spec.Children[name]
 		if !ok {
 			continue
 		}
-		mainField, err := sw.walkToChild(&blockSchema, childSpec.Path, source)
-		if err != nil {
-			return nil, err
-		}
-		mainField.name = name
 
-		newWalker := sw.newChild(mainField, true)
-		return newWalker, nil
+		return &blockSchema, &childSpec, true
 	}
+	return nil, nil, false
+}
 
-	return nil, &WalkPathError{
-		Field:     name,
-		Type:      RootNotFound,
-		Available: sw.blockSet.listBlocks(),
-	}
+func popLast[T any](list []T) (T, []T) {
+	return list[len(list)-1], list[:len(list)-1]
 }
 
 func (sw *schemaWalker) TailScope() Scope {

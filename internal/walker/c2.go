@@ -40,12 +40,6 @@ var ErrUnexpectedQualifier = fmt.Errorf("unexpected qualifier")
 func doBody(sc Context, body ast.Body) error {
 	for _, decl := range body.Statements {
 		switch decl := decl.(type) {
-		case *ast.ImportStatement:
-			if body.IsRoot {
-				continue // handled externally
-			}
-
-			return fmt.Errorf("import statement not allowed in non-root block")
 
 		case ast.Assignment:
 			sc.Logf("Assign Statement %#v <- %#v (%s)", decl.Key, decl.Value, decl.SourceNode.Start)
@@ -91,12 +85,8 @@ func doAssign(sc Context, a ast.Assignment) error {
 
 func doScalarTag(searchPath Context, tagSpec schema.Tag, gotTag ast.Reference) error {
 	searchPath.Logf("doScalarTag %#v, %q", tagSpec, gotTag)
-	err := tagSpec.Validate(schema.TagTypeScalar)
-	if err != nil {
-		return err
-	}
 
-	err = applyScalarTag(searchPath, tagSpec, gotTag)
+	err := applyScalarTag(searchPath, tagSpec, gotTag)
 	if err != nil {
 		return searchPath.WrapErr(err, gotTag)
 	}
@@ -254,49 +244,48 @@ func walkQualifiers(sc Context, spec schema.BlockSpec, gotQualifiers popSet[ast.
 }
 
 func applyScalarTag(sc Context, tagSpec schema.Tag, gotTag ast.Reference) error {
-	if len(tagSpec.SplitRef) == 0 {
-		err := sc.SetAttribute(tagSpec.Path, nil, gotTag)
-		if err != nil {
-			return err
-		}
-		return nil
+	err := sc.SetAttribute(tagSpec.Path, nil, gotTag)
+	if err != nil {
+		return err
 	}
+	return nil
 
-	return sc.WithContainer(nil, tagSpec.Path, nil, ResetScope, func(sc Context, spec schema.BlockSpec) error {
+	/*
+		return sc.WithContainer(nil, tagSpec.Path, nil, ResetScope, func(sc Context, spec schema.BlockSpec) error {
 
-		// element 0 is the 'remainder' of the tag, after popping idents off
-		// of the *RIGHT* side and setting the scalar at the TagSpec to the
-		// Ident.
-		tagVals := newPopSet(gotTag.Idents)
-		refElements := newPopSet(tagSpec.SplitRef)
+			// element 0 is the 'remainder' of the tag, after popping idents off
+			// of the *RIGHT* side and setting the scalar at the TagSpec to the
+			// Ident.
+			tagVals := newPopSet(gotTag.Idents)
+			refElements := newPopSet(tagSpec.SplitRef)
 
-		// [package, schema]
-		// path.to.Foo
-		// package = path.to
-		// schema = Foo
+			// [package, schema]
+			// path.to.Foo
+			// package = path.to
+			// schema = Foo
 
-		for len(refElements.items) > 1 { // all but the first
-			thisElement, _ := refElements.popLast()
-			thisVal, ok := tagVals.popLast()
-			if !ok {
-				return fmt.Errorf("expected more elements for %s", gotTag)
+			for len(refElements.items) > 1 { // all but the first
+				thisElement, _ := refElements.popLast()
+				thisVal, ok := tagVals.popLast()
+				if !ok {
+					return fmt.Errorf("expected more elements for %s", gotTag)
+				}
+
+				err := sc.SetAttribute(thisElement, nil, thisVal.AsStringValue())
+				if err != nil {
+					return err
+				}
 			}
 
-			err := sc.SetAttribute(thisElement, nil, thisVal.AsStringValue())
+			if !tagVals.hasMore() {
+				return nil
+			}
+			reconstructedReference := ast.NewReference(tagVals.items)
+			remainderElement, _ := refElements.popFirst()
+			err := sc.SetAttribute(remainderElement, nil, reconstructedReference)
 			if err != nil {
 				return err
 			}
-		}
-
-		if !tagVals.hasMore() {
 			return nil
-		}
-		reconstructedReference := ast.NewReference(tagVals.items)
-		remainderElement, _ := refElements.popFirst()
-		err := sc.SetAttribute(remainderElement, nil, reconstructedReference)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
+		})*/
 }

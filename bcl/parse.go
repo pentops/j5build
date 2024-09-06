@@ -1,9 +1,8 @@
-package j5parse
+package bcl
 
 import (
 	"errors"
 	"fmt"
-	"path"
 	"strings"
 
 	"buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
@@ -12,9 +11,10 @@ import (
 	"github.com/pentops/bcl.go/internal/ast"
 	"github.com/pentops/bcl.go/internal/walker"
 	"github.com/pentops/bcl.go/internal/walker/schema"
-	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
-	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
+	"github.com/pentops/j5/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
+	"github.com/pentops/j5/lib/j5schema"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 type Parser struct {
@@ -22,46 +22,31 @@ type Parser struct {
 	Verbose  bool
 	FailFast bool
 	validate *protovalidate.Validator
+	schema   *schema.SchemaSet
 }
 
-func NewParser() (*Parser, error) {
-	pv, err := protovalidate.New(protovalidate.WithMessages(
-		&schema_j5pb.IntegerField_Rules{},
-		&schema_j5pb.IntegerField{
-			Format: schema_j5pb.IntegerField_FORMAT_INT32,
-		},
-		&sourcedef_j5pb.SourceFile{},
-	), protovalidate.WithDisableLazy(true))
+func NewParser(schemaSpec *bcl_j5pb.Schema, rootSchema *j5schema.ObjectSchema) (*Parser, error) {
+	pv, err := protovalidate.New()
 	if err != nil {
 		return nil, err
 	}
+
+	ss, err := schema.NewSchemaSet(schemaSpec)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Parser{
 		refl:     j5reflect.New(),
 		FailFast: true,
 		validate: pv,
+		schema:   ss,
 	}, nil
 }
 
-func (p *Parser) fileStub(sourceFilename string) *sourcedef_j5pb.SourceFile {
-	dirName, fileName := path.Split(sourceFilename)
-	ext := path.Ext(fileName)
-	dirName = strings.TrimSuffix(dirName, "/")
+func (p *Parser) ParseFile(filename string, data string, msg protoreflect.Message) (*bcl_j5pb.SourceLocation, error) {
 
-	fileName = strings.TrimSuffix(fileName, ext)
-
-	pathPackage := strings.Join(strings.Split(dirName, "/"), ".")
-	file := &sourcedef_j5pb.SourceFile{
-		Path:            sourceFilename,
-		Package:         pathPackage,
-		SourceLocations: &sourcedef_j5pb.SourceLocation{},
-	}
-	return file
-}
-
-func (p *Parser) ParseFile(filename string, data string) (*sourcedef_j5pb.SourceFile, error) {
-
-	file := p.fileStub(filename)
-	obj, err := p.refl.NewObject(file.ProtoReflect())
+	obj, err := p.refl.NewObject(msg)
 	if err != nil {
 		return nil, err
 	}
@@ -69,23 +54,13 @@ func (p *Parser) ParseFile(filename string, data string) (*sourcedef_j5pb.Source
 	tree, err := ast.ParseFile(data, p.FailFast)
 	if err != nil {
 		if err == ast.HadErrors {
-			return nil, errpos.AddSourceFile(tree.Errors, data, filename)
+			return nil, errpos.AddSourceFile(tree.Errors, filename, data)
 		}
 		return nil, fmt.Errorf("parse file not HadErrors - : %w", err)
 	}
 
-	for _, stmt := range tree.Body.Statements {
-		dep, ok := stmt.(*ast.ImportStatement)
-		if !ok {
-			continue
-		}
-		file.Imports = append(file.Imports, &sourcedef_j5pb.Import{
-			Path:  dep.Path,
-			Alias: dep.Alias,
-		})
-	}
-
-	scope, err := schema.NewRootSchemaWalker(J5SchemaSpec, obj, file.SourceLocations)
+	source := &bcl_j5pb.SourceLocation{}
+	scope, err := schema.NewRootSchemaWalker(p.schema, obj, source)
 	if err != nil {
 		return nil, err
 	}
@@ -93,16 +68,16 @@ func (p *Parser) ParseFile(filename string, data string) (*sourcedef_j5pb.Source
 	err = walker.WalkSchema(scope, tree.Body, p.Verbose)
 	if err != nil {
 		err = errpos.AddSourceFile(err, filename, data)
-		return nil, fmt.Errorf("walkSchema: %w", err)
+		return source, fmt.Errorf("walkSchema: %w", err)
 	}
 
-	err = validateFile(p.validate, file)
+	err = validateFile(p.validate, msg.Interface(), source)
 	if err != nil {
 		err = errpos.AddSourceFile(err, filename, data)
-		return nil, err
+		return source, err
 	}
 
-	return file, nil
+	return source, nil
 }
 
 type baseSet struct {
@@ -111,11 +86,11 @@ type baseSet struct {
 
 type sourceSet struct {
 	path []string
-	loc  *sourcedef_j5pb.SourceLocation
+	loc  *bcl_j5pb.SourceLocation
 	base *baseSet
 }
 
-func newSourceSet(locs *sourcedef_j5pb.SourceLocation) sourceSet {
+func newSourceSet(locs *bcl_j5pb.SourceLocation) sourceSet {
 	return sourceSet{
 		loc:  locs,
 		base: &baseSet{},
@@ -147,12 +122,12 @@ func (s sourceSet) addViolation(violation *validate.Violation) {
 func (s sourceSet) field(name string) sourceSet {
 	childLoc := s.loc.Children[name]
 	if childLoc == nil {
-		childLoc = &sourcedef_j5pb.SourceLocation{
+		childLoc = &bcl_j5pb.SourceLocation{
 			StartLine:   s.loc.StartLine,
 			StartColumn: s.loc.StartColumn,
 		}
 		if s.loc.Children == nil {
-			s.loc.Children = make(map[string]*sourcedef_j5pb.SourceLocation)
+			s.loc.Children = make(map[string]*bcl_j5pb.SourceLocation)
 		}
 		s.loc.Children[name] = childLoc
 	}
@@ -198,13 +173,11 @@ func printSource(loc *sourcedef_j5pb.SourceLocation, prefix string) {
 }
 */
 
-func validateFile(pv *protovalidate.Validator, file *sourcedef_j5pb.SourceFile) error {
+func validateFile(pv *protovalidate.Validator, msg protoreflect.ProtoMessage, source *bcl_j5pb.SourceLocation) error {
 
-	sources := newSourceSet(file.SourceLocations)
+	sources := newSourceSet(source)
 
-	//	printSource(sources.loc, " ROOT")
-
-	validationErr := pv.Validate(file)
+	validationErr := pv.Validate(msg)
 	if validationErr != nil {
 		valErr := &protovalidate.ValidationError{}
 		if errors.As(validationErr, &valErr) {

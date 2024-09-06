@@ -3,7 +3,6 @@ package ast
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/bcl.go/internal/lexer"
@@ -19,13 +18,13 @@ func ParseFile(input string, failFast bool) (*File, error) {
 		return nil, fmt.Errorf("unexpected lexer error: %w", err)
 	}
 	if !ok {
-		return &File{Errors: l.Errors}, HadErrors
+		return nil, errpos.AddSource(l.Errors, input)
 
 	}
 	tree, err := Walk(tokens, failFast)
 	if err != nil {
 		if err == HadErrors {
-			return tree, HadErrors
+			return tree, errpos.AddSource(tree.Errors, input)
 		}
 		return tree, fmt.Errorf("unexpected walk error: %w", err)
 	}
@@ -147,70 +146,77 @@ func (ww *Walker) nextFileStatement(file *File) *unexpectedTokenError {
 	case lexer.EOF:
 		ww.eof = true
 		return nil
+		/*
+			case lexer.PACKAGE:
+				tok := ww.popToken()
+				value, err := ww.popReference()
+				if err != nil {
+					return err
+				}
+				decl := PackageStatement{
+					Name: value.String(),
+					SourceNode: SourceNode{
+						Start: tok.Start,
+						End:   value.End,
+					},
+				}
+				if err := ww.popEOL(); err != nil {
+					return err
+				}
+				file.Body.Statements = append(file.Body.Statements, decl)
+				return nil
 
-	case lexer.PACKAGE:
-		ww.popToken()
-		value, err := ww.popReference()
-		if err != nil {
-			return err
-		}
-		file.Package = value.String()
-		if err := ww.popEOL(); err != nil {
-			return err
-		}
-		return nil
+			case lexer.IMPORT:
+				ww.popToken()
+				decl := &ImportStatement{}
 
-	case lexer.IMPORT:
-		ww.popToken()
-		decl := &ImportStatement{}
+				switch ww.nextType() {
+				case lexer.STRING:
+					decl.Path = ww.popToken().Lit
+					decl.IsFile = true
+					comment, err := ww.endStatement()
+					if err != nil {
+						return err
+					}
+					if comment != nil {
+						decl.Comment = comment
+					}
+					file.Body.Statements = append(file.Body.Statements, decl)
 
-		switch ww.nextType() {
-		case lexer.STRING:
-			decl.Path = ww.popToken().Lit
-			decl.IsFile = true
-			comment, err := ww.endStatement()
-			if err != nil {
-				return err
-			}
-			if comment != nil {
-				decl.Comment = comment
-			}
-			file.Body.Statements = append(file.Body.Statements, decl)
+					return nil
 
-			return nil
+				case lexer.IDENT:
+					packagePath, err := ww.popReference()
+					if err != nil {
+						return err
+					}
+					decl.Path = strings.Join(packagePath.Strings(), ".")
+				}
 
-		case lexer.IDENT:
-			packagePath, err := ww.popReference()
-			if err != nil {
-				return err
-			}
-			decl.Path = strings.Join(packagePath.Strings(), ".")
-		}
+				if ww.nextType() == lexer.IDENT {
+					tok := ww.popToken()
+					if tok.Lit != "as" {
+						return unexpectedToken(tok, lexer.IDENT)
+					}
 
-		if ww.nextType() == lexer.IDENT {
-			tok := ww.popToken()
-			if tok.Lit != "as" {
-				return unexpectedToken(tok, lexer.IDENT)
-			}
+					ident, err := ww.popIdent()
+					if err != nil {
+						return err
+					}
+					decl.Alias = ident.Value
+				}
+				comment, err := ww.endStatement()
+				if err != nil {
+					return err
+				}
+				if comment != nil {
+					decl.Comment = comment
+				}
 
-			ident, err := ww.popIdent()
-			if err != nil {
-				return err
-			}
-			decl.Alias = ident.Value
-		}
-		comment, err := ww.endStatement()
-		if err != nil {
-			return err
-		}
-		if comment != nil {
-			decl.Comment = comment
-		}
+				file.Body.Statements = append(file.Body.Statements, decl)
 
-		file.Body.Statements = append(file.Body.Statements, decl)
-
-		return nil
-
+				return nil
+		*/
 	default:
 		err := ww.nextStatement(&file.Body)
 		if err != nil {
@@ -223,34 +229,34 @@ func (ww *Walker) nextFileStatement(file *File) *unexpectedTokenError {
 // WalkBody walks up until, but not including, a closing }
 func (ww *Walker) walkBody(block *BlockStatement) *unexpectedTokenError {
 	block.Body = Body{}
-	var err *unexpectedTokenError
+	//var err *unexpectedTokenError
 
 	for {
 		switch ww.nextType() {
 		case lexer.RBRACE:
 			// Do not consume, that is the job of the block statement
 			return nil
+			/*
+				case lexer.EXPORT:
+					ww.popToken()
+					block.Export = true
+					_, err = ww.endStatement()
+					if err != nil {
+						return err
+					}
 
-		case lexer.EXPORT:
-			ww.popToken()
-			block.Export = true
-			_, err = ww.endStatement()
-			if err != nil {
-				return err
-			}
-
-		case lexer.INCLUDE:
-			ww.popToken()
-			ref, err := ww.popReference()
-			if err != nil {
-				return err
-			}
-			block.Body.Includes = append(block.Body.Includes, ref)
-			_, err = ww.endStatement()
-			if err != nil {
-				return err
-			}
-
+				case lexer.INCLUDE:
+					ww.popToken()
+					ref, err := ww.popReference()
+					if err != nil {
+						return err
+					}
+					block.Body.Includes = append(block.Body.Includes, ref)
+					_, err = ww.endStatement()
+					if err != nil {
+						return err
+					}
+			*/
 		default:
 			err := ww.nextStatement(&block.Body)
 			if err != nil {
@@ -275,6 +281,7 @@ func (ww *Walker) nextStatement(body *Body) *unexpectedTokenError {
 		return nil
 
 	case lexer.IDENT:
+
 		// Read all dot separated idents continuing from the first token
 		// a.b.c.d
 		ref, err := ww.popReference()
@@ -292,7 +299,7 @@ func (ww *Walker) nextStatement(body *Body) *unexpectedTokenError {
 		return nil
 
 	default:
-		return unexpectedToken(ww.popToken(), lexer.IDENT, lexer.COMMENT)
+		return unexpectedToken(ww.popToken(), lexer.IDENT, lexer.COMMENT, lexer.EOL)
 	}
 
 }
@@ -319,8 +326,8 @@ func (ww *Walker) popType(tt lexer.TokenType) (lexer.Token, *unexpectedTokenErro
 }
 
 func (ww *Walker) popValue() (Value, *unexpectedTokenError) {
-	token := ww.popToken()
-	if token.Type.IsLiteral() {
+	if ww.nextType().IsLiteral() {
+		token := ww.popToken()
 		return Value{
 			token: token,
 			SourceNode: SourceNode{
@@ -330,7 +337,50 @@ func (ww *Walker) popValue() (Value, *unexpectedTokenError) {
 		}, nil
 	}
 
-	return Value{}, unexpectedToken(token, lexer.AnyLiteral)
+	if ww.nextType() == lexer.LBRACK {
+		opener := ww.popToken()
+
+		if ww.nextType() == lexer.RBRACK {
+			ww.popToken()
+			return Value{
+				array: []Value{},
+				SourceNode: SourceNode{
+					Start: opener.Start,
+					End:   ww.currentPos(),
+				},
+			}, nil
+		}
+
+		values := make([]Value, 0)
+		for {
+
+			value, err := ww.popValue()
+			if err != nil {
+				return Value{}, err
+			}
+
+			values = append(values, value)
+
+			if ww.nextType() == lexer.COMMA {
+				ww.popToken()
+				continue
+			}
+			if ww.nextType() == lexer.RBRACK {
+				ww.popToken()
+				break
+			}
+			return Value{}, unexpectedToken(ww.popToken(), lexer.COMMA, lexer.RBRACK)
+		}
+		return Value{
+			array: values,
+			SourceNode: SourceNode{
+				Start: opener.Start,
+				End:   ww.currentPos(),
+			},
+		}, nil
+	}
+
+	return Value{}, unexpectedToken(ww.popToken(), lexer.AnyLiteral, lexer.LBRACK)
 }
 
 func (ww *Walker) popIdent() (Ident, *unexpectedTokenError) {

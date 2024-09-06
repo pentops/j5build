@@ -38,18 +38,10 @@ func (p *printer) line(s ...string) {
 }
 
 func (p *printer) printFile(f *File) {
-	p.printPackage(f.Package)
 	p.printBody(f.Body)
 }
 
-func (p *printer) printPackage(pkg string) {
-	if pkg == "" {
-		return
-	}
-	p.line("package ", pkg)
-	p.line()
-}
-
+/*
 func (p *printer) printImports(imp ImportStatement) {
 	if imp.IsFile {
 		p.line("import ", fmt.Sprintf("%q", imp.Path))
@@ -59,7 +51,7 @@ func (p *printer) printImports(imp ImportStatement) {
 	}
 	p.line("import ", imp.Path, " as ", imp.Alias)
 	p.line()
-}
+}*/
 
 func (p *printer) printBody(body Body) {
 	lastWasStatement := false
@@ -67,10 +59,10 @@ func (p *printer) printBody(body Body) {
 	lastBlockType := ""
 	for idx, stmt := range body.Statements {
 		switch stmt := stmt.(type) {
-		case ImportStatement:
-			p.printImports(stmt)
-			lastWasStatement = false
-			lastBlockType = ".I"
+		//case ImportStatement:
+		//	p.printImports(stmt)
+		//	lastWasStatement = false
+		//	lastBlockType = ".I"
 		case BlockStatement:
 			thisType := stmt.RootName()
 			if thisType != lastBlockType && idx > 0 {

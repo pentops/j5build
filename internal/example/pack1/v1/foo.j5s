@@ -1,8 +1,0 @@
-package pack1.v1
-
-object Foo {
-	| Foo Description
-	| Over two lines
-
-	field foo_id key:uuid
-}
