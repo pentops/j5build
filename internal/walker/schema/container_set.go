@@ -19,15 +19,6 @@ func (bs containerSet) schemaNames() []string {
 	return names
 }
 
-func (bs containerSet) hasBlock(name string) bool {
-	for _, blockSchema := range bs {
-		if _, ok := blockSchema.spec.Children[name]; ok {
-			return true
-		}
-	}
-	return false
-}
-
 func (bs containerSet) listChildren() []string {
 
 	possibleNames := make([]string, 0)
