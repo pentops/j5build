@@ -142,7 +142,7 @@ float = 1.23
 	file := tParseFile(t, input)
 
 	assertStatements(t, file.Body.Statements,
-		tBlock(tBlockName("package", "pentops.j5lang.example")),
+		tBlock(tBlockType("package"), tBlockTags("pentops.j5lang.example")),
 		tAssign("version", tString("v1")),
 		tAssign("number", tDecimal("123")),
 		tAssign("bool", tTrue),
@@ -183,7 +183,7 @@ func TestBlockQualifier(t *testing.T) {
 
 	assertStatements(t, file.Body.Statements,
 		tBlock(
-			tBlockName("block", "Foo"),
+			tBlockType("block"), tBlockTags("Foo"),
 			tBlockQualifier("type"),
 		),
 	)
@@ -203,19 +203,33 @@ func TestDirectives(t *testing.T) {
 
 	file := tParseFile(t, input)
 
-	assertStatements(t, file.Statements(),
-		tBlock(tBlockName("import", "base.baz"), tBlockQualifier("baz")),
-		tBlock(tBlockName("import", "base.bar")),
+	logBody(t, "file", "", file.Body)
+
+	assertStatements(t, file.Body.Statements,
+		tBlock(tBlockType("import"), tBlockTags("base.baz"), tBlockQualifier("baz")),
+		tBlock(tBlockType("import"), tBlockTags("base.bar")),
 		tBlock(
-			tBlockName("block", "Foo"),
+			tBlockType("block"), tBlockTags("Foo"),
 			tBlockBody(
-				tBlock(tBlockName("export")),
-				tBlock(tBlockName("include", "bar.a")),
-				tBlock(tBlockName("include", "baz.b")),
+				tBlock(tBlockType("export")),
+				tBlock(tBlockType("include"), tBlockTags("bar.a")),
+				tBlock(tBlockType("include"), tBlockTags("baz.b")),
 				tAssign("k", tString("v")),
 			),
 		),
 	)
+}
+
+func logBody(t *testing.T, name string, indent string, body Body) {
+	t.Helper()
+	t.Logf(indent+"<open> %s\n", name)
+	for idx, stmt := range body.Statements {
+		t.Logf("  %d: %#v\n", idx, stmt)
+		if block, ok := stmt.(*Block); ok {
+			logBody(t, "block", indent+"  ", block.Body)
+		}
+	}
+	t.Logf(indent+"<end> %s\n", name)
 }
 
 func TestBlockDescriptions(t *testing.T) {
@@ -233,29 +247,31 @@ func TestBlockDescriptions(t *testing.T) {
 
 	file := tParseFile(t, input)
 
+	logBody(t, "file", "", file.Body)
+
 	assertStatements(t, file.Body.Statements,
 		tBlock(
-			tBlockName("enum", "Foo"),
-			tBlockDescription("This is a description of Foo"),
+			tBlockType("enum"),
+			tBlockTags("Foo"),
 			tBlockBody(
+				tDescription("This is a description of Foo"),
 				tBlock(
-					tBlockName("option", "GOOD"),
+					tBlockType("option"),
+					tBlockTags("GOOD"),
 				),
 				tBlock(
-					tBlockName("BAD"),
+					tBlockType("BAD"),
 					tBlockDescription("Really Really Bad"),
 				),
 				tBlock(
-					tBlockName("UGLY"),
-					tBlockDescription("This is a description of UGLY"),
+					tBlockType("UGLY"),
+					tBlockBody(
+						tDescription("This is a description of UGLY"),
+					),
 				),
 			),
 		),
 	)
-
-	if len(file.Body.Statements) != 1 {
-		t.Fatalf("expected 1 decl in file, got %d", len(file.Body.Statements))
-	}
 
 }
 
@@ -276,7 +292,7 @@ func tArray(values ...Value) Value {
 
 func tAssign(key string, value ASTValue) tAssertion {
 	return func(t *testing.T, s Statement) {
-		assign, ok := s.(Assignment)
+		assign, ok := s.(*Assignment)
 		if !ok {
 			t.Fatalf("expected Assignment, got %T", s)
 		}
@@ -315,63 +331,45 @@ func valuesEqual(a, b ASTValue) bool {
 	return av == bv
 }
 
-/*
-	func tImport(path, alias string) tAssertion {
-		return func(t *testing.T, s Statement) {
-			imp, ok := s.(ImportStatement)
-			if !ok {
-				t.Fatalf("expected ImportStatement, got %T", s)
-			}
-
-			if imp.Path != path {
-				t.Fatalf("expected path %q, got %q", path, imp.Path)
-			}
-
-			if imp.Alias != alias {
-				t.Fatalf("expected alias %q, got %q", alias, imp.Alias)
-			}
+func tBlockType(part string) blockAssertion {
+	return func(t *testing.T, block *Block) {
+		if block.Type.String() != part {
+			t.Fatalf("expected type %q, got %q", part, block.Type)
 		}
 	}
+}
 
-	func tDirective(key string, value string) tAssertion {
-		return func(t *testing.T, s Statement) {
-			directive, ok := s.(Directive)
-			if !ok {
-				t.Fatalf("expected Directive, got %#v", s)
-			}
-
-			if directive.Key.String() != key {
-				t.Fatalf("expected key %q, got %#v", key, directive.Key)
-			}
-
-			if directive.Value.token.Lit != value {
-				t.Fatalf("expected val %s, got %#v", value, directive.Value)
-			}
-		}
-	}
-*/
-func tBlockName(parts ...string) blockAssertion {
-	return func(t *testing.T, block BlockStatement) {
-		if len(block.Name) != len(parts) {
-			t.Fatalf("expected %d parts in name, got %d", len(parts), len(block.Name))
+func tBlockTags(parts ...string) blockAssertion {
+	return func(t *testing.T, block *Block) {
+		if len(block.Tags) != len(parts) {
+			t.Fatalf("expected %d parts in name, got %d", len(parts), len(block.Tags))
 		}
 
 		for idx, part := range parts {
-			if block.Name[idx].String() != part {
-				t.Fatalf("expected part %q, got %q", part, block.Name[idx])
+			tag := block.Tags[idx]
+			tagStr, err := tag.AsString()
+			if err != nil {
+				t.Fatalf("expected tag %#v to be a string, %s", tag, err)
+			}
+			if tagStr != part {
+				t.Fatalf("expected part %q, got %q", part, tagStr)
 			}
 		}
 	}
 }
 
 func tBlockQualifier(qual ...string) blockAssertion {
-	return func(t *testing.T, block BlockStatement) {
+	return func(t *testing.T, block *Block) {
 		if len(block.Qualifiers) != len(qual) {
 			t.Fatalf("expected %d qualifiers, got %d", len(qual), len(block.Qualifiers))
 		}
 		for idx, q := range qual {
-			if block.Qualifiers[idx].String() != q {
-				t.Fatalf("expected qualifier %q, got %q", q, block.Qualifiers[idx])
+			val, err := block.Qualifiers[idx].AsString()
+			if err != nil {
+				t.Fatalf("expected qualifier to be a string, got %T %s", block.Qualifiers[idx], err)
+			}
+			if val != q {
+				t.Fatalf("expected qualifier %q, got %q", q, val)
 			}
 		}
 
@@ -379,48 +377,34 @@ func tBlockQualifier(qual ...string) blockAssertion {
 }
 
 func tBlockDescription(desc string) blockAssertion {
-	return func(t *testing.T, block BlockStatement) {
-		bs, _ := block.Description.AsString()
-		if bs != desc {
-			t.Fatalf("expected description %q, got %#v", desc, block.Description)
+	return func(t *testing.T, block *Block) {
+		if block.Description == nil {
+			t.Fatalf("expected description %q, got none", desc)
 		}
+		str := *block.Description
+		if str != desc {
+			t.Fatalf("expected description %q, got %q", desc, str)
+		}
+
 	}
 }
 
+type tAssertion func(t *testing.T, s Statement)
+
 func tBlockBody(assertions ...tAssertion) blockAssertion {
-	return func(t *testing.T, block BlockStatement) {
+	return func(t *testing.T, block *Block) {
+		t.Helper()
+		t.Logf("block body: %#v", block.Body)
 		assertStatements(t, block.Body.Statements, assertions...)
 	}
 }
 
-func tExport() blockAssertion {
-	return func(t *testing.T, block BlockStatement) {
-		if !block.Export {
-			t.Fatalf("expected export, got none")
-		}
-	}
-}
-
-/*
-func tIncludes(includes ...string) blockAssertion {
-	return func(t *testing.T, block BlockStatement) {
-		if len(block.Body.Includes) != len(includes) {
-			t.Fatalf("expected %d includes, got %d", len(includes), len(block.Body.Includes))
-		}
-
-		for idx, inc := range includes {
-			if block.Body.Includes[idx].String() != inc {
-				t.Fatalf("expected include %q, got %q", inc, block.Body.Includes[idx])
-			}
-		}
-	}
-}*/
-
-type blockAssertion func(*testing.T, BlockStatement)
+type blockAssertion func(*testing.T, *Block)
 
 func tBlock(assertions ...blockAssertion) tAssertion {
 	return func(t *testing.T, s Statement) {
-		block, ok := s.(BlockStatement)
+		t.Helper()
+		block, ok := s.(*Block)
 		if !ok {
 			t.Fatalf("expected BlockStatement, got %T", s)
 		}
@@ -431,7 +415,23 @@ func tBlock(assertions ...blockAssertion) tAssertion {
 	}
 }
 
-type tAssertion func(t *testing.T, s Statement)
+func tDescription(desc string) tAssertion {
+	return func(t *testing.T, s Statement) {
+		t.Helper()
+		block, ok := s.(*Description)
+		if !ok {
+			t.Fatalf("expected Description, got %T", s)
+		}
+
+		str, err := block.Value.AsString()
+		if err != nil {
+			t.Fatalf("expected description to be a string, got %T %s", block.Value, err)
+		}
+		if str != desc {
+			t.Fatalf("expected description %q, got %q", desc, str)
+		}
+	}
+}
 
 func assertStatements(t *testing.T, statements []Statement, expected ...tAssertion) {
 	t.Helper()

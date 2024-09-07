@@ -13,7 +13,6 @@ import (
 	"github.com/pentops/bcl.go/internal/walker/schema"
 	"github.com/pentops/j5/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
-	"github.com/pentops/j5/lib/j5schema"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -25,7 +24,7 @@ type Parser struct {
 	schema   *schema.SchemaSet
 }
 
-func NewParser(schemaSpec *bcl_j5pb.Schema, rootSchema *j5schema.ObjectSchema) (*Parser, error) {
+func NewParser(schemaSpec *bcl_j5pb.Schema) (*Parser, error) {
 	pv, err := protovalidate.New()
 	if err != nil {
 		return nil, err

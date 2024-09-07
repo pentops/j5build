@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
@@ -179,4 +180,78 @@ func (v Value) AsFloat(size int) (float64, error) {
 			Got:      v.token.String(),
 		}
 	}
+}
+
+type IntValue struct {
+	unknownValue
+	val int64
+	SourceNode
+}
+
+func NewIntValue(val int64, pos Position) ASTValue {
+	return IntValue{
+		unknownValue: unknownValue{typeName: "int"},
+		val:          val,
+	}
+}
+
+func (iv IntValue) IsScalar() bool {
+	return true
+}
+
+func (iv IntValue) AsInt(size int) (int64, error) {
+	if size == 32 {
+		if iv.val > math.MaxInt32 || iv.val < math.MinInt32 {
+			return 0, fmt.Errorf("int32 overflow")
+		}
+	}
+	return iv.val, nil
+}
+
+type StringValue struct {
+	unknownValue
+	val string
+	SourceNode
+}
+
+func NewStringValue(val string, src SourceNode) ASTValue {
+	return StringValue{
+		unknownValue: unknownValue{typeName: "string"},
+		val:          val,
+		SourceNode:   src,
+	}
+}
+
+func (sv StringValue) AsString() (string, error) {
+	return sv.val, nil
+}
+func (sv StringValue) IsScalar() bool {
+	return true
+}
+
+type TagValue struct {
+	Reference *Reference
+	Value     *Value
+	unknownValue
+	SourceNode
+}
+
+var _ ASTValue = TagValue{}
+
+func (tv TagValue) GoString() string {
+	return fmt.Sprintf("tag(%s, %#v)", tv.Reference, tv.Value)
+}
+
+func (tv TagValue) IsScalar() bool {
+	return true
+}
+
+func (tv TagValue) AsString() (string, error) {
+	if tv.Value != nil {
+		return tv.Value.AsString()
+	}
+	if tv.Reference != nil {
+		return tv.Reference.String(), nil
+	}
+	return "", fmt.Errorf("tag value is nil")
 }

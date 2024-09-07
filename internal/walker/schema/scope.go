@@ -31,6 +31,7 @@ type Scope interface {
 	WrapContainer(j5reflect.ContainerField) (Scope, error)
 
 	CurrentBlock() Container
+	RootBlock() Container
 
 	ListAttributes() []string
 	ListBlocks() []string
@@ -43,11 +44,16 @@ type Scope interface {
 type schemaWalker struct {
 	blockSet  containerSet
 	leafBlock *containerField
+	rootBlock *containerField
 	schemaSet *SchemaSet
 }
 
 func (sw *schemaWalker) CurrentBlock() Container {
 	return sw.leafBlock
+}
+
+func (sw *schemaWalker) RootBlock() Container {
+	return sw.rootBlock
 }
 
 func NewRootSchemaWalker(ss *SchemaSet, root j5reflect.Object, sourceLoc *bcl_j5pb.SourceLocation) (Scope, error) {
@@ -70,6 +76,7 @@ func NewRootSchemaWalker(ss *SchemaSet, root j5reflect.Object, sourceLoc *bcl_j5
 
 		blockSet:  containerSet{*rootWrapped},
 		leafBlock: rootWrapped,
+		rootBlock: rootWrapped,
 	}, nil
 }
 
@@ -83,6 +90,7 @@ func (sw *schemaWalker) newChild(container *containerField, newScope bool) *sche
 	return &schemaWalker{
 		blockSet:  newBlockSet,
 		leafBlock: container,
+		rootBlock: container,
 		schemaSet: sw.schemaSet,
 	}
 }
@@ -276,6 +284,7 @@ func (sw *schemaWalker) MergeScope(other Scope) Scope {
 	return &schemaWalker{
 		blockSet:  newBlockSet,
 		leafBlock: otherWalker.leafBlock,
+		rootBlock: sw.rootBlock,
 		schemaSet: sw.schemaSet,
 	}
 }

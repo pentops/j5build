@@ -1,6 +1,3 @@
-
-
-
 schema {
 	block j5.schema.v1.Ref {
 		scalarSplit {
@@ -11,6 +8,8 @@ schema {
 	}
 
 	block j5.schema.v1.KeyFormat {
-		typeSelect = []
+		typeSelect {
+			path = ["type"]
+		}
 	}
 }

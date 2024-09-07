@@ -120,6 +120,9 @@ func (wpe *WalkPathError) Error() string {
 func (wpe *WalkPathError) LongMessage() string {
 	switch wpe.Type {
 	case NodeNotContainer:
+		if wpe.Schema != "" {
+			return fmt.Sprintf("node at %q is not a container (is %s in %s)", strings.Join(wpe.Path, "."), wpe.Schema, wpe.Field)
+		}
 		return fmt.Sprintf("node at %q is not a container (is %s)", strings.Join(wpe.Path, "."), wpe.Schema)
 	case NodeNotScalar:
 		return fmt.Sprintf("node at %q is not a scalar (is %s)", strings.Join(wpe.Path, "."), wpe.Schema)
@@ -182,9 +185,9 @@ func (container *containerField) walkPath(path []string, loc SourceLocation) ([]
 		schemaPath = append(schemaPath, name)
 	} else {
 		return nil, &WalkPathError{
-			Field:  name,
+			Field:  val.FullTypeName(),
 			Type:   NodeNotContainer,
-			Schema: container.SchemaName(),
+			Schema: val.TypeName(),
 		}
 	}
 
@@ -198,6 +201,7 @@ func (container *containerField) walkPath(path []string, loc SourceLocation) ([]
 		sourceLocation = childSourceLocation(sourceLocation, elem, loc)
 	}
 	childContainer := &containerField{
+		name:       name,
 		path:       schemaPath,
 		schemaName: fieldWithContainer.SchemaName(),
 		container:  fieldWithContainer,

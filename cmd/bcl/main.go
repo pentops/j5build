@@ -9,7 +9,6 @@ import (
 	"github.com/pentops/bcl.go/bcl"
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/j5/gen/j5/bcl/v1/bcl_j5pb"
-	"github.com/pentops/j5/lib/j5schema"
 	"github.com/pentops/runner/commander"
 	"google.golang.org/protobuf/encoding/prototext"
 )
@@ -46,7 +45,6 @@ func runLint(ctx context.Context, cfg struct {
 					Path: []string{"schemaName"},
 				},
 			},
-			IncludeAuto: true,
 			Children: []*bcl_j5pb.Child{{
 				Name: "schemaName",
 				Path: &bcl_j5pb.Path{
@@ -71,26 +69,28 @@ func runLint(ctx context.Context, cfg struct {
 				Name: "remainder",
 				Path: &bcl_j5pb.Path{Path: []string{"remainderField", "path"}},
 			}},
-			IncludeAuto: true,
 		}, {
 			SchemaName: "j5.bcl.v1.Tag",
 			Children: []*bcl_j5pb.Child{{
-				Name: "splitRef",
+				Name: "path",
 				Path: &bcl_j5pb.Path{
-					Path: []string{"splitRef", "path"},
+					Path: []string{"path", "path"},
 				},
+				IsScalar:     true,
+				IsCollection: true,
 			}},
 		}},
 	}
 
-	sc := j5schema.NewSchemaCache()
 	msg := &bcl_j5pb.SchemaFile{}
-	rootSchema, err := sc.Schema(msg.ProtoReflect().Descriptor())
-	if err != nil {
-		return err
-	}
+	/*
+		//sc := j5schema.NewSchemaCache()
+			rootSchema, err := sc.Schema(msg.ProtoReflect().Descriptor())
+			if err != nil {
+				return err
+			}*/
 
-	parser, err := bcl.NewParser(schemaSpec, rootSchema.(*j5schema.ObjectSchema))
+	parser, err := bcl.NewParser(schemaSpec) //rootSchema.(*j5schema.ObjectSchema))
 	if err != nil {
 		return err
 	}

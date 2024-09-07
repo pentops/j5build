@@ -164,6 +164,10 @@ func (tok TokenType) IsLiteral() bool { return literal_beg < tok && tok < litera
 // it returns false otherwise.
 func (tok TokenType) IsOperator() bool { return operator_beg < tok && tok < operator_end }
 
+func (tok TokenType) IsTag() bool {
+	return tok == IDENT || tok == STRING || tok == REGEX
+}
+
 // IsKeyword reports whether name is a Go keyword, such as "func" or "return".
 func IsKeyword(name string) bool {
 	// TODO: opt: use a perfect hash function instead of a global map.

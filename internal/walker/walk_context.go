@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"slices"
 	"strings"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
@@ -35,10 +36,13 @@ type Context interface {
 	BuildScope(schemaPath schema.PathSpec, userPath []ast.Ident, flag ScopeFlag) (schema.Scope, error)
 	WithScope(newScope schema.Scope, fn SpanCallback) error
 
+	SetDescription(desc ast.ASTValue) error
 	SetAttribute(path schema.PathSpec, ref []ast.Ident, value ast.ASTValue) error
 	WithContainer(loc *schema.SourceLocation, path schema.PathSpec, ref []ast.Ident, resetScope ScopeFlag, fn SpanCallback) error
 	SetLocation(loc schema.SourceLocation)
 	SetName(name string)
+
+	setContainerFromScalar(bs schema.BlockSpec, vals ast.ASTValue) error
 
 	Logf(format string, args ...interface{})
 	WrapErr(err error, pos HasPosition) error
@@ -117,9 +121,11 @@ func (sc *walkContext) SetLocation(loc schema.SourceLocation) {
 }
 
 func (sc *walkContext) walkScopePath(path []pathElement) (schema.Scope, error) {
-	scope := sc.scope
+	return walkScope(sc.scope, path, sc.blockLocation)
+}
+
+func walkScope(scope schema.Scope, path []pathElement, loc schema.SourceLocation) (schema.Scope, error) {
 	for _, ident := range path {
-		loc := sc.blockLocation
 		if ident.position != nil {
 			loc = *ident.position
 		}
@@ -129,8 +135,6 @@ func (sc *walkContext) walkScopePath(path []pathElement) (schema.Scope, error) {
 			scope = next
 			continue
 		}
-
-		sc.Logf("Error walking at %s, %s", strings.Join(sc.path, "."), ident.name)
 
 		if ident.position == nil {
 			return nil, newSchemaError(werr)
@@ -161,7 +165,8 @@ func (sc *walkContext) walkScopePath(path []pathElement) (schema.Scope, error) {
 			err = fmt.Errorf("%s", werr.LongMessage())
 		}
 
-		return nil, sc.WrapErr(err, *ident.position)
+		err = errpos.AddPosition(err, *ident.position)
+		return nil, err
 	}
 	return scope, nil
 }
@@ -199,7 +204,7 @@ func (sc *walkContext) WithContainer(newLoc *schema.SourceLocation, path schema.
 	sc.Logf("WithContainer(%#v, %#v)", path, ref)
 	newScope, err := sc.BuildScope(path, ref, scopeFlag)
 	if err != nil {
-		return err
+		return fmt.Errorf("WithContainer, building scope: %w", err)
 	}
 
 	if newLoc != nil {
@@ -221,6 +226,16 @@ type BadTypeError struct {
 
 func (bte BadTypeError) Error() string {
 	return fmt.Sprintf("bad type: want %s, got %s", bte.WantType, bte.GotType)
+}
+
+func (sc *walkContext) SetDescription(description ast.ASTValue) error {
+	root := sc.scope.RootBlock()
+	descSpec := root.Spec().Description
+	if descSpec == nil {
+		return newSchemaError(fmt.Errorf("no description field"))
+	}
+
+	return sc.SetAttribute(descSpec, nil, description)
 }
 
 func (sc *walkContext) SetAttribute(path schema.PathSpec, ref []ast.Ident, val ast.ASTValue) error {
@@ -247,6 +262,18 @@ func (sc *walkContext) SetAttribute(path schema.PathSpec, ref []ast.Ident, val a
 		}
 	}
 
+	fieldContainer, ok := field.AsContainer()
+	if ok {
+		containerScope, err := parentScope.WrapContainer(fieldContainer)
+		if err != nil {
+			return sc.WrapErr(err, val.Position())
+		}
+
+		return sc.WithScope(containerScope, func(sc Context, bs schema.BlockSpec) error {
+			return sc.setContainerFromScalar(bs, val)
+		})
+	}
+
 	vals, isArray := val.AsArray()
 	if isArray {
 		sc.Logf("Attribute is Array")
@@ -260,18 +287,6 @@ func (sc *walkContext) SetAttribute(path schema.PathSpec, ref []ast.Ident, val a
 				}
 			}
 			return nil
-		}
-
-		fieldContainer, ok := field.AsContainer()
-		if ok {
-			containerScope, err := parentScope.WrapContainer(fieldContainer)
-			if err != nil {
-				return sc.WrapErr(err, val.Position())
-			}
-
-			container := containerScope.CurrentBlock()
-			return setContainerFromArray(container, vals)
-
 		}
 
 		return sc.WrapErr(BadTypeError{
@@ -298,13 +313,108 @@ func (sc *walkContext) SetAttribute(path schema.PathSpec, ref []ast.Ident, val a
 	return nil
 }
 
-func setContainerFromArray(container schema.Container, vals []ast.ASTValue) error {
-	spec := container.Spec()
-	if spec.ScalarSplit == nil {
-		return fmt.Errorf("container %s has no method to set from array", spec.ErrName())
+func (sc *walkContext) setContainerFromScalar(bs schema.BlockSpec, val ast.ASTValue) error {
+	ss := bs.ScalarSplit
+	if ss == nil {
+		return fmt.Errorf("container %s has no method to set from array", bs.ErrName())
 	}
 
-	return fmt.Errorf("Not Implemented")
+	var setVals []ast.ASTValue
+
+	if ss.Delimiter != nil {
+		strVal, err := val.AsString()
+		if err != nil {
+			return sc.WrapErr(err, val.Position())
+		}
+		sc.Logf("Splitting scalar %#v -> %q", val, strVal)
+		valStrings := strings.Split(strVal, *bs.ScalarSplit.Delimiter)
+		vals := make([]ast.ASTValue, len(valStrings))
+		for idx, str := range valStrings {
+			vals[idx] = ast.NewStringValue(str, ast.SourceNode{
+				Start: val.Position().Start,
+				End:   val.Position().End,
+			})
+		}
+		setVals = vals
+
+	} else {
+
+		vals, isArray := val.AsArray()
+		if !isArray {
+			return fmt.Errorf("container %s requires an array when setting from value, got a scalar", bs.ErrName())
+		}
+		setVals = vals
+	}
+	sc.Logf("setContainerFromArray(%#v)", setVals)
+
+	if ss.RightToLeft {
+		slices.Reverse(setVals)
+	}
+
+	if len(setVals) < len(ss.Required) {
+		return fmt.Errorf("container %s requires %d values, got %d", bs.ErrName(), len(ss.Required), len(setVals))
+	}
+	intoRequired, remaining := setVals[:len(ss.Required)], setVals[len(ss.Required):]
+	for idx, val := range intoRequired {
+		rr := ss.Required[idx]
+		if err := sc.SetAttribute(rr, nil, val); err != nil {
+			return err
+		}
+	}
+
+	if len(remaining) == 0 {
+		return nil
+	}
+
+	var optional []ast.ASTValue
+	if len(remaining) > len(ss.Optional) {
+		optional, remaining = remaining[:len(ss.Optional)], remaining[len(ss.Optional):]
+	} else {
+		optional, remaining = remaining, nil
+	}
+
+	for idx, val := range optional {
+		ro := ss.Optional[idx]
+		if err := sc.SetAttribute(ro, nil, val); err != nil {
+			return err
+		}
+	}
+
+	if len(remaining) == 0 {
+		return nil
+	}
+
+	if ss.Remainder == nil {
+		return fmt.Errorf("container %s has more array fields than we know what to do with", bs.ErrName())
+	}
+
+	// We reverse at the start to pop values from the end of the array, but when
+	// placing back into remainder it should be in the specified order.
+	// a.b.c, with RTL, pop `c` as a required element, then a.b is remainder,
+	// not b.a
+	if ss.RightToLeft {
+		slices.Reverse(remaining)
+	}
+
+	remainingStr := make([]string, len(remaining))
+	for idx, val := range remaining {
+		var err error
+		remainingStr[idx], err = val.AsString()
+		if err != nil {
+			return sc.WrapErr(err, val.Position())
+		}
+	}
+
+	delim := "."
+	if ss.Delimiter != nil {
+		delim = *ss.Delimiter
+	}
+	singleString := strings.Join(remainingStr, delim)
+
+	return sc.SetAttribute(*ss.Remainder, nil, ast.NewStringValue(singleString, ast.SourceNode{
+		Start: remaining[0].Position().Start,
+		End:   remaining[len(remaining)-1].Position().End,
+	}))
 
 }
 

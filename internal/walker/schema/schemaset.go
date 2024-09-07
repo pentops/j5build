@@ -55,7 +55,7 @@ func convertBlocks(given []*bcl_j5pb.Block) (map[string]*BlockSpec, error) {
 			Name:        convertTag(src.Name),
 			TypeSelect:  convertTag(src.TypeSelect),
 			Qualifier:   convertTag(src.Qualifier),
-			OnlyDefined: !src.IncludeAuto,
+			OnlyDefined: src.OnlyExplicit,
 			Children:    children,
 		}
 		if src.Description != nil {
