@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package test.foo.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "j5/ext/v1/annotations.proto";
+import "j5/list/v1/annotations.proto";
+
+option go_package = "github.com/pentops/j5build/gen/test/foo/v1/foo_testpb";
+
+message FooKeys {
+  option (j5.ext.v1.psm).entity_name = "foo";
+
+  string foo_id = 1 [(j5.ext.v1.key).primary_key = true];
+}
+
+message FooState {
+  FooKeys keys = 1 [(j5.ext.v1.field).message.flatten = true];
+  FooStatus status = 2 [
+    (buf.validate.field).required = true,
+    (j5.list.v1.field).enum.filtering = {
+      filterable: true
+      default_filters: "FOO_STATUS_ACTIVE"
+    }
+  ];
+
+  string name = 3 [(j5.list.v1.field).string.open_text.searching = {searchable: true}];
+  Bar bar = 4;
+  google.protobuf.Timestamp created_at = 5 [(j5.list.v1.field).timestamp = {
+    filtering: {filterable: true}
+    sorting: {sortable: true}
+  }];
+}
+
+enum FooStatus {
+  FOO_STATUS_UNSPECIFIED = 0;
+  FOO_STATUS_ACTIVE = 1;
+  FOO_STATUS_INACTIVE = 2;
+}
+
+message Bar {
+  string id = 1 [(j5.list.v1.field).string.foreign_key.uuid.filtering.filterable = true];
+  string field = 2 [(j5.list.v1.field).string.open_text.searching = {searchable: true}];
+}
+
+message FooEvent {
+  option (j5.ext.v1.psm).entity_name = "foo";
+  FooKeys keys = 1 [(j5.ext.v1.field).message.flatten = true];
+  FooEventType event = 2 [(buf.validate.field).required = true];
+}
+
+message FooEventType {
+  option (j5.ext.v1.message).is_oneof_wrapper = true;
+
+  oneof type {
+    Created created = 1;
+    Updated updated = 2;
+  }
+
+  // Comment on Created
+  message Created {
+    string field = 1;
+  }
+
+  // Comment on Updated
+  message Updated {
+    string field = 1;
+  }
+}

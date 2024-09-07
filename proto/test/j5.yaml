@@ -1,0 +1,12 @@
+---
+packages:
+  - name: test.foo.v1
+
+dependencies:
+  - registry:
+      owner: pentops
+      name: j5
+
+options:
+  subPackages:
+    - name: "service"
