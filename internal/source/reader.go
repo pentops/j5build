@@ -292,14 +292,11 @@ func readImageFromDir(ctx context.Context, bundleRoot fs.FS, dependencies Depend
 				if strings.HasPrefix(filename, prefix) {
 					ff, err := desc.LoadFileDescriptor(filename)
 					if err != nil {
-						fmt.Printf("%s ERROR in pre-loaded: %s\n", filename, err)
 						return nil, fmt.Errorf("loading pre-loaded file %q: %w", filename, err)
 					}
-					fmt.Printf("%s IS in pre-loaded\n", filename)
 					return ff, nil
 				}
 			}
-			fmt.Printf("%s not in pre-loaded\n", filename)
 			return nil, fmt.Errorf("could not find file %q", filename)
 
 		},
