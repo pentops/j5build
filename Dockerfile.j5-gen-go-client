@@ -20,7 +20,7 @@ RUN \
 
 FROM scratch
 
-LABEL org.opencontainers.image.source=https://github.com/pentops/j5
+LABEL org.opencontainers.image.source=https://github.com/pentops/j5build
 
 COPY --from=builder /j5-gen-o5-client /j5-gen-o5-client
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
