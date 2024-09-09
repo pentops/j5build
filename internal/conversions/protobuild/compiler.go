@@ -11,6 +11,7 @@ import (
 	"github.com/bufbuild/protocompile"
 	"github.com/bufbuild/protocompile/linker"
 	"github.com/pentops/bcl.go/bcl/errpos"
+	"github.com/pentops/j5build/internal/builtin"
 	"github.com/pentops/j5build/internal/conversions/j5convert"
 )
 
@@ -70,7 +71,7 @@ func (c *Compiler) FindFileByPath(filename string) (protocompile.SearchResult, e
 		return protocompile.SearchResult{}, errors.New("FindFileByPath: empty filename")
 	}
 
-	if hasAPrefix(filename, inbuiltPrefixes) {
+	if builtin.IsBuiltInProto(filename) {
 		return c.Resolver.GetInbuilt(filename)
 	}
 

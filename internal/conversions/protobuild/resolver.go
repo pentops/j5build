@@ -14,6 +14,7 @@ import (
 	"github.com/jhump/protoreflect/desc/sourceinfo"
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
+	"github.com/pentops/j5build/internal/builtin"
 	"github.com/pentops/j5build/internal/conversions/j5convert"
 	"github.com/pentops/j5build/internal/conversions/j5parse"
 	"google.golang.org/protobuf/types/descriptorpb"
@@ -125,16 +126,6 @@ var ignoreUnusedWarning = map[string]struct{}{
 	"j5/messaging/v1/annotations.proto": {},
 }
 
-// These types are 'built in' to the J5 package set
-var inbuiltPrefixes = []string{
-	"google/protobuf/", //- Added 'WithStandardImports'
-	"google/api/",
-	"buf/validate/",
-	"j5/types/",
-	"j5/ext/v1/",
-	"j5/list/v1/",
-}
-
 func hasAPrefix(s string, prefixes []string) bool {
 	for _, prefix := range prefixes {
 		if strings.HasPrefix(s, prefix) {
@@ -160,7 +151,7 @@ func (rr *Resolver) GetInbuilt(filename string) (protocompile.SearchResult, erro
 }
 
 func (rr *Resolver) findFileByPath(filename string) (*SourceFile, error) {
-	if hasAPrefix(filename, inbuiltPrefixes) {
+	if builtin.IsBuiltInProto(filename) {
 		result, err := rr.GetInbuilt(filename)
 		if err != nil {
 			return nil, err
@@ -223,7 +214,7 @@ func (rr *Resolver) PackageFiles(ctx context.Context, pkgName string) ([]*Source
 func (rr *Resolver) listPackageFiles(ctx context.Context, pkgName string) ([]string, error) {
 	root := strings.ReplaceAll(pkgName, ".", "/")
 
-	if hasAPrefix(root+"/", inbuiltPrefixes) {
+	if builtin.IsBuiltInProto(root + "/") {
 		return []string{}, nil
 
 	} else if hasAPrefix(root+"/", rr.localPrefixes) {

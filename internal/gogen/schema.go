@@ -165,6 +165,12 @@ func (bb *builder) buildTypeName(currentPackage string, schema *schema_j5pb.Fiel
 			GoPackage: "time",
 		}, nil
 
+	case *schema_j5pb.Field_Decimal:
+		return &DataType{
+			Name:    "string",
+			Pointer: false,
+		}, nil
+
 	case *schema_j5pb.Field_Key:
 		// TODO: Constrain UUID?
 		return &DataType{

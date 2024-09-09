@@ -8,25 +8,6 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-const (
-	bufValidateImport          = "buf/validate/validate.proto"
-	j5ExtImport                = "j5/ext/v1/annotations.proto"
-	j5DateImport               = "j5/types/date/v1/date.proto"
-	j5DecimalImport            = "j5/types/decimal/v1/decimal.proto"
-	j5ListAnnotationsImport    = "j5/list/v1/annotations.proto"
-	pbTimestamp                = "google/protobuf/timestamp.proto"
-	pbAnyImport                = "google/protobuf/any.proto"
-	psmStateImport             = "j5/state/v1/metadata.proto"
-	googleApiHttpBodyImport    = "google/api/httpbody.proto"
-	googleApiAnnotationsImport = "google/api/annotations.proto"
-	googleProtoEmptyImport     = "google/protobuf/empty.proto"
-	messagingAnnotationsImport = "j5/messaging/v1/annotations.proto"
-	messagingReqResImport      = "j5/messaging/v1/reqres.proto"
-	messagingUpsertImport      = "j5/messaging/v1/upsert.proto"
-)
-
-const googleProtoEmptyType = ".google.protobuf.Empty"
-
 type commentSet []*descriptorpb.SourceCodeInfo_Location
 
 func sourceLoc(path []int32, description string) *descriptorpb.SourceCodeInfo_Location {
