@@ -126,7 +126,7 @@ func (bb *builder) buildTypeName(currentPackage string, schema *schema_j5pb.Fiel
 		}
 
 		switch *item.Format {
-		case "uuid", "date", "email", "uri":
+		case "uuid", "date", "email", "uri", "id62":
 			return &DataType{
 				Name:    "string",
 				Pointer: false,
