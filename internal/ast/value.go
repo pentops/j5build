@@ -230,6 +230,7 @@ func (sv StringValue) IsScalar() bool {
 }
 
 type TagValue struct {
+	Bang      bool
 	Reference *Reference
 	Value     *Value
 	unknownValue
@@ -254,4 +255,25 @@ func (tv TagValue) AsString() (string, error) {
 		return tv.Reference.String(), nil
 	}
 	return "", fmt.Errorf("tag value is nil")
+}
+
+type BoolValue struct {
+	unknownValue
+	val bool
+	SourceNode
+}
+
+func NewBoolValue(val bool, pos Position) ASTValue {
+	return BoolValue{
+		unknownValue: unknownValue{typeName: "bool"},
+		val:          val,
+	}
+}
+
+func (iv BoolValue) IsScalar() bool {
+	return true
+}
+
+func (iv BoolValue) AsBool() (bool, error) {
+	return iv.val, nil
 }

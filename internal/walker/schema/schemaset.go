@@ -32,10 +32,14 @@ func convertTag(tag *bcl_j5pb.Tag) *Tag {
 	if tag == nil {
 		return nil
 	}
-	return &Tag{
+	tt := &Tag{
 		Path:    tag.Path.Path,
 		IsBlock: tag.IsBlock,
 	}
+	if tag.BangBool != nil {
+		tt.BangPath = tag.BangBool.Path
+	}
+	return tt
 }
 
 func convertBlocks(given []*bcl_j5pb.Block) (map[string]*BlockSpec, error) {

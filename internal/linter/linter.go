@@ -10,18 +10,23 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+type FileFactory func(filename string) protoreflect.Message
+
 type Linter struct {
-	parser *bcl.Parser
+	parser      *bcl.Parser
+	fileFactory FileFactory
 }
 
-func New(parser *bcl.Parser) *Linter {
+func New(parser *bcl.Parser, fileFactory FileFactory) *Linter {
 	return &Linter{
-		parser: parser,
+		parser:      parser,
+		fileFactory: fileFactory,
 	}
 }
 
-func (l *Linter) LintFile(ctx context.Context, req lsp.LintFileRequest, msg protoreflect.Message) ([]lsp.Diagnostic, error) {
+func (l *Linter) LintFile(ctx context.Context, req lsp.LintFileRequest) ([]lsp.Diagnostic, error) {
 
+	msg := l.fileFactory(req.Filename)
 	_, mainError := l.parser.ParseFile(req.Filename, req.Content, msg)
 	if mainError == nil {
 		return nil, nil

@@ -33,7 +33,8 @@ const (
 )
 
 type Tag struct {
-	Path []string
+	Path     []string
+	BangPath []string
 
 	IsBlock bool
 }

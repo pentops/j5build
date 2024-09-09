@@ -365,6 +365,12 @@ func (ww *Walker) popReference() (Reference, *unexpectedTokenError) {
 
 func (ww *Walker) popTag() (TagValue, *unexpectedTokenError) {
 
+	bang := false
+	if ww.nextType() == lexer.BANG {
+		ww.popToken()
+		bang = true
+	}
+
 	switch ww.nextType() {
 	case lexer.IDENT:
 
@@ -375,6 +381,7 @@ func (ww *Walker) popTag() (TagValue, *unexpectedTokenError) {
 			return TagValue{}, err
 		}
 		return TagValue{
+			Bang:      bang,
 			Reference: &ref,
 			SourceNode: SourceNode{
 				Start: ref.SourceNode.Start,
@@ -388,6 +395,7 @@ func (ww *Walker) popTag() (TagValue, *unexpectedTokenError) {
 			return TagValue{}, err
 		}
 		return TagValue{
+			Bang:  bang,
 			Value: &refStr,
 			SourceNode: SourceNode{
 				Start: refStr.SourceNode.Start,

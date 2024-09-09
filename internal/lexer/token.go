@@ -36,6 +36,7 @@ const (
 	DOT    // .
 	COMMA  // ,
 	COLON  // :
+	BANG   // !
 	operator_end
 
 	keyword_beg
@@ -75,6 +76,7 @@ var tokens = [...]string{
 	DOT:          ".",
 	COMMA:        ",",
 	COLON:        ":",
+	BANG:         "!",
 	operator_end: "",
 
 	// Keywords
@@ -165,7 +167,7 @@ func (tok TokenType) IsLiteral() bool { return literal_beg < tok && tok < litera
 func (tok TokenType) IsOperator() bool { return operator_beg < tok && tok < operator_end }
 
 func (tok TokenType) IsTag() bool {
-	return tok == IDENT || tok == STRING || tok == REGEX
+	return tok == IDENT || tok == STRING || tok == REGEX || tok == BANG
 }
 
 // IsKeyword reports whether name is a Go keyword, such as "func" or "return".
