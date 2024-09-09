@@ -400,7 +400,7 @@ func TestSimple(t *testing.T) {
 	}, {
 		name: "unexpected character",
 		input: []string{
-			`!`,
+			`&`,
 		},
 		expectError: tPos(1, 1),
 	}, {
