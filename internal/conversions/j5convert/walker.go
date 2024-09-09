@@ -10,11 +10,10 @@ import (
 	"github.com/iancoleman/strcase"
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/j5/gen/j5/bcl/v1/bcl_j5pb"
-	"github.com/pentops/j5/gen/j5/client/v1/client_j5pb"
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
+	"github.com/pentops/j5/gen/j5/messaging/v1/messaging_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
-	"google.golang.org/genproto/googleapis/api/annotations"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
@@ -66,10 +65,14 @@ func (rr *Root) subPackageFile(subPackage string) fileContext {
 	}
 
 	rootName := *rr.mainFile.fdp.Name
-	baseName := path.Base(rootName)
-	dirName := path.Dir(rootName)
-	subName := path.Join(dirName, subPackage, baseName)
+	dirName, baseName := path.Split(rootName)
+
+	baseRoot := strings.TrimSuffix(baseName, ".j5s.proto")
+	newBase := fmt.Sprintf("%s.p.j5s.proto", baseRoot)
+
+	subName := path.Join(dirName, subPackage, newBase)
 	found := newFileBuilder(subName)
+
 	found.fdp.Package = &fullPackage
 	rr.files = append(rr.files, found)
 	return found
@@ -198,9 +201,8 @@ func (ww *walkNode) addRoot(schema *sourcedef_j5pb.RootElement) {
 	case *sourcedef_j5pb.RootElement_Entity:
 		ww.at("entity").doEntity(st.Entity)
 
-	case *sourcedef_j5pb.RootElement_Partial:
-		// Ignore, these are only used when included.
-		return
+	case *sourcedef_j5pb.RootElement_Topic:
+		ww.at("topic").doTopic(st.Topic)
 
 	default:
 		ww.errorf("unknown root element type %T", st)
@@ -326,6 +328,10 @@ func (ww *walkNode) doProperty(msg *MessageBuilder, prop *schema_j5pb.ObjectProp
 		ww.file.ensureImport(j5ExtImport)
 	}
 
+	if prop.ExplicitlyOptional {
+		desc.Proto3Optional = ptr(true)
+	}
+
 	protoFieldName := strcase.ToSnake(prop.Name)
 	desc.Name = ptr(protoFieldName)
 	desc.JsonName = ptr(prop.Name)
@@ -338,113 +344,163 @@ func (ww *walkNode) doProperty(msg *MessageBuilder, prop *schema_j5pb.ObjectProp
 	msg.descriptor.Field = append(msg.descriptor.Field, desc)
 }
 
-func (ww *walkNode) doService(spec *sourcedef_j5pb.Service) {
-	serviceWalker := ww.subPackageFile("service")
+func (ww *walkNode) doTopic(schema *sourcedef_j5pb.Topic) {
+	subWalk := ww.subPackageFile("topic")
 
-	service := blankService(serviceWalker.file, spec.Name+"Service")
-	service.basePath = spec.BasePath
-
-	for idx, method := range spec.Methods {
-		serviceWalker.at("methods", fmt.Sprint(idx)).doMethod(service, method)
+	switch tt := schema.Type.Type.(type) {
+	case *sourcedef_j5pb.TopicType_Publish_:
+		subWalk.at("type", "publish").doPublishTopic(schema.Name, tt.Publish)
+	case *sourcedef_j5pb.TopicType_Reqres:
+		subWalk.at("type", "reqres").doReqResTopic(schema.Name, tt.Reqres)
+	case *sourcedef_j5pb.TopicType_Upsert_:
+		subWalk.at("type", "upsert").doUpsertTopic(schema.Name, tt.Upsert)
+	default:
+		ww.errorf("unknown topic type %T", tt)
 	}
-
-	if spec.Options != nil {
-		service.desc.Options = &descriptorpb.ServiceOptions{}
-		proto.SetExtension(service.desc.Options, ext_j5pb.E_Service, spec.Options)
-	}
-
-	serviceWalker.file.addService(service)
 }
 
-func (ww *walkNode) doMethod(service *ServiceBuilder, method *sourcedef_j5pb.Method) {
-	methodBuilder := blankMethod(method.Name)
-	methodBuilder.comment([]int32{}, method.Description)
-	ww.file.ensureImport(googleApiAnnotationsImport)
-
-	if method.Request == nil {
-		ww.errorf("missing input")
-		return
-	}
-	methodBuilder.desc.InputType = ptr(fmt.Sprintf("%sRequest", method.Name))
-	request := &schema_j5pb.Object{
-		Name:       fmt.Sprintf("%sRequest", method.Name),
-		Properties: method.Request.Properties,
-	}
-	ww.at("request").doObject(request)
-
-	if method.Response == nil {
-		ww.file.ensureImport(googleApiHttpBodyImport)
-		methodBuilder.desc.OutputType = ptr("google.api.HttpBody")
-	} else {
-		methodBuilder.desc.OutputType = ptr(fmt.Sprintf("%sResponse", method.Name))
-		response := &schema_j5pb.Object{
-			Name:       fmt.Sprintf("%sResponse", method.Name),
-			Properties: method.Response.Properties,
-		}
-		ww.at("response").doObject(response)
+func (ww *walkNode) doPublishTopic(name string, schema *sourcedef_j5pb.TopicType_Publish) {
+	name = strcase.ToCamel(name)
+	desc := &descriptorpb.ServiceDescriptorProto{
+		Name:    ptr(name + "Topic"),
+		Options: &descriptorpb.ServiceOptions{},
 	}
 
-	annotation := &annotations.HttpRule{}
-	reqPathParts := strings.Split(path.Join(service.basePath, method.HttpPath), "/")
-	for idx, part := range reqPathParts {
-		if strings.HasPrefix(part, ":") {
-			var field *schema_j5pb.ObjectProperty
-			for _, search := range request.Properties {
-				if search.Name == part[1:] {
-					field = search
-					break
-				}
-			}
-			if field == nil {
-				ww.errorf("missing field %s in request", part[1:])
-			}
+	proto.SetExtension(desc.Options, messaging_j5pb.E_Config, &messaging_j5pb.Config{
+		Type: &messaging_j5pb.Config_Broadcast{
+			Broadcast: &messaging_j5pb.BroadcastConfig{
+				Name: strcase.ToSnake(name),
+			},
+		},
+	})
 
-			fieldName := strcase.ToSnake(part[1:])
-			reqPathParts[idx] = "{" + fieldName + "}"
-
+	for idx, msg := range schema.Messages {
+		objSchema := &schema_j5pb.Object{
+			Name:       fmt.Sprintf("%sMessage", msg.Name),
+			Properties: msg.Fields,
 		}
+		ww.at("message", fmt.Sprint(idx)).doObject(objSchema)
+		rpcDesc := &descriptorpb.MethodDescriptorProto{
+			Name:       ptr(msg.Name),
+			OutputType: ptr(googleProtoEmptyType),
+			InputType:  ptr(objSchema.Name),
+		}
+		desc.Method = append(desc.Method, rpcDesc)
 	}
 
-	reqPath := strings.Join(reqPathParts, "/")
+	ww.file.ensureImport(messagingAnnotationsImport)
+	ww.file.ensureImport(googleProtoEmptyImport)
+	ww.file.addService(&ServiceBuilder{
+		desc: desc,
+	})
+}
 
-	switch method.HttpMethod {
-	case client_j5pb.HTTPMethod_GET:
-		annotation.Pattern = &annotations.HttpRule_Get{
-			Get: reqPath,
-		}
-	case client_j5pb.HTTPMethod_POST:
-		annotation.Pattern = &annotations.HttpRule_Post{
-			Post: reqPath,
-		}
-		annotation.Body = "*"
-
-	case client_j5pb.HTTPMethod_DELETE:
-		annotation.Pattern = &annotations.HttpRule_Delete{
-			Delete: reqPath,
-		}
-		annotation.Body = "*"
-
-	case client_j5pb.HTTPMethod_PATCH:
-		annotation.Pattern = &annotations.HttpRule_Patch{
-			Patch: reqPath,
-		}
-		annotation.Body = "*"
-
-	case client_j5pb.HTTPMethod_PUT:
-		annotation.Pattern = &annotations.HttpRule_Put{
-			Put: reqPath,
-		}
-		annotation.Body = "*"
-
-	default:
-		ww.errorf("unsupported http method %s", method.HttpMethod)
-		return
+func (ww *walkNode) doReqResTopic(name string, schema *sourcedef_j5pb.TopicType_ReqRes) {
+	addRequest := func(ww *walkNode, msg *MessageBuilder) {
+		msg.descriptor.Field = append(msg.descriptor.Field, &descriptorpb.FieldDescriptorProto{
+			Name:     ptr("request"),
+			JsonName: ptr("request"),
+			Type:     descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum(),
+			TypeName: ptr(".j5.messaging.v1.RequestMetadata"),
+			Number:   ptr(int32(len(msg.descriptor.Field) + 1)),
+		})
 	}
 
-	proto.SetExtension(methodBuilder.desc.Options, annotations.E_Http, annotation)
-
-	if method.Options != nil {
-		proto.SetExtension(methodBuilder.desc.Options, ext_j5pb.E_Method, method.Options)
+	name = strcase.ToCamel(name)
+	reqObj := &schema_j5pb.Object{
+		Name:       fmt.Sprintf("%sRequestMessage", name),
+		Properties: schema.Request.Fields,
 	}
-	service.desc.Method = append(service.desc.Method, methodBuilder.desc)
+	ww.at("request").doObject(reqObj, addRequest)
+
+	resObj := &schema_j5pb.Object{
+		Name:       fmt.Sprintf("%sReplyMessage", name),
+		Properties: schema.Reply.Fields,
+	}
+	ww.at("reply").doObject(resObj, addRequest)
+
+	reqDesc := &descriptorpb.ServiceDescriptorProto{
+		Name: ptr(name + "RequestTopic"),
+		Method: []*descriptorpb.MethodDescriptorProto{{
+			Name:       ptr(name + "Request"),
+			OutputType: ptr(googleProtoEmptyType),
+			InputType:  ptr(reqObj.Name),
+		}},
+		Options: &descriptorpb.ServiceOptions{},
+	}
+
+	proto.SetExtension(reqDesc.Options, messaging_j5pb.E_Config, &messaging_j5pb.Config{
+		Type: &messaging_j5pb.Config_Request{
+			Request: &messaging_j5pb.RequestConfig{
+				Name: strcase.ToSnake(name),
+			},
+		},
+	})
+
+	resDesc := &descriptorpb.ServiceDescriptorProto{
+		Name: ptr(name + "ReplyTopic"),
+		Method: []*descriptorpb.MethodDescriptorProto{{
+			Name:       ptr(name + "Reply"),
+			OutputType: ptr(googleProtoEmptyType),
+			InputType:  ptr(resObj.Name),
+		}},
+		Options: &descriptorpb.ServiceOptions{},
+	}
+
+	proto.SetExtension(resDesc.Options, messaging_j5pb.E_Config, &messaging_j5pb.Config{
+		Type: &messaging_j5pb.Config_Reply{
+			Reply: &messaging_j5pb.ReplyConfig{
+				Name: strcase.ToSnake(name),
+			},
+		},
+	})
+
+	ww.file.ensureImport(messagingAnnotationsImport)
+	ww.file.ensureImport(messagingReqResImport)
+	ww.file.ensureImport(googleProtoEmptyImport)
+	ww.file.addService(&ServiceBuilder{
+		desc: reqDesc,
+	})
+	ww.file.addService(&ServiceBuilder{
+		desc: resDesc,
+	})
+
+}
+func (ww *walkNode) doUpsertTopic(name string, schema *sourcedef_j5pb.TopicType_Upsert) {
+
+	name = strcase.ToCamel(name)
+	reqObj := &schema_j5pb.Object{
+		Name: fmt.Sprintf("%sMessage", name),
+		Properties: append([]*schema_j5pb.ObjectProperty{{
+			Name:   "upsert",
+			Schema: schemaRefField("j5.messaging.v1", "UpsertMetadata"),
+		}}, schema.Message.Fields...),
+	}
+	ww.at("message").doObject(reqObj)
+
+	reqDesc := &descriptorpb.ServiceDescriptorProto{
+		Name: ptr(name + "Topic"),
+		Method: []*descriptorpb.MethodDescriptorProto{{
+			Name:       ptr(name + "Request"),
+			OutputType: ptr(googleProtoEmptyType),
+			InputType:  ptr(reqObj.Name),
+		}},
+		Options: &descriptorpb.ServiceOptions{},
+	}
+
+	proto.SetExtension(reqDesc.Options, messaging_j5pb.E_Config, &messaging_j5pb.Config{
+		Type: &messaging_j5pb.Config_Broadcast{
+			Broadcast: &messaging_j5pb.BroadcastConfig{
+				Name: strcase.ToSnake(name),
+			},
+		},
+	})
+
+	ww.file.ensureImport(messagingAnnotationsImport)
+	ww.file.ensureImport(messagingUpsertImport)
+	ww.file.ensureImport(googleProtoEmptyImport)
+	ww.file.addService(&ServiceBuilder{
+		desc: reqDesc,
+	})
+
 }

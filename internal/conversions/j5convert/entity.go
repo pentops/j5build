@@ -118,11 +118,12 @@ func mapEntitySource(root *bcl_j5pb.SourceLocation) {
 
 func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 
-	name := strcase.ToLowerCamel(entity.Name)
+	name := strcase.ToSnake(entity.Name)
+
 	keys := &schema_j5pb.Object{
 		Name: strcase.ToCamel(entity.Name + "Keys"),
 		Entity: &schema_j5pb.EntityObject{
-			Entity: entity.Name,
+			Entity: name,
 			Part:   schema_j5pb.EntityPart_KEYS,
 		},
 		Properties: entity.Keys,
@@ -131,7 +132,7 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 	data := &schema_j5pb.Object{
 		Name: strcase.ToCamel(entity.Name + "Data"),
 		Entity: &schema_j5pb.EntityObject{
-			Entity: entity.Name,
+			Entity: name,
 			Part:   schema_j5pb.EntityPart_DATA,
 		},
 		Properties: entity.Data,
@@ -148,7 +149,7 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 	state := &schema_j5pb.Object{
 		Name: strcase.ToCamel(entity.Name + "State"),
 		Entity: &schema_j5pb.EntityObject{
-			Entity: entity.Name,
+			Entity: name,
 			Part:   schema_j5pb.EntityPart_STATE,
 		},
 		Properties: []*schema_j5pb.ObjectProperty{{
@@ -212,7 +213,7 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 	eventObject := &schema_j5pb.Object{
 		Name: strcase.ToCamel(entity.Name + "Event"),
 		Entity: &schema_j5pb.EntityObject{
-			Entity: entity.Name,
+			Entity: name,
 			Part:   schema_j5pb.EntityPart_EVENT,
 		},
 		Properties: []*schema_j5pb.ObjectProperty{{
@@ -273,7 +274,7 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 		}
 		if kk.Ext != nil && kk.Ext.PrimaryKey {
 			primaryKeys = append(primaryKeys, key)
-			httpPath = append(httpPath, fmt.Sprintf("{%s}", key.Name))
+			httpPath = append(httpPath, fmt.Sprintf(":%s", key.Name))
 		}
 	}
 	query := &sourcedef_j5pb.Service{

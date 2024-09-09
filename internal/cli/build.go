@@ -4,13 +4,15 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/pentops/j5/gen/j5/config/v1/config_j5pb"
+	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
+	"github.com/pentops/j5/lib/j5schema"
 	"github.com/pentops/j5build/internal/builder"
 	"github.com/pentops/j5build/internal/j5client"
 	"github.com/pentops/j5build/internal/structure"
-	"github.com/pentops/j5/lib/j5schema"
 	"github.com/pentops/log.go/log"
 )
 
@@ -46,6 +48,28 @@ func runVerify(ctx context.Context, cfg struct {
 			return fmt.Errorf("Source API From Image: %w", err)
 		}
 
+		walkOK := true
+		walkAPI(sourceAPI, &Callback{
+			ObjectProperty: func(path []string, prop *schema_j5pb.ObjectProperty) {
+				if prop.Name == "programId" {
+					asKey := prop.Schema.GetKey()
+					if asKey == nil {
+						fmt.Printf("%s programId is not a key\n", strings.Join(path, "."))
+						walkOK = false
+					} else {
+						if asKey.Format.GetId62() == nil {
+							fmt.Printf("%s programId is not id62\n", strings.Join(path, "."))
+							walkOK = false
+						}
+					}
+
+				}
+			},
+		})
+		if !walkOK {
+			return fmt.Errorf("walkAPI failed")
+		}
+
 		clientAPI, err := j5client.APIFromSource(sourceAPI)
 		if err != nil {
 			return fmt.Errorf("Client API From Source: %w", err)
@@ -58,7 +82,9 @@ func runVerify(ctx context.Context, cfg struct {
 		_, err = j5schema.PackageSetFromSourceAPI(sourceAPI.Packages)
 		if err != nil {
 			return fmt.Errorf("building reflection from descriptor: %w", err)
+
 		}
+
 		for _, pkg := range sourceAPI.Packages {
 			fmt.Printf("Package %s OK\n", pkg.Name)
 		}
@@ -204,4 +230,82 @@ func runPublish(ctx context.Context, cfg struct {
 	}
 
 	return bb.RunPublishBuild(ctx, pc, img, publish)
+}
+
+type Callback struct {
+	ObjectProperty func([]string, *schema_j5pb.ObjectProperty)
+	Object         func([]string, *schema_j5pb.Object)
+	Enum           func([]string, *schema_j5pb.Enum)
+	Oneof          func([]string, *schema_j5pb.Oneof)
+}
+
+type vetWalker struct {
+	callback Callback
+}
+
+func walkAPI(api *source_j5pb.API, callback *Callback) {
+	path := []string{}
+	ww := vetWalker{
+		callback: *callback,
+	}
+	for _, pkg := range api.Packages {
+		ww.vetPackage(pkg, append(path, pkg.Name))
+	}
+}
+
+func (ww *vetWalker) vetPackage(pkg *source_j5pb.Package, path []string) {
+	for _, sch := range pkg.Schemas {
+		switch st := sch.Type.(type) {
+		case *schema_j5pb.RootSchema_Object:
+			ww.vetObject(st.Object, append(path, st.Object.Name))
+		case *schema_j5pb.RootSchema_Enum:
+			ww.vetEnum(st.Enum, append(path, st.Enum.Name))
+		case *schema_j5pb.RootSchema_Oneof:
+			ww.vetOneof(st.Oneof, append(path, st.Oneof.Name))
+		}
+	}
+}
+
+func (ww *vetWalker) vetObject(obj *schema_j5pb.Object, path []string) {
+	if ww.callback.Object != nil {
+		ww.callback.Object(path, obj)
+	}
+	for _, prop := range obj.Properties {
+		ww.vetObjectProperty(prop, append(path, prop.Name))
+	}
+}
+
+func (ww *vetWalker) vetEnum(en *schema_j5pb.Enum, path []string) {
+	if ww.callback.Enum != nil {
+		ww.callback.Enum(path, en)
+	}
+}
+
+func (ww *vetWalker) vetOneof(of *schema_j5pb.Oneof, path []string) {
+	if ww.callback.Oneof != nil {
+		ww.callback.Oneof(path, of)
+	}
+	for _, prop := range of.Properties {
+		ww.vetObjectProperty(prop, append(path, prop.Name))
+	}
+}
+
+func (ww *vetWalker) vetObjectProperty(prop *schema_j5pb.ObjectProperty, path []string) {
+	if ww.callback.ObjectProperty != nil {
+		ww.callback.ObjectProperty(path, prop)
+	}
+	switch st := prop.Schema.Type.(type) {
+	case *schema_j5pb.Field_Object:
+		if obj := st.Object.GetObject(); obj != nil {
+			ww.vetObject(obj, append(path, "schema", "oject", "object"))
+		}
+	case *schema_j5pb.Field_Enum:
+		if en := st.Enum.GetEnum(); en != nil {
+			ww.vetEnum(en, append(path, "schema", "enum", "enum"))
+		}
+	case *schema_j5pb.Field_Oneof:
+		if of := st.Oneof.GetOneof(); of != nil {
+			ww.vetOneof(of, append(path, "schema", "oneof", "oneof"))
+		}
+	}
 }

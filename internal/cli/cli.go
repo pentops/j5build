@@ -42,6 +42,8 @@ func CommandSet() *commander.CommandSet {
 	cmdGroup.Add("verify", commander.NewCommand(runVerify))
 	cmdGroup.Add("latest-deps", commander.NewCommand(runLatestDeps))
 
+	cmdGroup.Add("lsp", commander.NewCommand(runLSP))
+
 	return cmdGroup
 }
 

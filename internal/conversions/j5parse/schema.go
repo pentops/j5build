@@ -54,7 +54,8 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 	}, {
 		SchemaName: "j5.schema.v1.Field",
 		TypeSelect: &bcl_j5pb.Tag{
-			Path: bclPath(),
+			Path:     bclPath(),
+			BangBool: bclPath("required"),
 		},
 	}, {
 		SchemaName: "j5.schema.v1.ObjectProperty",
@@ -62,8 +63,13 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 			Path: bclPath("name"),
 		},
 		TypeSelect: &bcl_j5pb.Tag{
-			Path: bclPath("schema"),
+			Path:     bclPath("schema"),
+			BangBool: bclPath("required"),
 		},
+		Children: []*bcl_j5pb.Child{{
+			Name: "optional",
+			Path: bclPath("explicitlyOptional"),
+		}},
 	}, {
 		SchemaName: "j5.schema.v1.ObjectField",
 		Qualifier: &bcl_j5pb.Tag{
@@ -125,6 +131,16 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 			IsCollection: true,
 		}},
 	}, {
+		SchemaName:  "j5.schema.v1.Oneof",
+		Name:        &bcl_j5pb.Tag{Path: bclPath("name")},
+		Description: bclPath("description"),
+		Children: []*bcl_j5pb.Child{{
+			Name:         "option",
+			Path:         bclPath("properties"),
+			IsContainer:  true,
+			IsCollection: true,
+		}},
+	}, {
 		SchemaName:  "j5.schema.v1.Enum",
 		Name:        &bcl_j5pb.Tag{Path: bclPath("name")},
 		Description: bclPath("description"),
@@ -134,6 +150,10 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 			IsContainer:  true,
 			IsCollection: true,
 		}},
+	}, {
+		SchemaName: "j5.sourcedef.v1.Topic",
+		Name:       &bcl_j5pb.Tag{Path: bclPath("name")},
+		TypeSelect: &bcl_j5pb.Tag{Path: bclPath("type")},
 	}, {
 		SchemaName: "j5.sourcedef.v1.Entity",
 		Name:       &bcl_j5pb.Tag{Path: bclPath("name")},
@@ -196,6 +216,11 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 		}, {
 			Name:         "entity",
 			Path:         bclPath("elements", "entity"),
+			IsContainer:  true,
+			IsCollection: true,
+		}, {
+			Name:         "topic",
+			Path:         bclPath("elements", "topic"),
 			IsContainer:  true,
 			IsCollection: true,
 		}},

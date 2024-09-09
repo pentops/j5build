@@ -7,8 +7,8 @@ import (
 	"github.com/pentops/j5/gen/j5/client/v1/client_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
-	"github.com/pentops/j5/lib/patherr"
 	"github.com/pentops/j5/lib/j5schema"
+	"github.com/pentops/j5/lib/patherr"
 )
 
 func APIFromSource(api *source_j5pb.API) (*client_j5pb.API, error) {

@@ -2,7 +2,6 @@ package j5convert
 
 import (
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
-	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
@@ -33,14 +32,6 @@ func blankOneof(root fileContext, name string) *MessageBuilder {
 		IsOneofWrapper: true,
 	})
 	return message
-}
-
-func (msg *MessageBuilder) entityType(name string, part schema_j5pb.EntityPart) {
-	msg.root.ensureImport(j5ExtImport)
-	proto.SetExtension(msg.descriptor.Options, ext_j5pb.E_Psm, &ext_j5pb.PSMOptions{
-		EntityName: name,
-		EntityPart: &part,
-	})
 }
 
 func (msg *MessageBuilder) addMessage(message *MessageBuilder) {

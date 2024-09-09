@@ -14,9 +14,9 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/jhump/protoreflect v1.16.0
-	github.com/pentops/bcl.go v0.0.0-20240907192531-a537fd26d6c1
+	github.com/pentops/bcl.go v0.0.0-20240909061525-9a90f22b460b
 	github.com/pentops/flowtest v0.0.0-20240823195451-08ebbdc5a426
-	github.com/pentops/j5 v0.0.0-20240907192226-ea4098c1ee82
+	github.com/pentops/j5 v0.0.0-20240909061159-a8593b7b0a7d
 	github.com/pentops/log.go v0.0.0-20240806161938-2742d05b4c24
 	github.com/pentops/prototools v0.0.0-20240907014927-91c94e982811
 	github.com/pentops/runner v0.0.0-20240806162317-0eb1ced9ab3d
@@ -27,6 +27,7 @@ require (
 	golang.org/x/mod v0.20.0
 	golang.org/x/sync v0.8.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240903143218-8af14fe29dc1
+	google.golang.org/grpc v1.66.0
 	google.golang.org/protobuf v1.34.2
 )
 
@@ -73,6 +74,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
+	github.com/sourcegraph/jsonrpc2 v0.2.0 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
@@ -87,7 +89,6 @@ require (
 	golang.org/x/text v0.18.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
-	google.golang.org/grpc v1.66.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.1 // indirect
 )

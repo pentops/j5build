@@ -6,9 +6,9 @@ import (
 	"github.com/pentops/j5/gen/j5/auth/v1/auth_j5pb"
 	"github.com/pentops/j5/gen/j5/client/v1/client_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
+	"github.com/pentops/j5/lib/j5schema"
 	"github.com/pentops/j5/lib/patherr"
 	"github.com/pentops/j5build/internal/structure"
-	"github.com/pentops/j5/lib/j5schema"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 

@@ -119,14 +119,15 @@ func ignoreWarning(err reporter.ErrorWithPos) bool {
 }
 
 var ignoreUnusedWarning = map[string]struct{}{
-	"buf/validate/validate.proto":  {},
-	"google/api/annotations.proto": {},
-	"j5/ext/v1/annotations.proto":  {},
+	"buf/validate/validate.proto":       {},
+	"google/api/annotations.proto":      {},
+	"j5/ext/v1/annotations.proto":       {},
+	"j5/messaging/v1/annotations.proto": {},
 }
 
 // These types are 'built in' to the J5 package set
 var inbuiltPrefixes = []string{
-	//"google/protobuf/", - Added 'WithStandardImports'
+	"google/protobuf/", //- Added 'WithStandardImports'
 	"google/api/",
 	"buf/validate/",
 	"j5/types/",
@@ -199,6 +200,7 @@ func (rr *Resolver) findFileByPath(filename string) (*SourceFile, error) {
 }
 
 func (rr *Resolver) PackageFiles(ctx context.Context, pkgName string) ([]*SourceFile, error) {
+
 	filenames, err := rr.listPackageFiles(ctx, pkgName)
 	if err != nil {
 		return nil, err
@@ -210,7 +212,10 @@ func (rr *Resolver) PackageFiles(ctx context.Context, pkgName string) ([]*Source
 		if err != nil {
 			return nil, err
 		}
+
+		log.Printf("  %s", filename)
 		files = append(files, file)
+
 	}
 	return files, nil
 }
@@ -218,7 +223,7 @@ func (rr *Resolver) PackageFiles(ctx context.Context, pkgName string) ([]*Source
 func (rr *Resolver) listPackageFiles(ctx context.Context, pkgName string) ([]string, error) {
 	root := strings.ReplaceAll(pkgName, ".", "/")
 
-	if hasAPrefix(root, inbuiltPrefixes) {
+	if hasAPrefix(root+"/", inbuiltPrefixes) {
 		return []string{}, nil
 
 	} else if hasAPrefix(root+"/", rr.localPrefixes) {
@@ -240,7 +245,11 @@ func (rr *Resolver) listPackageFiles(ctx context.Context, pkgName string) ([]str
 		return filtered, nil
 	}
 
-	return rr.ExternalDeps.ListDependencyFiles(root), nil
+	files := rr.ExternalDeps.ListDependencyFiles(root)
+	if len(files) == 0 {
+		return nil, fmt.Errorf("no files for package at %s", root)
+	}
+	return files, nil
 }
 
 func (rr *Resolver) localFile(sourceFilename string) (*SourceFile, error) {
@@ -285,14 +294,6 @@ func (rr *Resolver) parseToSource(ctx context.Context, sourceFilename string) (*
 	if err != nil {
 		return nil, errpos.AddSourceFile(err, sourceFilename, string(data))
 	}
-
-	/*
-		for _, imp := range summary.FileDependencies {
-			fmt.Printf("%s imports %s\n", sourceFilename, imp)
-		}
-		for _, imp := range summary.TypeDependencies {
-			fmt.Printf("%s imports %s %s\n", sourceFilename, imp.Package, imp.Schema)
-		}*/
 
 	return &SourceFile{
 		Filename: sourceFilename,

@@ -98,6 +98,22 @@ var implicitImports = map[string]*PackageSummary{
 			},
 		},
 	},
+	"j5.messaging.v1": {
+		Exports: map[string]*TypeRef{
+			"UpsertMetadata": {
+				Package:    "j5.messaging.v1",
+				Name:       "UpsertMetadata",
+				File:       "j5/messaging/v1/upsert.proto",
+				MessageRef: &MessageRef{},
+			},
+			"RequestMetadata": {
+				Package:    "j5.messaging.v1",
+				Name:       "RequestMetadata",
+				File:       "j5/messaging/v1/reqres.proto",
+				MessageRef: &MessageRef{},
+			},
+		},
+	},
 }
 
 func (fb *Root) resolveTypeNoImport(pkg string, name string) (*TypeRef, error) {
@@ -117,6 +133,7 @@ func (fb *Root) resolveTypeNoImport(pkg string, name string) (*TypeRef, error) {
 		if ok {
 			return typeRef, nil
 		}
+		log.Printf("resolveType: %q not found in implicit import %q", name, pkg)
 	}
 
 	alias, ok := fb.importAliases[pkg]

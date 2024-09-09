@@ -3,6 +3,7 @@ package j5convert
 import (
 	"buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
+	"github.com/pentops/j5/gen/j5/list/v1/list_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/lib/id62"
 	"google.golang.org/protobuf/proto"
@@ -138,8 +139,9 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 
 		case *schema_j5pb.OneofField_Oneof:
 			// oneof is inline
-			ww.errorf("TODO: inline oneof not implemented")
-			return nil
+
+			ww.at("oneof").doOneof(where.Oneof)
+			desc.TypeName = ptr(where.Oneof.Name)
 		}
 
 		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
@@ -345,16 +347,57 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 				})
 			}
 		}
+
 		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
 			Type: &ext_j5pb.FieldOptions_Key{
 				Key: st.Key.Ext,
 			},
 		})
 
+		if st.Key.ListRules != nil {
+			var fkt list_j5pb.IsForeignKeyRules_Type
+
+			if st.Key.Format == nil {
+				fkt = &list_j5pb.ForeignKeyRules_UniqueString{
+					UniqueString: st.Key.ListRules,
+				}
+			} else {
+				switch st.Key.Format.Type.(type) {
+				case *schema_j5pb.KeyFormat_Id62:
+					fkt = &list_j5pb.ForeignKeyRules_Id62{
+						Id62: st.Key.ListRules,
+					}
+				case *schema_j5pb.KeyFormat_Uuid:
+					fkt = &list_j5pb.ForeignKeyRules_Uuid{
+						Uuid: st.Key.ListRules,
+					}
+				case *schema_j5pb.KeyFormat_Custom_:
+					fkt = &list_j5pb.ForeignKeyRules_UniqueString{
+						UniqueString: st.Key.ListRules,
+					}
+				default:
+					ww.errorf("unknown key format %T", st.Key.Format.Type)
+				}
+			}
+
+			ww.file.ensureImport(j5ListAnnotationsImport)
+			proto.SetExtension(desc.Options, list_j5pb.E_Field, &list_j5pb.FieldConstraint{
+				Type: &list_j5pb.FieldConstraint_String_{
+					String_: &list_j5pb.StringRules{
+						WellKnown: &list_j5pb.StringRules_ForeignKey{
+							ForeignKey: &list_j5pb.ForeignKeyRules{
+								Type: fkt,
+							},
+						},
+					},
+				},
+			})
+		}
+
 		stringRules := &validate.StringRules{}
 
 		if st.Key.Format != nil {
-			switch st.Key.Format.Type.(type) {
+			switch ff := st.Key.Format.Type.(type) {
 			case *schema_j5pb.KeyFormat_Uuid:
 				stringRules.WellKnown = &validate.StringRules_Uuid{
 					Uuid: true,
@@ -362,6 +405,12 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 
 			case *schema_j5pb.KeyFormat_Id62:
 				stringRules.Pattern = ptr(id62.PatternString)
+
+			case *schema_j5pb.KeyFormat_Custom_:
+				stringRules.Pattern = &ff.Custom.Pattern
+
+			case *schema_j5pb.KeyFormat_Informal_:
+
 			default:
 				ww.errorf("unknown key format %T", st.Key.Format.Type)
 				return nil

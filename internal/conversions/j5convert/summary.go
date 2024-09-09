@@ -32,10 +32,6 @@ type TypeRef struct {
 	// Oneof
 	*EnumRef
 	*MessageRef
-	*PartialField
-}
-
-type PartialField struct {
 }
 
 // SourceSummary collects the exports and imports for a file
@@ -205,15 +201,12 @@ func (cc *collector) file(node *sourcedef_j5pb.SourceFile) {
 			path := append(path, "entity")
 			cc.entity(path, st.Entity)
 
-		case *sourcedef_j5pb.RootElement_Partial:
-			switch rt := st.Partial.Type.(type) {
-			case *sourcedef_j5pb.Partial_Field_:
-				path := append(path, "partial", "field", "def")
-				cc.prop(path, rt.Field.Def)
-			}
+		case *sourcedef_j5pb.RootElement_Topic:
+			path := append(path, "topic")
+			cc.topic(path, st.Topic)
 
 		default:
-			cc.addErr(path, fmt.Errorf("AddRoot: Unknown %T", schema.Type))
+			cc.addErr(path, fmt.Errorf("Collector, file: Unknown %T", schema.Type))
 		}
 	}
 }
@@ -354,6 +347,29 @@ func (c *collector) method(path []string, method *sourcedef_j5pb.Method) {
 		for idx, prop := range method.Response.Properties {
 			path := append(path, "response", "properties", strconv.Itoa(idx))
 			c.prop(path, prop)
+		}
+	}
+}
+
+func (c *collector) topic(path []string, topic *sourcedef_j5pb.Topic) {
+	switch tt := topic.Type.Type.(type) {
+	case *sourcedef_j5pb.TopicType_Publish_:
+		for idx, msg := range tt.Publish.Messages {
+			path := append(path, "type", "publish", "messages", strconv.Itoa(idx))
+			for idx, prop := range msg.Fields {
+				path := append(path, "fields", strconv.Itoa(idx))
+				c.prop(path, prop)
+			}
+		}
+
+	case *sourcedef_j5pb.TopicType_Reqres:
+		for idx, msg := range tt.Reqres.Request.Fields {
+			path := append(path, "type", "reqres", "request", "fields", strconv.Itoa(idx))
+			c.prop(path, msg)
+		}
+		for idx, msg := range tt.Reqres.Reply.Fields {
+			path := append(path, "type", "reqres", "reply", "fields", strconv.Itoa(idx))
+			c.prop(path, msg)
 		}
 	}
 }

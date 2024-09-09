@@ -14,10 +14,9 @@ import (
 )
 
 func runGenProto(ctx context.Context, cfg struct {
-	Dir           string `flag:"dir" default:"." desc:"Root schema directory"`
-	Bundle        string `flag:"bundle" default:"" desc:"Bundle file"`
-	Verbose       bool   `flag:"verbose" env:"BCL_VERBOSE" default:"false" desc:"Verbose output"`
-	DebugProtoAST bool   `flag:"debug-proto-ast" default:"false" desc:"Print proto AST to output dir"`
+	Dir     string `flag:"dir" default:"." desc:"Root schema directory"`
+	Bundle  string `flag:"bundle" default:"" desc:"Bundle file"`
+	Verbose bool   `flag:"verbose" env:"BCL_VERBOSE" default:"false" desc:"Verbose output"`
 }) error {
 
 	outWriter := &fileWriter{dir: cfg.Dir}
@@ -40,6 +39,7 @@ func runGenProto(ctx context.Context, cfg struct {
 	packages := []string{}
 	for _, pkg := range bundleConfig.Packages {
 		packages = append(packages, pkg.Name)
+
 	}
 
 	localFiles := &fileReader{
@@ -126,13 +126,10 @@ func (rr *fileReader) ListSourceFiles(ctx context.Context, pkgName string) ([]st
 		if dirEntry.IsDir() {
 			return nil
 		}
-		if strings.HasSuffix(path, ".j5gen.proto") {
+		if strings.HasSuffix(path, ".j5s.proto") {
 			return nil
 		}
-		if strings.HasSuffix(path, ".proto") {
-			files = append(files, path)
-		}
-		if strings.HasSuffix(path, ".j5s") {
+		if strings.HasSuffix(path, ".proto") || strings.HasSuffix(path, ".j5s") {
 			files = append(files, path)
 		}
 		return nil

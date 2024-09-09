@@ -78,6 +78,7 @@ func (c *Compiler) FindFileByPath(filename string) (protocompile.SearchResult, e
 	if err != nil {
 		return protocompile.SearchResult{}, err
 	}
+
 	pkg, ok := c.Packages[pkgName]
 	if !ok {
 		return protocompile.SearchResult{}, fmt.Errorf("FindFileByPath: package %s not found", pkgName)
