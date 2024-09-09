@@ -20,7 +20,12 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 
+	// Pre Loaded Protos
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
+	_ "github.com/pentops/j5/gen/j5/client/v1/client_j5pb"
+	_ "github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
+	_ "github.com/pentops/j5/gen/j5/messaging/v1/messaging_j5pb"
+	_ "github.com/pentops/j5/gen/j5/state/v1/psm_j5pb"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	_ "google.golang.org/genproto/googleapis/api/httpbody"
 )
@@ -274,14 +279,27 @@ func readImageFromDir(ctx context.Context, bundleRoot fs.FS, dependencies Depend
 		},
 		LookupImport: func(filename string) (*desc.FileDescriptor, error) {
 			for _, prefix := range []string{
-				"google/protobuf/", "google/api/", "buf/validate/",
+				"google/protobuf/",
+				"google/api/",
+				"buf/validate/",
 				"j5/ext/v1/",
 				"j5/list/v1/",
+				"j5/source/v1/",
+				"j5/messaging/v1/",
+				"j5/state/v1/",
+				"j5/client/v1/",
 			} {
 				if strings.HasPrefix(filename, prefix) {
-					return desc.LoadFileDescriptor(filename)
+					ff, err := desc.LoadFileDescriptor(filename)
+					if err != nil {
+						fmt.Printf("%s ERROR in pre-loaded: %s\n", filename, err)
+						return nil, fmt.Errorf("loading pre-loaded file %q: %w", filename, err)
+					}
+					fmt.Printf("%s IS in pre-loaded\n", filename)
+					return ff, nil
 				}
 			}
+			fmt.Printf("%s not in pre-loaded\n", filename)
 			return nil, fmt.Errorf("could not find file %q", filename)
 
 		},
