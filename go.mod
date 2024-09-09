@@ -14,9 +14,9 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/jhump/protoreflect v1.16.0
-	github.com/pentops/bcl.go v0.0.0-20240909061525-9a90f22b460b
-	github.com/pentops/flowtest v0.0.0-20240823195451-08ebbdc5a426
-	github.com/pentops/j5 v0.0.0-20240909061159-a8593b7b0a7d
+	github.com/pentops/bcl.go v0.0.0-20240909062043-5c4283f3a19a
+	github.com/pentops/flowtest v0.0.0-20240909065422-e4f7f68d5fb0
+	github.com/pentops/j5 v0.0.0-20240909190937-06c90ca953a2
 	github.com/pentops/log.go v0.0.0-20240806161938-2742d05b4c24
 	github.com/pentops/prototools v0.0.0-20240907014927-91c94e982811
 	github.com/pentops/runner v0.0.0-20240806162317-0eb1ced9ab3d
@@ -92,5 +92,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.1 // indirect
 )
-
-replace github.com/pentops/j5 => /Users/daemonl/pentops/j5
