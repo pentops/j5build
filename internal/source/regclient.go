@@ -34,7 +34,10 @@ func NewRegistryClient(remote string, authToken string) (*registryClient, error)
 
 func envRegistryClient() (*registryClient, error) {
 	addr := os.Getenv("J5_REGISTRY")
-	token := os.Getenv("J5_REGISTRY_TOKEN")
+	if addr == "" {
+		return nil, fmt.Errorf("$J5_REGISTRY not set")
+	}
+	token := os.Getenv("J5_REGISTRY_TOKEN") // optional
 	return NewRegistryClient(addr, token)
 }
 
