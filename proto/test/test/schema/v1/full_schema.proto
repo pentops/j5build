@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package test.schema.v1;
+
+import "google/protobuf/timestamp.proto";
+import "j5/ext/v1/annotations.proto";
+
+option go_package = "github.com/pentops/j5build/gen/test/schema/v1/schema_testpb";
+
+message FullSchema {
+  string s_string = 1;
+  optional string o_string = 2;
+  repeated string r_string = 3;
+
+  float s_float = 4;
+  optional float o_float = 5;
+  repeated float r_float = 6;
+
+  google.protobuf.Timestamp ts = 7;
+  repeated google.protobuf.Timestamp r_ts = 8;
+
+  bool s_bool = 21;
+  optional bool o_bool = 22;
+  repeated bool r_bool = 23;
+
+  Bar s_bar = 9;
+  repeated Bar r_bars = 10;
+
+  Enum enum = 11;
+  repeated Enum r_enum = 12;
+
+  bytes s_bytes = 13;
+  repeated bytes r_bytes = 14;
+
+  map<string, string> map_string_string = 15;
+
+  oneof anon_oneof {
+    string a_oneof_string = 100;
+    Bar a_oneof_bar = 101;
+    float a_oneof_float = 102;
+    Enum a_oneof_enum = 103;
+  }
+
+  oneof exposed_oneof {
+    option (j5.ext.v1.oneof).expose = true;
+
+    string exposed_string = 200;
+  }
+
+  WrappedOneof wrapped_oneof = 16;
+
+  repeated WrappedOneof wrapped_oneofs = 17;
+
+  FlattenedMessage flattened = 18 [(j5.ext.v1.field).message.flatten = true];
+
+  NestedExposed nested_exposed_oneof = 19;
+
+  repeated NestedExposed nested_exposed_oneofs = 20;
+
+  ImplicitOneof s_implicit_oneof = 24;
+  repeated ImplicitOneof r_implicit_oneofs = 25;
+}
+
+message WrappedOneof {
+  option (j5.ext.v1.message).is_oneof_wrapper = true;
+
+  oneof type {
+    string w_oneof_string = 1;
+    Bar w_oneof_bar = 2;
+    float w_oneof_float = 3;
+    Enum w_oneof_enum = 4;
+  }
+}
+
+message ImplicitOneof {
+  oneof type {
+    Bar io_bar = 1;
+    Baz io_baz = 2;
+  }
+}
+
+message NestedExposed {
+  oneof type {
+    option (j5.ext.v1.oneof).expose = true;
+    string de1 = 101;
+    string de2 = 102;
+    NestedExposed de3 = 103;
+  }
+}
+
+enum Enum {
+  ENUM_UNSPECIFIED = 0;
+  ENUM_VALUE1 = 1;
+  ENUM_VALUE2 = 2;
+}
+
+message Bar {
+  string bar_id = 1;
+}
+
+message Baz {
+  string baz_id = 1;
+}
+
+message FlattenedMessage {
+  string field_from_flattened = 1;
+  string field_2_from_flattened = 2;
+}

@@ -1,0 +1,99 @@
+syntax = "proto3";
+
+package test.foo.v1.service;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/api/httpbody.proto";
+import "j5/ext/v1/annotations.proto";
+import "j5/list/v1/page.proto";
+import "j5/list/v1/query.proto";
+import "test/foo/v1/foo.proto";
+
+option go_package = "github.com/pentops/j5build/gen/test/foo/v1/foo_testspb";
+
+service FooQueryService {
+  option (j5.ext.v1.service).state_query.entity = "test.foo.v1/foo";
+  option (j5.ext.v1.service).default_auth.none = {};
+
+  rpc GetFoo(GetFooRequest) returns (GetFooResponse) {
+    option (google.api.http) = {get: "/test/v1/foo/{id}"};
+  }
+
+  rpc ListFoos(ListFoosRequest) returns (ListFoosResponse) {
+    option (j5.ext.v1.method).auth.jwt_bearer = {};
+    option (google.api.http) = {get: "/test/v1/foos"};
+  }
+
+  rpc ListFooEvents(ListFooEventsRequest) returns (ListFooEventsResponse) {
+    option (google.api.http) = {get: "/test/v1/foo/{id}/events"};
+  }
+}
+
+service FooCommandService {
+  option (j5.ext.v1.service).state_command = {entity: "test.foo.v1/foo"};
+  option (j5.ext.v1.service).default_auth.jwt_bearer = {};
+
+  rpc PostFoo(PostFooRequest) returns (PostFooResponse) {
+    option (google.api.http) = {
+      post: "/test/v1/foo"
+      body: "*"
+    };
+  }
+}
+
+service FooDownloadService {
+  rpc DownloadRaw(DownloadRawRequest) returns (google.api.HttpBody) {
+    option (google.api.http) = {get: "/test/v1/foo/{id}/raw"};
+  }
+}
+
+message GetFooRequest {
+  string id = 1;
+  int64 number = 2;
+
+  repeated float numbers = 3;
+
+  ABMessage ab = 4;
+  string multiple_word = 5;
+}
+
+message ABMessage {
+  string a = 1;
+  string b = 2;
+}
+
+message GetFooResponse {
+  test.foo.v1.FooState foo = 1;
+}
+
+message PostFooRequest {
+  string id = 1;
+}
+
+message PostFooResponse {
+  test.foo.v1.FooState foo = 1;
+}
+
+message ListFoosRequest {
+  j5.list.v1.PageRequest page = 100;
+  j5.list.v1.QueryRequest query = 101;
+}
+
+message ListFoosResponse {
+  repeated test.foo.v1.FooState foos = 1;
+}
+
+message ListFooEventsRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  j5.list.v1.PageRequest page = 100;
+  j5.list.v1.QueryRequest query = 101;
+}
+
+message ListFooEventsResponse {
+  repeated test.foo.v1.FooEvent events = 1;
+}
+
+message DownloadRawRequest {
+  string id = 1;
+}
