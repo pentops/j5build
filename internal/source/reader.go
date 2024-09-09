@@ -273,7 +273,11 @@ func readImageFromDir(ctx context.Context, bundleRoot fs.FS, dependencies Depend
 			}).Warn("protoparse warning")
 		},
 		LookupImport: func(filename string) (*desc.FileDescriptor, error) {
-			for _, prefix := range []string{"google/protobuf/", "google/api/", "buf/validate/"} {
+			for _, prefix := range []string{
+				"google/protobuf/", "google/api/", "buf/validate/",
+				"j5/ext/v1/",
+				"j5/list/v1/",
+			} {
 				if strings.HasPrefix(filename, prefix) {
 					return desc.LoadFileDescriptor(filename)
 				}
