@@ -164,7 +164,7 @@ func (rr *Request) ToJ5Proto() *client_j5pb.Method_Request {
 
 	var body *schema_j5pb.Object
 	if rr.Body != nil {
-		body = rr.Body.ToJ5Object()
+		body = rr.Body.ToJ5ClientObject()
 	}
 
 	return &client_j5pb.Method_Request{
@@ -201,7 +201,7 @@ func (mm *Method) ToJ5Proto() (*client_j5pb.Method, error) {
 		Auth:         mm.Auth,
 	}
 	if mm.ResponseBody != nil {
-		out.ResponseBody = mm.ResponseBody.ToJ5Object()
+		out.ResponseBody = mm.ResponseBody.ToJ5ClientObject()
 	}
 	return out, nil
 }
@@ -343,7 +343,7 @@ func collectPackageRefs(api *API) (map[string]*schemaRef, error) {
 		}
 		switch st := schema.(type) {
 		case *j5schema.ObjectSchema:
-			for _, prop := range st.Properties {
+			for _, prop := range st.ClientProperties() {
 				if err := walkRefs(prop.Schema); err != nil {
 					return fmt.Errorf("walk %s: %w", st.FullName(), err)
 				}

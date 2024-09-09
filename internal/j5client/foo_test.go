@@ -6,8 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/pentops/j5/gen/j5/auth/v1/auth_j5pb"
-	"github.com/pentops/j5/gen/j5/client/v1/client_j5pb"
+	"github.com/pentops/j5/gen/j5/list/v1/list_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5build/internal/source"
 	"github.com/pentops/j5build/internal/structure"
@@ -57,9 +56,16 @@ func TestFooSchema(t *testing.T) {
 	want := wantAPI().Packages[0]
 
 	got := clientAPI.Packages[0]
+
+	// test schemas separately.
+	schemas := got.Schemas
 	got.Schemas = nil
 
 	assertEqualProto(t, want, got)
+
+	gotFooState := schemas["FooState"]
+	wantFooState := wantFooState()
+	assertEqualProto(t, wantFooState, gotFooState)
 }
 
 func assertEqualProto(t *testing.T, want, got proto.Message) {
@@ -70,325 +76,128 @@ func assertEqualProto(t *testing.T, want, got proto.Message) {
 	}
 }
 
-func wantAPI() *client_j5pb.API {
+func tObjectRef(pkg, schema string) *schema_j5pb.Field {
+	return &schema_j5pb.Field{
+		Type: &schema_j5pb.Field_Object{
+			Object: &schema_j5pb.ObjectField{
+				Schema: &schema_j5pb.ObjectField_Ref{
+					Ref: &schema_j5pb.Ref{
+						Package: pkg,
+						Schema:  schema,
+					},
+				},
+			},
+		},
+	}
+}
 
-	objectRef := func(pkg, schema string) *schema_j5pb.Field {
-		return &schema_j5pb.Field{
-			Type: &schema_j5pb.Field_Object{
-				Object: &schema_j5pb.ObjectField{
-					Schema: &schema_j5pb.ObjectField_Ref{
-						Ref: &schema_j5pb.Ref{
-							Package: pkg,
-							Schema:  schema,
+func tArrayOf(of *schema_j5pb.Field) *schema_j5pb.Field {
+	return &schema_j5pb.Field{
+		Type: &schema_j5pb.Field_Array{
+			Array: &schema_j5pb.ArrayField{
+				Items: of,
+			},
+		},
+	}
+}
+
+func wantFooState() *schema_j5pb.RootSchema {
+
+	object := &schema_j5pb.Object{
+		Name: "FooState",
+		Entity: &schema_j5pb.EntityObject{
+			Entity: "foo",
+			Part:   schema_j5pb.EntityPart_STATE,
+		},
+		Properties: []*schema_j5pb.ObjectProperty{{
+			Name:       "fooId",
+			Required:   true,
+			ProtoField: []int32{1, 1}, // flattened
+			Schema: &schema_j5pb.Field{
+				Type: &schema_j5pb.Field_Key{
+					Key: &schema_j5pb.KeyField{
+						Ext: &schema_j5pb.KeyField_Ext{
+							PrimaryKey: true,
+						},
+						ListRules: &list_j5pb.KeyRules{
+							Filtering: &list_j5pb.FilteringConstraint{
+								Filterable: true,
+							},
+						},
+						Format: &schema_j5pb.KeyFormat{
+							Type: &schema_j5pb.KeyFormat_Uuid{
+								Uuid: &schema_j5pb.KeyFormat_UUID{},
+							},
 						},
 					},
 				},
 			},
-		}
-	}
-
-	array := func(of *schema_j5pb.Field) *schema_j5pb.Field {
-		return &schema_j5pb.Field{
-			Type: &schema_j5pb.Field_Array{
-				Array: &schema_j5pb.ArrayField{
-					Items: of,
-				},
-			},
-		}
-	}
-
-	authJWT := &auth_j5pb.MethodAuthType{
-		Type: &auth_j5pb.MethodAuthType_JwtBearer{
-			JwtBearer: &auth_j5pb.MethodAuthType_JWTBearer{},
-		},
-	}
-	authNone := &auth_j5pb.MethodAuthType{
-		Type: &auth_j5pb.MethodAuthType_None_{
-			None: &auth_j5pb.MethodAuthType_None{},
-		},
-	}
-
-	getFoo := &client_j5pb.Method{
-		Name:         "GetFoo",
-		Auth:         authNone,
-		FullGrpcName: "/test.foo.v1.FooQueryService/GetFoo",
-		HttpMethod:   client_j5pb.HTTPMethod_GET,
-		HttpPath:     "/test/v1/foo/:id",
-		Request: &client_j5pb.Method_Request{
-			PathParameters: []*schema_j5pb.ObjectProperty{{
-				Name:       "id",
-				ProtoField: []int32{1},
-				Required:   true,
-				Schema: &schema_j5pb.Field{
-					Type: &schema_j5pb.Field_String_{
-						String_: &schema_j5pb.StringField{},
-					},
-				},
-			}},
-			QueryParameters: []*schema_j5pb.ObjectProperty{{
-				Name:       "number",
-				ProtoField: []int32{2},
-				Schema: &schema_j5pb.Field{
-					Type: &schema_j5pb.Field_Integer{
-						Integer: &schema_j5pb.IntegerField{
-							Format: schema_j5pb.IntegerField_FORMAT_INT64,
+		}, {
+			Name:       "status",
+			Required:   true,
+			ProtoField: []int32{2},
+			Schema: &schema_j5pb.Field{
+				Type: &schema_j5pb.Field_Enum{
+					Enum: &schema_j5pb.EnumField{
+						Schema: &schema_j5pb.EnumField_Ref{
+							Ref: &schema_j5pb.Ref{
+								Package: "test.foo.v1",
+								Schema:  "FooStatus",
+							},
 						},
-					},
-				},
-			}, {
-				Name:       "numbers",
-				ProtoField: []int32{3},
-				Schema: &schema_j5pb.Field{
-					Type: &schema_j5pb.Field_Array{
-						Array: &schema_j5pb.ArrayField{
-							Items: &schema_j5pb.Field{
-								Type: &schema_j5pb.Field_Float{
-									Float: &schema_j5pb.FloatField{
-										Format: schema_j5pb.FloatField_FORMAT_FLOAT32,
-									},
+						ListRules: &list_j5pb.EnumRules{
+							Filtering: &list_j5pb.FilteringConstraint{
+								Filterable: true,
+								DefaultFilters: []string{
+									"ACTIVE",
 								},
 							},
 						},
 					},
 				},
-			}, {
-				Name:       "ab",
-				ProtoField: []int32{4},
-				Schema: &schema_j5pb.Field{
-					Type: &schema_j5pb.Field_Object{
-						Object: &schema_j5pb.ObjectField{
-							Schema: &schema_j5pb.ObjectField_Ref{
-								Ref: &schema_j5pb.Ref{
-									Package: "test.foo.v1.service",
-									Schema:  "ABMessage",
-								},
+			},
+		}, {
+			Name:       "name",
+			ProtoField: []int32{3},
+			Schema: &schema_j5pb.Field{
+				Type: &schema_j5pb.Field_String_{
+					String_: &schema_j5pb.StringField{
+						ListRules: &list_j5pb.OpenTextRules{
+							Searching: &list_j5pb.SearchingConstraint{
+								Searchable: true,
 							},
 						},
 					},
 				},
-			}, {
-				Name:       "multipleWord",
-				ProtoField: []int32{5},
-				Schema: &schema_j5pb.Field{
-					Type: &schema_j5pb.Field_String_{
-						String_: &schema_j5pb.StringField{},
-					},
-				},
-			}},
-		},
-		ResponseBody: &schema_j5pb.Object{
-			Name: "GetFooResponse",
-			Properties: []*schema_j5pb.ObjectProperty{{
-				Name:       "foo",
-				ProtoField: []int32{1},
-				Schema:     objectRef("test.foo.v1", "FooState"),
-			}},
-		},
-	}
-
-	listFoos := &client_j5pb.Method{
-		Name:         "ListFoos",
-		Auth:         authJWT,
-		FullGrpcName: "/test.foo.v1.FooQueryService/ListFoos",
-		HttpMethod:   client_j5pb.HTTPMethod_GET,
-
-		HttpPath: "/test/v1/foos",
-		Request: &client_j5pb.Method_Request{
-			QueryParameters: []*schema_j5pb.ObjectProperty{{
-				Name:       "page",
-				ProtoField: []int32{100},
-				Schema:     objectRef("j5.list.v1", "PageRequest"),
-			}, {
-				Name:       "query",
-				ProtoField: []int32{101},
-				Schema:     objectRef("j5.list.v1", "QueryRequest"),
-			}},
-			List: &client_j5pb.ListRequest{
-				SearchableFields: []*client_j5pb.ListRequest_SearchField{{
-					Name: "name",
-				}, {
-					Name: "bar.field",
-				}},
-				SortableFields: []*client_j5pb.ListRequest_SortField{{
-					Name: "createdAt",
-				}},
-				FilterableFields: []*client_j5pb.ListRequest_FilterField{{
-					Name:           "status",
-					DefaultFilters: []string{"ACTIVE"},
-				}, {
-					Name: "bar.id",
-				}, {
-					Name: "createdAt",
-				}},
 			},
-		},
-		ResponseBody: &schema_j5pb.Object{
-			Name: "ListFoosResponse",
-			Properties: []*schema_j5pb.ObjectProperty{{
-				Name:       "foos",
-				ProtoField: []int32{1},
-				Schema:     array(objectRef("test.foo.v1", "FooState")),
-			}},
-		},
-	}
-
-	listFooEvents := &client_j5pb.Method{
-		Name:         "ListFooEvents",
-		Auth:         authNone,
-		FullGrpcName: "/test.foo.v1.FooQueryService/ListFooEvents",
-		HttpMethod:   client_j5pb.HTTPMethod_GET,
-		HttpPath:     "/test/v1/foo/:id/events",
-		Request: &client_j5pb.Method_Request{
-			PathParameters: []*schema_j5pb.ObjectProperty{{
-				Name:       "id",
-				ProtoField: []int32{1},
-				Required:   true,
-				Schema: &schema_j5pb.Field{
-					Type: &schema_j5pb.Field_Key{
-						Key: &schema_j5pb.KeyField{
-							Ext: &schema_j5pb.KeyField_Ext{},
-							Format: &schema_j5pb.KeyFormat{
-								Type: &schema_j5pb.KeyFormat_Uuid{
-									Uuid: &schema_j5pb.KeyFormat_UUID{},
-								},
+		}, {
+			Name:       "bar",
+			ProtoField: []int32{4},
+			Schema:     tObjectRef("test.foo.v1", "Bar"),
+		}, {
+			Name:       "createdAt",
+			ProtoField: []int32{5},
+			Schema: &schema_j5pb.Field{
+				Type: &schema_j5pb.Field_Timestamp{
+					Timestamp: &schema_j5pb.TimestampField{
+						ListRules: &list_j5pb.TimestampRules{
+							Sorting: &list_j5pb.SortingConstraint{
+								Sortable: true,
+							},
+							Filtering: &list_j5pb.FilteringConstraint{
+								Filterable: true,
 							},
 						},
 					},
 				},
-			}},
-			QueryParameters: []*schema_j5pb.ObjectProperty{{
-				Name:       "page",
-				ProtoField: []int32{100},
-				Schema:     objectRef("j5.list.v1", "PageRequest"),
-			}, {
-				Name:       "query",
-				ProtoField: []int32{101},
-				Schema: &schema_j5pb.Field{
-					Type: &schema_j5pb.Field_Object{
-						Object: &schema_j5pb.ObjectField{
-							Schema: &schema_j5pb.ObjectField_Ref{
-								Ref: &schema_j5pb.Ref{
-									Package: "j5.list.v1",
-									Schema:  "QueryRequest",
-								},
-							},
-						},
-					},
-				},
-			}},
-			List: &client_j5pb.ListRequest{
-				// empty object because it is a list, but no fields.
 			},
-		},
-		ResponseBody: &schema_j5pb.Object{
-			Name: "ListFooEventsResponse",
-			Properties: []*schema_j5pb.ObjectProperty{{
-				Name:       "events",
-				ProtoField: []int32{1},
-				Schema:     array(objectRef("test.foo.v1", "FooEvent")),
-			}},
-		},
-	}
-
-	fooQueryService := &client_j5pb.Service{
-		Name: "FooQueryService",
-		Methods: []*client_j5pb.Method{
-			getFoo,
-			listFoos,
-			listFooEvents,
-		},
-	}
-
-	postFoo := &client_j5pb.Method{
-		Name:         "PostFoo",
-		Auth:         authJWT,
-		FullGrpcName: "/test.foo.v1.FooCommandService/PostFoo",
-		HttpMethod:   client_j5pb.HTTPMethod_POST,
-		HttpPath:     "/test/v1/foo",
-		Request: &client_j5pb.Method_Request{
-			Body: &schema_j5pb.Object{
-				Name: "PostFooRequest",
-				Properties: []*schema_j5pb.ObjectProperty{{
-					Name:       "id",
-					ProtoField: []int32{1},
-					Schema: &schema_j5pb.Field{
-						Type: &schema_j5pb.Field_String_{
-							String_: &schema_j5pb.StringField{},
-						},
-					},
-				}},
-			},
-		},
-		ResponseBody: &schema_j5pb.Object{
-			Name: "PostFooResponse",
-			Properties: []*schema_j5pb.ObjectProperty{{
-				Name:       "foo",
-				ProtoField: []int32{1},
-				Schema:     objectRef("test.foo.v1", "FooState"),
-			}},
-		},
-	}
-
-	fooCommandService := &client_j5pb.Service{
-		Name: "FooCommandService",
-		Methods: []*client_j5pb.Method{
-			postFoo,
-		},
-	}
-
-	downloadFoo := &client_j5pb.Method{
-		Name:         "DownloadRaw",
-		FullGrpcName: "/test.foo.v1.FooDownloadService/DownloadRaw",
-		HttpMethod:   client_j5pb.HTTPMethod_GET,
-		HttpPath:     "/test/v1/foo/:id/raw",
-		Request: &client_j5pb.Method_Request{
-			PathParameters: []*schema_j5pb.ObjectProperty{{
-				Name:       "id",
-				ProtoField: []int32{1},
-				Required:   true,
-				Schema: &schema_j5pb.Field{
-					Type: &schema_j5pb.Field_String_{
-						String_: &schema_j5pb.StringField{},
-					},
-				},
-			}},
-		},
-		ResponseBody: nil,
-	}
-
-	fooDownloadService := &client_j5pb.Service{
-		Name: "FooDownloadService",
-		Methods: []*client_j5pb.Method{
-			downloadFoo,
-		},
-	}
-
-	return &client_j5pb.API{
-		Packages: []*client_j5pb.Package{{
-			Name: "test.foo.v1",
-
-			Services: []*client_j5pb.Service{
-				fooDownloadService,
-			},
-			StateEntities: []*client_j5pb.StateEntity{{
-				Name:         "foo",
-				FullName:     "test.foo.v1/foo",
-				SchemaName:   "test.foo.v1.FooState",
-				PrimaryKey:   []string{"fooId"},
-				QueryService: fooQueryService,
-				CommandServices: []*client_j5pb.Service{
-					fooCommandService,
-				},
-				Events: []*client_j5pb.StateEvent{{
-					Name:        "created",
-					FullName:    "test.foo.v1/foo.created",
-					Description: "Comment on Created",
-				}, {
-					Name:        "updated",
-					FullName:    "test.foo.v1/foo.updated",
-					Description: "Comment on Updated",
-				}},
-			}},
 		}},
 	}
+
+	return &schema_j5pb.RootSchema{
+		Type: &schema_j5pb.RootSchema_Object{
+			Object: object,
+		},
+	}
+
 }

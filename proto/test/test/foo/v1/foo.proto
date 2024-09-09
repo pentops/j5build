@@ -12,11 +12,16 @@ option go_package = "github.com/pentops/j5build/gen/test/foo/v1/foo_testpb";
 message FooKeys {
   option (j5.ext.v1.psm).entity_name = "foo";
 
-  string foo_id = 1 [(j5.ext.v1.key).primary_key = true];
+  string foo_id = 1 [
+    (j5.ext.v1.key).primary_key = true,
+    (buf.validate.field).required = true,
+    (j5.list.v1.field).string.foreign_key.uuid.filtering.filterable = true
+  ];
 }
 
 message FooState {
   FooKeys keys = 1 [(j5.ext.v1.field).message.flatten = true];
+
   FooStatus status = 2 [
     (buf.validate.field).required = true,
     (j5.list.v1.field).enum.filtering = {

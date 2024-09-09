@@ -124,15 +124,10 @@ github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8
 github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3IKzErnv2BNG4W4MAM=
 github.com/opencontainers/image-spec v1.1.0 h1:8SG7/vwALn54lVB/0yZ/MMwhFrPYtpEHQb2IpWsCzug=
 github.com/opencontainers/image-spec v1.1.0/go.mod h1:W4s4sFTMaBeK1BQLXbG4AdM2szdn85PY75RI83NrTrM=
-github.com/pentops/bcl.go v0.0.0-20240907194123-48e81a87f6d5/go.mod h1:yjv7zZInB6m/2nMj/LStftzn+o7Ai2T5m7Xyojyfyag=
 github.com/pentops/bcl.go v0.0.0-20240909061525-9a90f22b460b h1:zyL8YKWwp7DlbhHtNgI9PDT3faqunOPfWabBj/LOl6s=
 github.com/pentops/bcl.go v0.0.0-20240909061525-9a90f22b460b/go.mod h1:caTrAC14mT71Sse3yeiCi2P2h36+s2/jvaP6Wn9pX1Q=
 github.com/pentops/flowtest v0.0.0-20240823195451-08ebbdc5a426 h1:yQb3sZa5m9F88ZMXvBVstvelglCiKPnSjaNcQiO/yYE=
 github.com/pentops/flowtest v0.0.0-20240823195451-08ebbdc5a426/go.mod h1:klQLA1IXCIN8mQoQ9uq6TSxHyamObeIlJ51YT165KeE=
-github.com/pentops/j5 v0.0.0-20240908030522-880e44f44019 h1:B6UCH3OhJ/6N9dtWiDlnOONAI9J7LzQMinGE28s+uic=
-github.com/pentops/j5 v0.0.0-20240908030522-880e44f44019/go.mod h1:TfcbghEBxW4dI9pxLtiLGBknyujhay0iFU/NhRiW/jY=
-github.com/pentops/j5 v0.0.0-20240909061159-a8593b7b0a7d h1:f577oozsNFHK1je7UsgduChW5PnlwAwg/kf8r1O1XjA=
-github.com/pentops/j5 v0.0.0-20240909061159-a8593b7b0a7d/go.mod h1:TfcbghEBxW4dI9pxLtiLGBknyujhay0iFU/NhRiW/jY=
 github.com/pentops/log.go v0.0.0-20240806161938-2742d05b4c24 h1:PzCwWkSWY7GO8fS7RQ9F0ZOE6PuaY27mh6ApaXLBMJI=
 github.com/pentops/log.go v0.0.0-20240806161938-2742d05b4c24/go.mod h1:Rx5b9QWbqb3gOMBILxQYMberRKvarMa8R5PxF/ejJeU=
 github.com/pentops/prototools v0.0.0-20240907014927-91c94e982811 h1:6AmLEHE0742OA8t1TogqB2qOEplvxwd9jCmM2fOFFOo=
