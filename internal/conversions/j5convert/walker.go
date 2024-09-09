@@ -481,7 +481,7 @@ func (ww *walkNode) doUpsertTopic(name string, schema *sourcedef_j5pb.TopicType_
 	reqDesc := &descriptorpb.ServiceDescriptorProto{
 		Name: ptr(name + "Topic"),
 		Method: []*descriptorpb.MethodDescriptorProto{{
-			Name:       ptr(name + "Request"),
+			Name:       ptr(name),
 			OutputType: ptr(googleProtoEmptyType),
 			InputType:  ptr(reqObj.Name),
 		}},

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/pentops/j5/gen/j5/config/v1/config_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
@@ -46,28 +45,6 @@ func runVerify(ctx context.Context, cfg struct {
 		sourceAPI, err := structure.APIFromImage(img)
 		if err != nil {
 			return fmt.Errorf("Source API From Image: %w", err)
-		}
-
-		walkOK := true
-		walkAPI(sourceAPI, &Callback{
-			ObjectProperty: func(path []string, prop *schema_j5pb.ObjectProperty) {
-				if prop.Name == "programId" {
-					asKey := prop.Schema.GetKey()
-					if asKey == nil {
-						fmt.Printf("%s programId is not a key\n", strings.Join(path, "."))
-						walkOK = false
-					} else {
-						if asKey.Format.GetId62() == nil {
-							fmt.Printf("%s programId is not id62\n", strings.Join(path, "."))
-							walkOK = false
-						}
-					}
-
-				}
-			},
-		})
-		if !walkOK {
-			return fmt.Errorf("walkAPI failed")
 		}
 
 		clientAPI, err := j5client.APIFromSource(sourceAPI)
@@ -239,6 +216,7 @@ type Callback struct {
 	Oneof          func([]string, *schema_j5pb.Oneof)
 }
 
+/*
 type vetWalker struct {
 	callback Callback
 }
@@ -308,4 +286,4 @@ func (ww *vetWalker) vetObjectProperty(prop *schema_j5pb.ObjectProperty, path []
 			ww.vetOneof(of, append(path, "schema", "oneof", "oneof"))
 		}
 	}
-}
+}*/
