@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/pentops/j5/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
 )
 
@@ -33,10 +34,30 @@ const (
 )
 
 type Tag struct {
-	Path     []string
-	BangPath []string
+	Path         []string
+	BangPath     []string
+	QuestionPath []string
 
-	IsBlock bool
+	IsOptional bool
+	IsBlock    bool
+}
+
+func convertTag(tag *bcl_j5pb.Tag) *Tag {
+	if tag == nil {
+		return nil
+	}
+	tt := &Tag{
+		Path:    tag.Path.Path,
+		IsBlock: tag.IsBlock,
+	}
+	if tag.BangBool != nil {
+		tt.BangPath = tag.BangBool.Path
+	}
+	if tag.QuestionBool != nil {
+		tt.QuestionPath = tag.QuestionBool.Path
+	}
+	tt.IsOptional = tag.Optional
+	return tt
 }
 
 func (t *Tag) Validate(tagType TagType) error {

@@ -229,8 +229,16 @@ func (sv StringValue) IsScalar() bool {
 	return true
 }
 
+type TagMark int
+
+const (
+	TagMarkNone TagMark = iota
+	TagMarkBang
+	TagMarkQuestion
+)
+
 type TagValue struct {
-	Bang      bool
+	Mark      TagMark
 	Reference *Reference
 	Value     *Value
 	unknownValue

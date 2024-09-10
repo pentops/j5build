@@ -28,20 +28,6 @@ type SchemaSet struct {
 	cachedSpecs map[string]*BlockSpec
 }
 
-func convertTag(tag *bcl_j5pb.Tag) *Tag {
-	if tag == nil {
-		return nil
-	}
-	tt := &Tag{
-		Path:    tag.Path.Path,
-		IsBlock: tag.IsBlock,
-	}
-	if tag.BangBool != nil {
-		tt.BangPath = tag.BangBool.Path
-	}
-	return tt
-}
-
 func convertBlocks(given []*bcl_j5pb.Block) (map[string]*BlockSpec, error) {
 	givenBlocks := map[string]*BlockSpec{}
 	for _, src := range given {
@@ -143,6 +129,9 @@ func (ss *SchemaSet) _buildSpec(node j5reflect.PropertySet) (*BlockSpec, error) 
 			if name == "name" && blockSpec.Name == nil {
 				blockSpec.Name = &Tag{
 					Path: []string{"name"},
+				}
+				if schema.ExplicitlyOptional {
+					blockSpec.Name.IsOptional = true
 				}
 			}
 			if name == "description" && len(blockSpec.Description) == 0 {

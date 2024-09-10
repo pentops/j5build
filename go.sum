@@ -26,10 +26,10 @@ github.com/mattn/go-colorable v0.1.13/go.mod h1:7S9/ev0klgBDR4GtXTXX8a3vIGJpMovk
 github.com/mattn/go-isatty v0.0.16/go.mod h1:kYGgaQfpe5nmfYZH+SKPsOc2e4SrIfOl2e/yFXSvRLM=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
-github.com/pentops/flowtest v0.0.0-20240823195451-08ebbdc5a426 h1:yQb3sZa5m9F88ZMXvBVstvelglCiKPnSjaNcQiO/yYE=
-github.com/pentops/flowtest v0.0.0-20240823195451-08ebbdc5a426/go.mod h1:klQLA1IXCIN8mQoQ9uq6TSxHyamObeIlJ51YT165KeE=
-github.com/pentops/j5 v0.0.0-20240909061159-a8593b7b0a7d h1:f577oozsNFHK1je7UsgduChW5PnlwAwg/kf8r1O1XjA=
-github.com/pentops/j5 v0.0.0-20240909061159-a8593b7b0a7d/go.mod h1:TfcbghEBxW4dI9pxLtiLGBknyujhay0iFU/NhRiW/jY=
+github.com/pentops/flowtest v0.0.0-20240909065422-e4f7f68d5fb0 h1:kuYCj1r2e8aVbavjgZtpOBCgL/3Oblw84AnoT36xX0Q=
+github.com/pentops/flowtest v0.0.0-20240909065422-e4f7f68d5fb0/go.mod h1:klQLA1IXCIN8mQoQ9uq6TSxHyamObeIlJ51YT165KeE=
+github.com/pentops/j5 v0.0.0-20240910233011-c5a4d2033d7c h1:WVCB1pMMMmrgNdSIg0jwE6AfBRybmYSvaCuH2gOCQ3U=
+github.com/pentops/j5 v0.0.0-20240910233011-c5a4d2033d7c/go.mod h1:vrc+pX4lwysUtTN9dJ1bZCkM+Vs6p88hmRyeUaBo/8M=
 github.com/pentops/log.go v0.0.0-20240806161938-2742d05b4c24 h1:PzCwWkSWY7GO8fS7RQ9F0ZOE6PuaY27mh6ApaXLBMJI=
 github.com/pentops/log.go v0.0.0-20240806161938-2742d05b4c24/go.mod h1:Rx5b9QWbqb3gOMBILxQYMberRKvarMa8R5PxF/ejJeU=
 github.com/pentops/runner v0.0.0-20240806162317-0eb1ced9ab3d h1:ZKnjzU/tXEIH3lmcEhOcpRzUjE8l6/KQ3QhFLjD8Yk4=

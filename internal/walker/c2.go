@@ -142,14 +142,24 @@ func doBlock(sc Context, spec schema.BlockSpec, bs *ast.Block) error {
 }
 
 func checkBang(sc Context, tagSpec schema.Tag, gotTag ast.TagValue) error {
-	if !gotTag.Bang {
+	if gotTag.Mark == ast.TagMarkNone {
 		return nil
 	}
-	if tagSpec.BangPath == nil {
-		return sc.WrapErr(fmt.Errorf("tag %s does not support bang", tagSpec.Path), gotTag)
+	var path schema.PathSpec
+	if gotTag.Mark == ast.TagMarkBang {
+		if tagSpec.BangPath == nil {
+			return sc.WrapErr(fmt.Errorf("tag %s does not support bang", tagSpec.Path), gotTag)
+		}
+		path = tagSpec.BangPath
+	} else if gotTag.Mark == ast.TagMarkQuestion {
+		if tagSpec.QuestionPath == nil {
+			return sc.WrapErr(fmt.Errorf("tag %s does not support question", tagSpec.Path), gotTag)
+		}
+		path = tagSpec.QuestionPath
 	}
-	sc.Logf("Applying Bang tag, %#v %s", tagSpec, gotTag)
-	err := sc.SetAttribute(tagSpec.BangPath, nil, ast.NewBoolValue(true, gotTag.Start))
+
+	sc.Logf("Applying Tag Mark, %#v %s", tagSpec, gotTag)
+	err := sc.SetAttribute(path, nil, ast.NewBoolValue(true, gotTag.Start))
 	if err != nil {
 		return err
 	}
@@ -161,6 +171,9 @@ func walkTags(sc Context, spec schema.BlockSpec, gotTags popSet, outerCallback S
 	if spec.Name != nil {
 		gotTag, ok := gotTags.popFirst()
 		if !ok {
+			if spec.Name.IsOptional {
+				return outerCallback(sc, spec)
+			}
 			err := &ErrExpectedTag{
 				Label:  "name",
 				Schema: spec.ErrName(),
@@ -213,8 +226,8 @@ func walkTags(sc Context, spec schema.BlockSpec, gotTags popSet, outerCallback S
 
 	if gotTags.hasMore() {
 		for _, tag := range gotTags.items {
-			if tag.Bang {
-				return sc.WrapErr(fmt.Errorf("unexpected bang tag"), tag)
+			if tag.Mark != ast.TagMarkNone {
+				return sc.WrapErr(fmt.Errorf("unexpected tag mark"), tag)
 			}
 		}
 		if spec.ScalarSplit != nil {

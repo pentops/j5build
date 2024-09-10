@@ -6,7 +6,7 @@ require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240717164558-a6c49f84cc0f.2
 	github.com/bufbuild/protovalidate-go v0.6.5
 	github.com/iancoleman/strcase v0.3.0
-	github.com/pentops/j5 v0.0.0-20240909061159-a8593b7b0a7d
+	github.com/pentops/j5 v0.0.0-20240910233011-c5a4d2033d7c
 	github.com/pentops/runner v0.0.0-20240806162317-0eb1ced9ab3d
 	github.com/sourcegraph/jsonrpc2 v0.2.0
 	google.golang.org/protobuf v1.34.2

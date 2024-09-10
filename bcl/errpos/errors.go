@@ -266,8 +266,8 @@ func AddFilename(err error, filename string) error {
 		return nil
 	}
 
-	existing := &Err{}
-	if errors.As(err, &existing) {
+	asErrors, ok := AsErrors(err)
+	if !ok {
 		return &Err{
 			Pos: &Position{
 				Filename: &filename,
@@ -276,13 +276,14 @@ func AddFilename(err error, filename string) error {
 		}
 	}
 
-	if existing.Pos == nil {
-		existing.Pos = &Position{
-			Filename: &filename,
+	for _, existing := range asErrors {
+		if existing.Pos == nil {
+			existing.Pos = &Position{
+				Filename: &filename,
+			}
+		} else {
+			existing.Pos.Filename = &filename
 		}
-		return existing
 	}
-
-	existing.Pos.Filename = &filename
-	return existing
+	return asErrors
 }
