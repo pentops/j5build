@@ -11,6 +11,7 @@ import (
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
+	"google.golang.org/protobuf/proto"
 )
 
 func (ww *walkNode) doEntity(src *sourcedef_j5pb.Entity) {
@@ -117,6 +118,7 @@ func mapEntitySource(root *bcl_j5pb.SourceLocation) {
 }
 
 func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
+	entity = proto.Clone(entity).(*sourcedef_j5pb.Entity)
 
 	name := strcase.ToSnake(entity.Name)
 
@@ -246,15 +248,26 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 
 	commands := entity.Commands
 	for _, service := range commands {
-		if service.Name == "" {
-			service.Name = fmt.Sprintf("%sCommand", name)
-			if service.BasePath == "" {
-				service.BasePath = fmt.Sprintf("/%s/c", name)
+		var serviceName string
+		var servicePath string
+
+		if service.Name != nil {
+			serviceName = *service.Name
+			if !strings.HasSuffix(serviceName, "Command") {
+				serviceName += "Command"
 			}
+		} else {
+			serviceName = fmt.Sprintf("%sCommand", strcase.ToCamel(name))
 		}
-		if !strings.HasSuffix(service.Name, "Command") {
-			service.Name += "Command"
+
+		if service.BasePath != nil {
+			servicePath = fmt.Sprintf("%s%s", entity.BaseUrlPath, *service.BasePath)
+		} else {
+			servicePath = fmt.Sprintf("/%s/c", entity.BaseUrlPath)
 		}
+
+		service.BasePath = &servicePath
+		service.Name = &serviceName
 
 		service.Options = &ext_j5pb.ServiceOptions{
 			Type: &ext_j5pb.ServiceOptions_StateCommand_{
@@ -272,14 +285,14 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 		if kk == nil {
 			continue
 		}
-		if kk.Ext != nil && kk.Ext.PrimaryKey {
+		if kk.Entity != nil && kk.Entity.GetPrimaryKey() {
 			primaryKeys = append(primaryKeys, key)
 			httpPath = append(httpPath, fmt.Sprintf(":%s", key.Name))
 		}
 	}
 	query := &sourcedef_j5pb.Service{
-		BasePath: fmt.Sprintf("/%s/q", name),
-		Name:     fmt.Sprintf("%sQuery", strcase.ToCamel(name)),
+		BasePath: ptr(fmt.Sprintf("/%s/q", entity.BaseUrlPath)),
+		Name:     ptr(fmt.Sprintf("%sQuery", strcase.ToCamel(name))),
 		Methods: []*sourcedef_j5pb.Method{{
 			Name: fmt.Sprintf("%sGet", strcase.ToCamel(name)),
 			Request: &sourcedef_j5pb.AnonymousObject{

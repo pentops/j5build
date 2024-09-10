@@ -137,7 +137,7 @@ func (fb *Root) AddImports(spec ...*sourcedef_j5pb.Import) error {
 
 func (fb *Root) resolveTypeNoImport(specifiedAs string, schemaName string) (*TypeRef, error) {
 	thisPackage := fb.packageName
-	if specifiedAs == "" {
+	if specifiedAs == "" || specifiedAs == thisPackage {
 		typeRef, err := fb.deps.ResolveType(thisPackage, schemaName)
 		if err != nil {
 			return nil, fmt.Errorf("self import: %w", err)

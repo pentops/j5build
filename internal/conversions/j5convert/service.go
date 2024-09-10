@@ -48,8 +48,16 @@ func blankMethod(name string) *MethodBuilder {
 func (ww *walkNode) doService(spec *sourcedef_j5pb.Service) {
 	serviceWalker := ww.subPackageFile("service")
 
-	service := blankService(serviceWalker.file, spec.Name+"Service")
-	service.basePath = spec.BasePath
+	if spec.Name == nil {
+		ww.errorf("missing service name")
+		return
+	}
+
+	service := blankService(serviceWalker.file, *spec.Name+"Service")
+	service.basePath = ""
+	if spec.BasePath != nil {
+		service.basePath = *spec.BasePath
+	}
 
 	for idx, method := range spec.Methods {
 		serviceWalker.at("methods", fmt.Sprint(idx)).doMethod(service, method)
