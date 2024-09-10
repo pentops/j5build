@@ -98,9 +98,9 @@ func (c *sourceLink) getSource(path []string) *bcl_j5pb.SourceLocation {
 			if part != "<virtual>" {
 				didSee := path[:idx]
 				after := path[idx:]
-				log.Printf("no location at %q for %q have %q", didSee, after, keys(loc.Children))
+				log.Printf("no location at %q for %q have %q", strings.Join(didSee, "."), after, keys(loc.Children))
 			}
-			return nil
+			return loc // last known
 		}
 		loc = next
 	}

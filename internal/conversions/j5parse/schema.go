@@ -46,6 +46,10 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 			Path:    bclPath("format"),
 			IsBlock: true,
 		},
+		Children: []*bcl_j5pb.Child{{
+			Name: "primary",
+			Path: bclPath("entity", "primaryKey"),
+		}},
 	}, {
 		SchemaName: "j5.schema.v1.IntegerField",
 		Qualifier: &bcl_j5pb.Tag{
@@ -54,8 +58,9 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 	}, {
 		SchemaName: "j5.schema.v1.Field",
 		TypeSelect: &bcl_j5pb.Tag{
-			Path:     bclPath(),
-			BangBool: bclPath("required"),
+			Path:         bclPath(),
+			BangBool:     bclPath("required"),
+			QuestionBool: bclPath("optional"),
 		},
 	}, {
 		SchemaName: "j5.schema.v1.ObjectProperty",
@@ -63,8 +68,9 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 			Path: bclPath("name"),
 		},
 		TypeSelect: &bcl_j5pb.Tag{
-			Path:     bclPath("schema"),
-			BangBool: bclPath("required"),
+			Path:         bclPath("schema"),
+			BangBool:     bclPath("required"),
+			QuestionBool: bclPath("optional"),
 		},
 		Children: []*bcl_j5pb.Child{{
 			Name: "optional",

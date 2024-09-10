@@ -340,12 +340,15 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum()
 		ww.file.ensureImport(j5ExtImport)
 
-		if st.Key.Ext != nil {
-			if st.Key.Ext.PrimaryKey {
-				proto.SetExtension(desc.Options, ext_j5pb.E_Key, &ext_j5pb.PSMKeyFieldOptions{
-					PrimaryKey: true,
-				})
+		if st.Key.Entity != nil {
+			entityExt := &ext_j5pb.PSMKeyFieldOptions{}
+			switch et := st.Key.Entity.Type.(type) {
+			case *schema_j5pb.EntityKey_PrimaryKey:
+				entityExt.PrimaryKey = true
+			case *schema_j5pb.EntityKey_ForeignKey:
+				entityExt.ForeignKey = et.ForeignKey
 			}
+			proto.SetExtension(desc.Options, ext_j5pb.E_Key, entityExt)
 		}
 
 		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{

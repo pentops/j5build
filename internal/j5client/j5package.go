@@ -248,7 +248,7 @@ func (entity *StateEntity) ToJ5Proto() (*client_j5pb.StateEntity, error) {
 			continue
 		}
 
-		if keyField.Ext.PrimaryKey {
+		if keyField.Entity != nil && keyField.Entity.GetPrimaryKey() {
 			primaryKeys = append(primaryKeys, prop.JSONName)
 		}
 	}

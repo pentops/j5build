@@ -170,7 +170,7 @@ func (ww *walkNode) error(err error) {
 	if loc != nil {
 		err = errpos.AddPosition(err, *loc)
 	}
-	log.Printf("error at %s: %v", ww.path, err)
+	log.Printf("walker error at %s: %v", strings.Join(ww.path, "."), err)
 	ww.root.addError(err)
 }
 
@@ -317,6 +317,13 @@ func (ww *walkNode) doProperty(msg *MessageBuilder, prop *schema_j5pb.ObjectProp
 		desc.OneofIndex = ptr(int32(0))
 	}
 
+	if ext := proto.GetExtension(desc.Options, ext_j5pb.E_Key).(*ext_j5pb.PSMKeyFieldOptions); ext != nil {
+		if ext.PrimaryKey {
+			// even if not explicitly set, a primary key is required, we son't support partial primary keys.
+			prop.Required = true
+		}
+	}
+
 	if prop.Required {
 		ext := proto.GetExtension(desc.Options, validate.E_Field).(*validate.FieldConstraints)
 		if ext == nil {
@@ -329,6 +336,9 @@ func (ww *walkNode) doProperty(msg *MessageBuilder, prop *schema_j5pb.ObjectProp
 	}
 
 	if prop.ExplicitlyOptional {
+		if prop.Required {
+			ww.errorf("cannot be both required and optional")
+		}
 		desc.Proto3Optional = ptr(true)
 	}
 

@@ -124,6 +124,7 @@ var ignoreUnusedWarning = map[string]struct{}{
 	"google/api/annotations.proto":      {},
 	"j5/ext/v1/annotations.proto":       {},
 	"j5/messaging/v1/annotations.proto": {},
+	"j5/list/v1/annotations.proto":      {},
 }
 
 func hasAPrefix(s string, prefixes []string) bool {
