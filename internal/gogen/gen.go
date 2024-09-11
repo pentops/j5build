@@ -516,8 +516,14 @@ func (bb *builder) addQueryMethod(gen *GeneratedFile, req *builtRequest) error {
 
 		switch fieldType := field.Property.Schema.Type.(type) {
 
-		case *schema_j5pb.Field_Bool,
-			*schema_j5pb.Field_String_,
+		case *schema_j5pb.Field_Bool:
+			// TODO: we need to figure out more around bools with optional and omitemtpy.
+			// For the moment it at least appears like bools are implicitly optional but not a pointer.
+			accessor := "s." + field.Name
+			accessor = queryMethod.ImportPath("fmt") + ".Sprintf(\"%v\", " + accessor + ")"
+			queryMethod.P("  values.Set(\"", field.Property.Name, "\", ", accessor, ")")
+
+		case *schema_j5pb.Field_String_,
 			*schema_j5pb.Field_Key,
 			*schema_j5pb.Field_Timestamp:
 			accessor := "s." + field.Name
@@ -526,8 +532,6 @@ func (bb *builder) addQueryMethod(gen *GeneratedFile, req *builtRequest) error {
 			}
 
 			switch fieldType.(type) {
-			case *schema_j5pb.Field_Bool:
-				accessor = queryMethod.ImportPath("fmt") + ".Sprintf(\"%v\", " + accessor + ")"
 			case *schema_j5pb.Field_Timestamp:
 				accessor = accessor + ".String()"
 
