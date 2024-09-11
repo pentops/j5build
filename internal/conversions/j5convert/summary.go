@@ -376,11 +376,6 @@ func (c *collector) topic(path []string, topic *sourcedef_j5pb.Topic) {
 
 func (c *collector) entity(path []string, entity *sourcedef_j5pb.Entity) {
 
-	es := c.source.getSource(path)
-	if es != nil {
-		mapEntitySource(es)
-	}
-
 	converted := convertEntity(entity)
 	c.object(append(path, "_keys"), converted.keys, nil)
 	c.object(append(path, "_data"), converted.data, nil)

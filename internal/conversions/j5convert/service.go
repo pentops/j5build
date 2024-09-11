@@ -1,7 +1,6 @@
 package j5convert
 
 import (
-	"fmt"
 	"path"
 	"strings"
 
@@ -9,7 +8,7 @@ import (
 	"github.com/pentops/j5/gen/j5/client/v1/client_j5pb"
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
-	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
+	"github.com/pentops/j5build/internal/sourcewalk"
 	"google.golang.org/genproto/googleapis/api/annotations"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
@@ -45,11 +44,30 @@ func blankMethod(name string) *MethodBuilder {
 	}
 }
 
-func (ww *walkNode) doService(spec *sourcedef_j5pb.Service) {
+func convertService(ww *walkContext, sn *sourcewalk.ServiceFileNode) {
+
+	sn.Accept(sourcewalk.ServiceFileCallbacks{
+		Service: func(sn *sourcewalk.ServiceNode) {
+			convertServiceNode(ww, sn)
+		},
+		Object: func(on *sourcewalk.ObjectNode) {
+			convertObject(ww, on)
+		},
+	})
+}
+
+func convertServiceNode(ww *walkContext, sn *sourcewalk.ServiceNode) {
+
+	spec := sn.Schema
+	if spec.Name == nil {
+		ww.errorf(sn.Source, "missing service name")
+		return
+	}
+
 	serviceWalker := ww.subPackageFile("service")
 
 	if spec.Name == nil {
-		ww.errorf("missing service name")
+		ww.errorf(sn.Source, "missing service name")
 		return
 	}
 
@@ -59,8 +77,8 @@ func (ww *walkNode) doService(spec *sourcedef_j5pb.Service) {
 		service.basePath = *spec.BasePath
 	}
 
-	for idx, method := range spec.Methods {
-		serviceWalker.at("methods", fmt.Sprint(idx)).doMethod(service, method)
+	for _, method := range sn.Methods {
+		convertMethod(ww, service, method)
 	}
 
 	if spec.Options != nil {
@@ -69,34 +87,26 @@ func (ww *walkNode) doService(spec *sourcedef_j5pb.Service) {
 	}
 
 	serviceWalker.file.addService(service)
+
 }
 
-func (ww *walkNode) doMethod(service *ServiceBuilder, method *sourcedef_j5pb.Method) {
+func convertMethod(ww *walkContext, service *ServiceBuilder, node *sourcewalk.ServiceMethodNode) {
+
+	method := node.Schema
 	methodBuilder := blankMethod(method.Name)
 	methodBuilder.comment([]int32{}, method.Description)
 	ww.file.ensureImport(googleApiAnnotationsImport)
 
 	if method.Request == nil {
-		ww.errorf("missing input")
+		ww.errorf(node.Source, "missing input")
 		return
 	}
-	methodBuilder.desc.InputType = ptr(fmt.Sprintf("%sRequest", method.Name))
-	request := &schema_j5pb.Object{
-		Name:       fmt.Sprintf("%sRequest", method.Name),
-		Properties: method.Request.Properties,
-	}
-	ww.at("request").doObject(request)
 
-	if method.Response == nil {
+	methodBuilder.desc.InputType = ptr(node.InputType)
+	methodBuilder.desc.OutputType = ptr(node.OutputType)
+
+	if node.OutputType == "google.api.HttpBody" {
 		ww.file.ensureImport(googleApiHttpBodyImport)
-		methodBuilder.desc.OutputType = ptr("google.api.HttpBody")
-	} else {
-		methodBuilder.desc.OutputType = ptr(fmt.Sprintf("%sResponse", method.Name))
-		response := &schema_j5pb.Object{
-			Name:       fmt.Sprintf("%sResponse", method.Name),
-			Properties: method.Response.Properties,
-		}
-		ww.at("response").doObject(response)
 	}
 
 	annotation := &annotations.HttpRule{}
@@ -104,14 +114,14 @@ func (ww *walkNode) doMethod(service *ServiceBuilder, method *sourcedef_j5pb.Met
 	for idx, part := range reqPathParts {
 		if strings.HasPrefix(part, ":") {
 			var field *schema_j5pb.ObjectProperty
-			for _, search := range request.Properties {
+			for _, search := range method.Request.Properties {
 				if search.Name == part[1:] {
 					field = search
 					break
 				}
 			}
 			if field == nil {
-				ww.errorf("missing field %s in request", part[1:])
+				ww.errorf(node.Source, "missing field %s in request", part[1:])
 			}
 
 			fieldName := strcase.ToSnake(part[1:])
@@ -152,7 +162,7 @@ func (ww *walkNode) doMethod(service *ServiceBuilder, method *sourcedef_j5pb.Met
 		annotation.Body = "*"
 
 	default:
-		ww.errorf("unsupported http method %s", method.HttpMethod)
+		ww.errorf(node.Source, "unsupported http method %s", method.HttpMethod)
 		return
 	}
 

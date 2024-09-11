@@ -1,17 +1,66 @@
 package j5convert
 
 import (
+	"errors"
+	"fmt"
+
 	"buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
+	"github.com/iancoleman/strcase"
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	"github.com/pentops/j5/gen/j5/list/v1/list_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/lib/id62"
+	"github.com/pentops/j5build/internal/sourcewalk"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDescriptorProto {
+func buildProperty(ww *walkContext, node *sourcewalk.PropertyNode) (*descriptorpb.FieldDescriptorProto, error) {
+
+	if node.Schema.Schema == nil {
+		return nil, fmt.Errorf("missing schema")
+	}
+
+	desc, err := buildField(ww, node.Schema.Schema)
+	if err != nil {
+		return nil, err
+	}
+
+	required := node.Schema.Required
+	if ext := proto.GetExtension(desc.Options, ext_j5pb.E_Key).(*ext_j5pb.PSMKeyFieldOptions); ext != nil {
+		if ext.PrimaryKey {
+			// even if not explicitly set, a primary key is required, we don't support partial primary keys.
+			required = true
+		}
+	}
+
+	if required {
+		ext := proto.GetExtension(desc.Options, validate.E_Field).(*validate.FieldConstraints)
+		if ext == nil {
+			ext = &validate.FieldConstraints{}
+		}
+		ww.file.ensureImport(bufValidateImport)
+		ext.Required = true
+		proto.SetExtension(desc.Options, validate.E_Field, ext)
+		ww.file.ensureImport(j5ExtImport)
+	}
+
+	if node.Schema.ExplicitlyOptional {
+		if required {
+			return nil, fmt.Errorf("cannot be both required and optional")
+		}
+		desc.Proto3Optional = ptr(true)
+	}
+
+	protoFieldName := strcase.ToSnake(node.Schema.Name)
+	desc.Name = ptr(protoFieldName)
+	desc.JsonName = ptr(node.Schema.Name)
+	desc.Number = ptr(node.Number)
+	return desc, nil
+}
+
+func buildField(ww *walkContext, schema *schema_j5pb.Field) (*descriptorpb.FieldDescriptorProto, error) {
 
 	desc := &descriptorpb.FieldDescriptorProto{
 		Options: &descriptorpb.FieldOptions{},
@@ -19,10 +68,8 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 
 	switch st := schema.Type.(type) {
 	case *schema_j5pb.Field_Map:
-		ww := ww.at("map")
 		if st.Map.ItemSchema == nil {
-			ww.errorf("missing map item schema")
-			return nil
+			return nil, errors.New("missing map item schema")
 		}
 
 		desc.Label = descriptorpb.FieldDescriptorProto_LABEL_REPEATED.Enum()
@@ -31,16 +78,14 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 		panic("Map not implemented")
 
 	case *schema_j5pb.Field_Array:
-		ww := ww.at("array")
 
 		if st.Array.Items == nil {
-			ww.errorf("missing array items")
-			return nil
+			return nil, errors.New("missing array items")
 		}
 
-		desc := ww.at("items").buildField(st.Array.Items)
-		if desc == nil {
-			return nil
+		desc, err := buildField(ww, st.Array.Items)
+		if err != nil {
+			return nil, err
 		}
 
 		desc.Label = descriptorpb.FieldDescriptorProto_LABEL_REPEATED.Enum()
@@ -71,33 +116,24 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 			ww.file.ensureImport(bufValidateImport)
 		}
 
-		return desc
+		return desc, nil
 
 	case *schema_j5pb.Field_Object:
-		ww := ww.at("object")
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
 
-		switch where := st.Object.Schema.(type) {
-		case *schema_j5pb.ObjectField_Ref:
-			typeRef, err := ww.resolveType(where.Ref.Package, where.Ref.Schema)
-			if err != nil {
-				ww.at("ref").error(err)
-				return nil
-			}
+		ref := st.Object.GetRef()
+		if ref == nil {
+			return nil, errors.New("missing object ref")
+		}
 
-			desc.TypeName = typeRef.protoTypeName()
-			if typeRef.MessageRef == nil {
-				ww.at("ref").errorf("type %s is not a message (for oneof)", *desc.TypeName)
-				return nil
-			}
+		typeRef, err := ww.resolveType(ref.Package, ref.Schema)
+		if err != nil {
+			return nil, err
+		}
 
-			//msgRef = typeRef.MessageRef
-		case *schema_j5pb.ObjectField_Object:
-			// object is inline
-
-			ww.at("object").doObject(where.Object)
-			desc.TypeName = ptr(where.Object.Name)
-
+		desc.TypeName = typeRef.protoTypeName()
+		if typeRef.MessageRef == nil {
+			return nil, fmt.Errorf("type %s is not a message (for object)", *desc.TypeName)
 		}
 
 		if st.Object.Flatten {
@@ -116,34 +152,25 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 			rules := &validate.FieldConstraints{}
 			proto.SetExtension(desc.Options, validate.E_Field, rules)
 			ww.file.ensureImport(bufValidateImport)
-			ww.errorf("TODO: object rules not implemented")
 		}
 
-		return desc
+		return desc, nil
 
 	case *schema_j5pb.Field_Oneof:
-		ww := ww.at("oneof")
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
-		//var msgRef *MessageRef
 
-		switch where := st.Oneof.Schema.(type) {
-		case *schema_j5pb.OneofField_Ref:
-			typeRef, err := ww.resolveType(where.Ref.Package, where.Ref.Schema)
-			if err != nil {
-				ww.at("ref").error(err)
-				return nil
-			}
-			desc.TypeName = typeRef.protoTypeName()
-			if typeRef.MessageRef == nil {
-				ww.errorf("type %s is not a message (for oneof)", *desc.TypeName)
-			}
-			//msgRef = typeRef.MessageRef
+		ref := st.Oneof.GetRef()
+		if ref == nil {
+			return nil, errors.New("missing oneof ref")
+		}
 
-		case *schema_j5pb.OneofField_Oneof:
-			// oneof is inline
-
-			ww.at("oneof").doOneof(where.Oneof)
-			desc.TypeName = ptr(where.Oneof.Name)
+		typeRef, err := ww.resolveType(ref.Package, ref.Schema)
+		if err != nil {
+			return nil, err
+		}
+		desc.TypeName = typeRef.protoTypeName()
+		if typeRef.MessageRef == nil {
+			return nil, fmt.Errorf("type %s is not a message (for oneof)", *desc.TypeName)
 		}
 
 		ww.setJ5Ext(desc.Options, "oneof", st.Oneof.Ext)
@@ -152,53 +179,42 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 			rules := &validate.FieldConstraints{}
 			proto.SetExtension(desc.Options, validate.E_Field, rules)
 			ww.file.ensureImport(bufValidateImport)
-			ww.errorf("TODO: oneof rules not implemented")
-			return nil
 		}
-		return desc
+		return desc, nil
 
 	case *schema_j5pb.Field_Enum:
-		ww := ww.at("enum")
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_ENUM.Enum()
 		var enumRef *EnumRef
-		switch where := st.Enum.Schema.(type) {
 
-		case *schema_j5pb.EnumField_Ref:
-			typeRef, err := ww.resolveType(where.Ref.Package, where.Ref.Schema)
-			if err != nil {
-				ww.at("ref").error(err)
-				return nil
-			}
-			desc.TypeName = typeRef.protoTypeName()
-			if typeRef.EnumRef == nil {
-				ww.errorf("type %s is not an enum", *desc.TypeName)
-				return nil
-			}
-			enumRef = typeRef.EnumRef
-
-		case *schema_j5pb.EnumField_Enum:
-			// enum is inline
-			ww.at("enum").doEnum(where.Enum)
-			desc.TypeName = ptr(where.Enum.Name)
+		ref := st.Enum.GetRef()
+		if ref == nil {
+			return nil, errors.New("missing enum ref")
 		}
+
+		typeRef, err := ww.resolveType(ref.Package, ref.Schema)
+		if err != nil {
+			return nil, err
+		}
+		desc.TypeName = typeRef.protoTypeName()
+		if typeRef.EnumRef == nil {
+			return nil, fmt.Errorf("type %s is not an enum", *desc.TypeName)
+		}
+		enumRef = typeRef.EnumRef
 
 		ww.setJ5Ext(desc.Options, "enum", st.Enum.Ext)
 
 		enumRules := &validate.EnumRules{
 			DefinedOnly: ptr(true),
 		}
-		var err error
 
 		if st.Enum.Rules != nil {
 			enumRules.In, err = enumRef.mapValues(st.Enum.Rules.In)
 			if err != nil {
-				ww.error(err)
-				return nil
+				return nil, err
 			}
 			enumRules.NotIn, err = enumRef.mapValues(st.Enum.Rules.NotIn)
 			if err != nil {
-				ww.error(err)
-				return nil
+				return nil, err
 			}
 		}
 
@@ -208,10 +224,9 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 			},
 		}
 		proto.SetExtension(desc.Options, validate.E_Field, rules)
-		return desc
+		return desc, nil
 
 	case *schema_j5pb.Field_Bool:
-		//ww := ww.at("bool")
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_BOOL.Enum()
 
 		ww.setJ5Ext(desc.Options, "bool", st.Bool.Ext)
@@ -226,10 +241,9 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 			}
 			proto.SetExtension(desc.Options, validate.E_Field, rules)
 		}
-		return desc
+		return desc, nil
 
 	case *schema_j5pb.Field_Bytes:
-		//ww := ww.at("bytes")
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_BYTES.Enum()
 
 		ww.setJ5Ext(desc.Options, "bytes", st.Bytes.Ext)
@@ -245,32 +259,29 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 			}
 			proto.SetExtension(desc.Options, validate.E_Field, rules)
 		}
-		return desc
+		return desc, nil
 
 	case *schema_j5pb.Field_Date:
-		ww := ww.at("date")
 		ww.file.ensureImport(j5DateImport)
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
 		desc.TypeName = ptr(".j5.types.date.v1.Date")
 
 		ww.setJ5Ext(desc.Options, "date", st.Date.Ext)
 
-		return desc
+		return desc, nil
 
 	case *schema_j5pb.Field_Decimal:
-		ww := ww.at("decimal")
 		ww.file.ensureImport(j5DecimalImport)
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
 		desc.TypeName = ptr(".j5.types.decimal.v1.Decimal")
 
 		ww.setJ5Ext(desc.Options, "decimal", st.Decimal.Ext)
 
-		return desc
+		return desc, nil
 
 	case *schema_j5pb.Field_Float:
-		ww := ww.at("float")
 		if st.Float.Rules != nil {
-			ww.errorf("TODO: float rules not implemented")
+			return nil, fmt.Errorf("TODO: float rules not implemented")
 		}
 		switch st.Float.Format {
 		case schema_j5pb.FloatField_FORMAT_FLOAT32:
@@ -279,18 +290,16 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 		case schema_j5pb.FloatField_FORMAT_FLOAT64:
 			desc.Type = descriptorpb.FieldDescriptorProto_TYPE_DOUBLE.Enum()
 		default:
-			ww.errorf("unknown float format %T", st.Float.Format)
-			return nil
+			return nil, fmt.Errorf("unknown float format %T", st.Float.Format)
 		}
 
 		ww.setJ5Ext(desc.Options, "float", st.Float.Ext)
 
-		return desc
+		return desc, nil
 
 	case *schema_j5pb.Field_Integer:
-		ww := ww.at("integer")
 		if st.Integer.Rules != nil {
-			ww.errorf("TODO: integer rules not implemented")
+			return nil, fmt.Errorf("TODO: integer rules not implemented")
 		}
 		switch st.Integer.Format {
 		case schema_j5pb.IntegerField_FORMAT_INT32:
@@ -302,16 +311,14 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 		case schema_j5pb.IntegerField_FORMAT_UINT64:
 			desc.Type = descriptorpb.FieldDescriptorProto_TYPE_UINT64.Enum()
 		default:
-			ww.errorf("unknown integer format %v", st.Integer.Format)
-			return nil
+			return nil, fmt.Errorf("unknown integer format %v", st.Integer.Format)
 		}
 
 		ww.setJ5Ext(desc.Options, "integer", st.Integer.Ext)
 
-		return desc
+		return desc, nil
 
 	case *schema_j5pb.Field_Key:
-		ww := ww.at("key")
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum()
 		ww.file.ensureImport(j5ExtImport)
 
@@ -352,7 +359,7 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 						UniqueString: st.Key.ListRules,
 					}
 				default:
-					ww.errorf("unknown key format %T", st.Key.Format.Type)
+					return nil, fmt.Errorf("unknown key format %T", st.Key.Format.Type)
 				}
 			}
 
@@ -388,8 +395,7 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 			case *schema_j5pb.KeyFormat_Informal_:
 
 			default:
-				ww.errorf("unknown key format %T", st.Key.Format.Type)
-				return nil
+				return nil, fmt.Errorf("unknown key format %T", st.Key.Format.Type)
 			}
 			ww.file.ensureImport(bufValidateImport)
 			proto.SetExtension(desc.Options, validate.E_Field, &validate.FieldConstraints{
@@ -399,10 +405,9 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 			})
 
 		}
-		return desc
+		return desc, nil
 
 	case *schema_j5pb.Field_String_:
-		//ww := ww.at("string")
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum()
 
 		ww.setJ5Ext(desc.Options, "string", st.String_.Ext)
@@ -419,10 +424,9 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 			}
 			proto.SetExtension(desc.Options, validate.E_Field, rules)
 		}
-		return desc
+		return desc, nil
 
 	case *schema_j5pb.Field_Timestamp:
-		ww := ww.at("timestamp")
 
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
 		desc.TypeName = ptr(".google.protobuf.Timestamp")
@@ -440,7 +444,7 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 			proto.SetExtension(desc.Options, validate.E_Field, rules)
 		}
 
-		return desc
+		return desc, nil
 	case *schema_j5pb.Field_Any:
 
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
@@ -451,17 +455,16 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 				Type: &ext_j5pb.FieldOptions_Any{},
 			})*/
 
-		return desc
+		return desc, nil
 	default:
-		ww.errorf("unknown schema type %T", schema.Type)
-		return nil
+		return nil, fmt.Errorf("unknown schema type %T", schema.Type)
 	}
 
 }
 
 // Copies the J5 extension object to the equivalent protoreflect extension type
 // by field names.
-func (ww *walkNode) setJ5Ext(dest *descriptorpb.FieldOptions, fieldType protoreflect.Name, j5Ext proto.Message) {
+func (ww *walkContext) setJ5Ext(dest *descriptorpb.FieldOptions, fieldType protoreflect.Name, j5Ext proto.Message) error {
 
 	// Options in the *proto* representation.
 	extOptions := &ext_j5pb.FieldOptions{}
@@ -472,14 +475,12 @@ func (ww *walkNode) setJ5Ext(dest *descriptorpb.FieldOptions, fieldType protoref
 
 	typeField := extOptionsRefl.Descriptor().Fields().ByName(fieldType)
 	if typeField == nil {
-		ww.errorf("Field %s does not have a type field", fieldType)
-		return
+		return fmt.Errorf("Field %s does not have a type field", fieldType)
 	}
 
 	extTypedRefl := extOptionsRefl.Mutable(typeField).Message()
 	if extTypedRefl == nil {
-		ww.errorf("Field %s type field is not a message", fieldType)
-		return
+		return fmt.Errorf("Field %s type field is not a message", fieldType)
 	}
 
 	// The J5 extension should already be typed. It should have the same fields
@@ -489,24 +490,36 @@ func (ww *walkNode) setJ5Ext(dest *descriptorpb.FieldOptions, fieldType protoref
 		j5ExtFields := j5ExtRefl.Descriptor().Fields()
 
 		// Copy each field from the J5 extension to the Proto extension.
-		extTypedRefl.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		err := RangeField(j5ExtRefl, func(fd protoreflect.FieldDescriptor, v protoreflect.Value) error {
 			destField := j5ExtFields.ByName(fd.Name())
 			if destField == nil {
-				ww.errorf("No equivalent for %s in %s", fd.FullName(), j5ExtRefl.Descriptor().FullName())
-				return false
+				return fmt.Errorf("No equivalent for %s in %s", fd.FullName(), j5ExtRefl.Descriptor().FullName())
 			}
 
 			if destField.Kind() != fd.Kind() {
-				ww.errorf("Field %s has different kind in %s", fd.FullName(), j5ExtRefl.Descriptor().FullName())
+				return fmt.Errorf("Field %s has different kind in %s", fd.FullName(), j5ExtRefl.Descriptor().FullName())
 			}
 
 			extTypedRefl.Set(fd, j5ExtRefl.Get(destField))
-			return true
+			return nil
 		})
+		if err != nil {
+			return err
+		}
 	}
 
 	ww.file.ensureImport(j5ExtImport)
 	// Set the extension, even if no fields were set, as this indicates the J5
 	// type.
 	proto.SetExtension(dest, ext_j5pb.E_Field, extOptions)
+	return nil
+}
+
+func RangeField(pt protoreflect.Message, f func(protoreflect.FieldDescriptor, protoreflect.Value) error) error {
+	var err error
+	pt.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		err = f(fd, v)
+		return err == nil
+	})
+	return err
 }

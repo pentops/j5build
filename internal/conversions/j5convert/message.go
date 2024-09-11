@@ -1,14 +1,11 @@
 package j5convert
 
 import (
-	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
 type MessageBuilder struct {
 	root       fileContext
-	isOneof    bool
 	descriptor *descriptorpb.DescriptorProto
 	commentSet
 }
@@ -22,15 +19,6 @@ func blankMessage(root fileContext, name string) *MessageBuilder {
 		},
 	}
 
-	return message
-}
-
-func blankOneof(root fileContext, name string) *MessageBuilder {
-	message := blankMessage(root, name)
-	message.isOneof = true
-	proto.SetExtension(message.descriptor.Options, ext_j5pb.E_Message, &ext_j5pb.MessageOptions{
-		IsOneofWrapper: true,
-	})
 	return message
 }
 
