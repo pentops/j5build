@@ -19,12 +19,8 @@ func TestFooSchema(t *testing.T) {
 
 	ctx := context.Background()
 	rootFS := os.DirFS("../../")
-	envResolver, err := source.NewEnvResolver()
-	if err != nil {
-		t.Fatalf("NewEnvResolver: %v", err)
-	}
 
-	thisRoot, err := source.NewFSSource(ctx, rootFS, envResolver)
+	thisRoot, err := source.NewFSSource(ctx, rootFS, nil)
 	if err != nil {
 		t.Fatalf("ReadLocalSource: %v", err)
 	}
