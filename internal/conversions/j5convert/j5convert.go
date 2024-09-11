@@ -44,7 +44,7 @@ func ConvertJ5File(deps Package, source *sourcedef_j5pb.SourceFile) ([]*descript
 		return nil, err
 	}
 
-	walker := &walkNode{
+	walker := &walkContext{
 		root:          root,
 		file:          file,
 		parentContext: file,

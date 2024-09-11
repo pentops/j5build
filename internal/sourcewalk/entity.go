@@ -1,7 +1,8 @@
-package j5convert
+package sourcewalk
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/iancoleman/strcase"
@@ -12,17 +13,9 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type entitySchemas struct {
-	name      string
-	keys      *schema_j5pb.Object
-	data      *schema_j5pb.Object
-	status    *schema_j5pb.Enum
-	state     *schema_j5pb.Object
-	event     *schema_j5pb.Object
-	eventType *sourcedef_j5pb.Oneof
-
-	commands []*sourcedef_j5pb.Service
-	query    *sourcedef_j5pb.Service
+type entityNode struct {
+	Source SourceNode
+	Schema *sourcedef_j5pb.Entity
 }
 
 func schemaRefField(pkg, desc string) *schema_j5pb.Field {
@@ -40,8 +33,11 @@ func schemaRefField(pkg, desc string) *schema_j5pb.Field {
 	}
 }
 
-func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
-	entity = proto.Clone(entity).(*sourcedef_j5pb.Entity)
+// run converts the entity into lower level schema elements and calls the
+// visitors on those.
+func (ent *entityNode) run(visitor FileVisitor) {
+
+	entity := proto.Clone(ent.Schema).(*sourcedef_j5pb.Entity)
 
 	name := strcase.ToSnake(entity.Name)
 
@@ -53,6 +49,14 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 		},
 		Properties: entity.Keys,
 	}
+
+	visitor.VisitObject(&ObjectNode{
+		Schema: keys,
+		objectLikeNode: objectLikeNode{
+			properties: mapProperties(ent.Source.child("keys"), keys.Properties),
+			Source:     ent.Source,
+		},
+	})
 
 	data := &schema_j5pb.Object{
 		Name: strcase.ToCamel(entity.Name + "Data"),
@@ -109,6 +113,14 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 			},
 		}},
 	}
+
+	visitor.VisitObject(&ObjectNode{
+		Schema: state,
+		objectLikeNode: objectLikeNode{
+			properties: mapProperties(ent.Source.maybeChild("_state"), state.Properties),
+			Source:     ent.Source,
+		},
+	})
 
 	eventOneof := &schema_j5pb.Oneof{
 		Name:       strcase.ToCamel(entity.Name + "EventType"),
@@ -322,44 +334,56 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 		},
 	}
 
-	/*
-		message ListAccountEventsRequest {
-		  string account_id = 1 [(buf.validate.field).string.uuid = true];
+	visitor.VisitObject(&ObjectNode{
+		Schema: data,
+		objectLikeNode: objectLikeNode{
+			properties: mapProperties(ent.Source.child("data"), data.Properties),
+			Source:     ent.Source,
+		},
+	})
 
-		  j5.list.v1.PageRequest page = 100;
-		  j5.list.v1.QueryRequest query = 101;
-		}
+	visitor.VisitEnum(&EnumNode{
+		Schema: status,
+		Source: ent.Source,
+	})
 
-		message ListAccountEventsResponse {
-		  repeated interxfi.registration.v1.AccountEvent events = 2 [(buf.validate.field).repeated = {
-		    min_items: 1
-		    max_items: 20
-		  }];
+	visitor.VisitOneof(&OneofNode{
+		Schema: eventOneof,
+		objectLikeNode: objectLikeNode{
+			properties: mapProperties(ent.Source.maybeChild("_event_type"), eventOneof.Properties),
+			Source:     ent.Source.maybeChild("_even_type"),
+		},
+	})
 
-		  j5.list.v1.PageResponse page = 100;
-		}
+	visitor.VisitObject(&ObjectNode{
+		Schema: eventObject,
+		objectLikeNode: objectLikeNode{
+			properties: mapProperties(ent.Source.maybeChild("_event"), eventObject.Properties),
+			Source:     ent.Source,
+		},
+	})
 
-		message ListAccountsRequest {
-		  j5.list.v1.PageRequest page = 100;
-		  j5.list.v1.QueryRequest query = 101;
-		}
+	services := make([]*serviceRef, 0)
 
-		message ListAccountsResponse {
-		  repeated interxfi.registration.v1.AccountState accounts = 1 [(buf.validate.field).repeated = {
-		    min_items: 1
-		    max_items: 20
-		  }];
-		  j5.list.v1.PageResponse page = 100;
-		}*/
-	return &entitySchemas{
-		name:      name,
-		keys:      keys,
-		data:      data,
-		status:    status,
-		state:     state,
-		event:     eventObject,
-		eventType: eventParent,
-		commands:  commands,
-		query:     query,
+	for idx, service := range commands {
+		source := ent.Source.child("commands", strconv.Itoa(idx))
+		services = append(services, &serviceRef{
+			schema: service,
+			source: source,
+		})
 	}
+
+	services = append(services, &serviceRef{
+		schema: query,
+		source: ent.Source.maybeChild("_query"),
+	})
+
+	visitor.VisitServiceFile(&ServiceFileNode{
+		services: services,
+	})
+
+}
+
+func ptr[T any](v T) *T {
+	return &v
 }
