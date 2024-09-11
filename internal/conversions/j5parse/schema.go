@@ -22,6 +22,14 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 			RemainderField: bclPath("package"),
 		},
 	}, {
+		SchemaName: "j5.schema.v1.EntityRef",
+		ScalarSplit: &bcl_j5pb.ScalarSplit{
+			Delimiter:      ptr("."),
+			RightToLeft:    true,
+			RequiredFields: []*bcl_j5pb.Path{bclPath("entity")},
+			RemainderField: bclPath("package"),
+		},
+	}, {
 		SchemaName: "j5.sourcedef.v1.Import",
 		Name: &bcl_j5pb.Tag{
 			Path: bclPath("path"),
@@ -49,6 +57,9 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 		Children: []*bcl_j5pb.Child{{
 			Name: "primary",
 			Path: bclPath("entity", "primaryKey"),
+		}, {
+			Name: "foreign",
+			Path: bclPath("entity", "foreignKey"),
 		}},
 	}, {
 		SchemaName: "j5.schema.v1.IntegerField",
