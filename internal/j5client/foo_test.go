@@ -116,12 +116,36 @@ func wantFooState() *schema_j5pb.RootSchema {
 			Schema: &schema_j5pb.Field{
 				Type: &schema_j5pb.Field_Key{
 					Key: &schema_j5pb.KeyField{
-						Ext: &schema_j5pb.KeyField_Ext{
-							PrimaryKey: true,
+						Entity: &schema_j5pb.EntityKey{
+							Type: &schema_j5pb.EntityKey_PrimaryKey{
+								PrimaryKey: true,
+							},
 						},
 						ListRules: &list_j5pb.KeyRules{
 							Filtering: &list_j5pb.FilteringConstraint{
 								Filterable: true,
+							},
+						},
+						Format: &schema_j5pb.KeyFormat{
+							Type: &schema_j5pb.KeyFormat_Uuid{
+								Uuid: &schema_j5pb.KeyFormat_UUID{},
+							},
+						},
+					},
+				},
+			},
+		}, {
+			Name:       "barId",
+			ProtoField: []int32{1, 2}, // flattened
+			Schema: &schema_j5pb.Field{
+				Type: &schema_j5pb.Field_Key{
+					Key: &schema_j5pb.KeyField{
+						Entity: &schema_j5pb.EntityKey{
+							Type: &schema_j5pb.EntityKey_ForeignKey{
+								ForeignKey: &schema_j5pb.EntityRef{
+									Package: "test.foo.v1",
+									Entity:  "bar",
+								},
 							},
 						},
 						Format: &schema_j5pb.KeyFormat{

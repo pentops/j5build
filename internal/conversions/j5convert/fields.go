@@ -7,6 +7,7 @@ import (
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/lib/id62"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -44,11 +45,17 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 
 		desc.Label = descriptorpb.FieldDescriptorProto_LABEL_REPEATED.Enum()
 
-		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
-			Type: &ext_j5pb.FieldOptions_Array{
-				Array: st.Array.Ext,
-			},
-		})
+		if st.Array.Ext != nil {
+			proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
+				Type: &ext_j5pb.FieldOptions_Array{
+					Array: &ext_j5pb.ArrayField{
+						SingleForm: st.Array.Ext.SingleForm,
+					},
+				},
+			})
+		}
+
+		ww.setJ5Ext(desc.Options, "array", st.Array.Ext)
 
 		if st.Array.Rules != nil {
 			rules := &validate.FieldConstraints{
@@ -102,13 +109,8 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 				},
 			})
 		}
-		if st.Object.Ext != nil {
-			proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
-				Type: &ext_j5pb.FieldOptions_Object{
-					Object: st.Object.Ext,
-				},
-			})
-		}
+
+		ww.setJ5Ext(desc.Options, "object", st.Object.Ext)
 
 		if st.Object.Rules != nil {
 			rules := &validate.FieldConstraints{}
@@ -144,11 +146,7 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 			desc.TypeName = ptr(where.Oneof.Name)
 		}
 
-		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
-			Type: &ext_j5pb.FieldOptions_Oneof{
-				Oneof: st.Oneof.Ext,
-			},
-		})
+		ww.setJ5Ext(desc.Options, "oneof", st.Oneof.Ext)
 
 		if st.Oneof.Rules != nil {
 			rules := &validate.FieldConstraints{}
@@ -184,13 +182,7 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 			desc.TypeName = ptr(where.Enum.Name)
 		}
 
-		if st.Enum.Ext != nil {
-			proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
-				Type: &ext_j5pb.FieldOptions_Enum{
-					Enum: st.Enum.Ext,
-				},
-			})
-		}
+		ww.setJ5Ext(desc.Options, "enum", st.Enum.Ext)
 
 		enumRules := &validate.EnumRules{
 			DefinedOnly: ptr(true),
@@ -222,11 +214,7 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 		//ww := ww.at("bool")
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_BOOL.Enum()
 
-		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
-			Type: &ext_j5pb.FieldOptions_Bool{
-				Bool: st.Bool.Ext,
-			},
-		})
+		ww.setJ5Ext(desc.Options, "bool", st.Bool.Ext)
 
 		if st.Bool.Rules != nil {
 			rules := &validate.FieldConstraints{
@@ -243,11 +231,8 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 	case *schema_j5pb.Field_Bytes:
 		//ww := ww.at("bytes")
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_BYTES.Enum()
-		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
-			Type: &ext_j5pb.FieldOptions_Bytes{
-				Bytes: st.Bytes.Ext,
-			},
-		})
+
+		ww.setJ5Ext(desc.Options, "bytes", st.Bytes.Ext)
 
 		if st.Bytes.Rules != nil {
 			rules := &validate.FieldConstraints{
@@ -267,11 +252,9 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 		ww.file.ensureImport(j5DateImport)
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
 		desc.TypeName = ptr(".j5.types.date.v1.Date")
-		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
-			Type: &ext_j5pb.FieldOptions_Date{
-				Date: st.Date.Ext,
-			},
-		})
+
+		ww.setJ5Ext(desc.Options, "date", st.Date.Ext)
+
 		return desc
 
 	case *schema_j5pb.Field_Decimal:
@@ -279,11 +262,9 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 		ww.file.ensureImport(j5DecimalImport)
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
 		desc.TypeName = ptr(".j5.types.decimal.v1.Decimal")
-		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
-			Type: &ext_j5pb.FieldOptions_Decimal{
-				Decimal: st.Decimal.Ext,
-			},
-		})
+
+		ww.setJ5Ext(desc.Options, "decimal", st.Decimal.Ext)
+
 		return desc
 
 	case *schema_j5pb.Field_Float:
@@ -302,11 +283,8 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 			return nil
 		}
 
-		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
-			Type: &ext_j5pb.FieldOptions_Float{
-				Float: st.Float.Ext,
-			},
-		})
+		ww.setJ5Ext(desc.Options, "float", st.Float.Ext)
+
 		return desc
 
 	case *schema_j5pb.Field_Integer:
@@ -328,11 +306,8 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 			return nil
 		}
 
-		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
-			Type: &ext_j5pb.FieldOptions_Integer{
-				Integer: st.Integer.Ext,
-			},
-		})
+		ww.setJ5Ext(desc.Options, "integer", st.Integer.Ext)
+
 		return desc
 
 	case *schema_j5pb.Field_Key:
@@ -344,18 +319,16 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 			entityExt := &ext_j5pb.PSMKeyFieldOptions{}
 			switch et := st.Key.Entity.Type.(type) {
 			case *schema_j5pb.EntityKey_PrimaryKey:
-				entityExt.PrimaryKey = true
+				if et.PrimaryKey { // May be explicitly false to self-document
+					entityExt.PrimaryKey = true
+				}
 			case *schema_j5pb.EntityKey_ForeignKey:
 				entityExt.ForeignKey = et.ForeignKey
 			}
 			proto.SetExtension(desc.Options, ext_j5pb.E_Key, entityExt)
 		}
 
-		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
-			Type: &ext_j5pb.FieldOptions_Key{
-				Key: st.Key.Ext,
-			},
-		})
+		ww.setJ5Ext(desc.Options, "key", st.Key.Ext)
 
 		if st.Key.ListRules != nil {
 			var fkt list_j5pb.IsForeignKeyRules_Type
@@ -432,14 +405,8 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 		//ww := ww.at("string")
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum()
 
-		if st.String_.Ext != nil {
-			proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
-				Type: &ext_j5pb.FieldOptions_String_{
-					String_: st.String_.Ext,
-				},
-			})
+		ww.setJ5Ext(desc.Options, "string", st.String_.Ext)
 
-		}
 		if st.String_.Rules != nil {
 			rules := &validate.FieldConstraints{
 				Type: &validate.FieldConstraints_String_{
@@ -460,11 +427,8 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
 		desc.TypeName = ptr(".google.protobuf.Timestamp")
 		ww.file.ensureImport(pbTimestamp)
-		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
-			Type: &ext_j5pb.FieldOptions_Timestamp{
-				Timestamp: st.Timestamp.Ext,
-			},
-		})
+
+		ww.setJ5Ext(desc.Options, "timestamp", st.Timestamp.Ext)
 
 		if st.Timestamp.Rules != nil {
 			rules := &validate.FieldConstraints{
@@ -493,4 +457,56 @@ func (ww *walkNode) buildField(schema *schema_j5pb.Field) *descriptorpb.FieldDes
 		return nil
 	}
 
+}
+
+// Copies the J5 extension object to the equivalent protoreflect extension type
+// by field names.
+func (ww *walkNode) setJ5Ext(dest *descriptorpb.FieldOptions, fieldType protoreflect.Name, j5Ext proto.Message) {
+
+	// Options in the *proto* representation.
+	extOptions := &ext_j5pb.FieldOptions{}
+	extOptionsRefl := extOptions.ProtoReflect()
+
+	// The proto extension is a oneof to each field type, which should match the
+	// specified type.
+
+	typeField := extOptionsRefl.Descriptor().Fields().ByName(fieldType)
+	if typeField == nil {
+		ww.errorf("Field %s does not have a type field", fieldType)
+		return
+	}
+
+	extTypedRefl := extOptionsRefl.Mutable(typeField).Message()
+	if extTypedRefl == nil {
+		ww.errorf("Field %s type field is not a message", fieldType)
+		return
+	}
+
+	// The J5 extension should already be typed. It should have the same fields
+	// as the Proto extension.
+	j5ExtRefl := j5Ext.ProtoReflect()
+	if j5ExtRefl.IsValid() {
+		j5ExtFields := j5ExtRefl.Descriptor().Fields()
+
+		// Copy each field from the J5 extension to the Proto extension.
+		extTypedRefl.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+			destField := j5ExtFields.ByName(fd.Name())
+			if destField == nil {
+				ww.errorf("No equivalent for %s in %s", fd.FullName(), j5ExtRefl.Descriptor().FullName())
+				return false
+			}
+
+			if destField.Kind() != fd.Kind() {
+				ww.errorf("Field %s has different kind in %s", fd.FullName(), j5ExtRefl.Descriptor().FullName())
+			}
+
+			extTypedRefl.Set(fd, j5ExtRefl.Get(destField))
+			return true
+		})
+	}
+
+	ww.file.ensureImport(j5ExtImport)
+	// Set the extension, even if no fields were set, as this indicates the J5
+	// type.
+	proto.SetExtension(dest, ext_j5pb.E_Field, extOptions)
 }

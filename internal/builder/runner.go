@@ -55,30 +55,32 @@ type RunContext struct {
 }
 
 func (rr *Runner) Run(ctx context.Context, rc RunContext) error {
-	envVars, err := mapEnvVars(rc.Command.Env, rc.Vars)
-	if err != nil {
-		return err
-	}
-	baseEnv := os.Environ()
-	envVars = append(baseEnv, envVars...)
 
-	if rc.Command.Docker == nil {
-		cmd := exec.CommandContext(ctx, rc.Command.Cmd, rc.Command.Args...)
+	if rc.Command.Local != nil {
+		envVars, err := mapEnvVars(rc.Command.Local.Env, rc.Vars)
+		if err != nil {
+			return err
+		}
+		baseEnv := os.Environ()
+		envVars = append(baseEnv, envVars...)
+		cmd := exec.CommandContext(ctx, rc.Command.Local.Cmd, rc.Command.Local.Args...)
 		cmd.Stdin = rc.StdIn
 		cmd.Stdout = rc.StdOut
 		cmd.Stderr = rc.StdErr
 		cmd.Env = envVars
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("running command %q: %w", rc.Command.Cmd, err)
+			return fmt.Errorf("running command %q: %w", rc.Command.Local.Cmd, err)
 		}
 		return nil
+	} else if rc.Command.Docker != nil {
+		err := rr.runDocker(ctx, rc)
+		if err != nil {
+			return fmt.Errorf("running docker: %w", err)
+		}
+		return nil
+	} else {
+		return fmt.Errorf("no command specified")
 	}
-
-	err = rr.runDocker(ctx, rc)
-	if err != nil {
-		return fmt.Errorf("running docker: %w", err)
-	}
-	return nil
 
 }
 

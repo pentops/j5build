@@ -162,7 +162,6 @@ func wantAPI() *client_j5pb.API {
 				Schema: &schema_j5pb.Field{
 					Type: &schema_j5pb.Field_Key{
 						Key: &schema_j5pb.KeyField{
-							Ext: &schema_j5pb.KeyField_Ext{},
 							Format: &schema_j5pb.KeyFormat{
 								Type: &schema_j5pb.KeyFormat_Uuid{
 									Uuid: &schema_j5pb.KeyFormat_UUID{},

@@ -1,6 +1,7 @@
 package j5convert
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
@@ -79,7 +80,7 @@ func TestImports(t *testing.T) {
 		Number:   proto.Int32(1),
 		TypeName: proto.String(".baz.v1.Referenced"),
 		JsonName: proto.String("field"),
-		Options:  &descriptorpb.FieldOptions{},
+		Options:  tEmptyTypeExt(t, "object"),
 	}
 
 	type happy struct {
@@ -249,9 +250,11 @@ func TestImports(t *testing.T) {
 
 				gotField := gotFile[0].MessageType[0].Field[0]
 				equal(t, wantField, gotField)
-				wantImports := []string{}
+				wantImports := []string{
+					"j5/ext/v1/annotations.proto",
+				}
 				if tc.happy.shouldImport {
-					wantImports = []string{"baz/v1/referenced.j5s.proto"}
+					wantImports = append(wantImports, "baz/v1/referenced.j5s.proto")
 				}
 
 				assertImportsMatch(t, wantImports, gotFile[0].Dependency)
@@ -264,6 +267,7 @@ func TestImports(t *testing.T) {
 
 func assertImportsMatch(t *testing.T, wantImports, gotImports []string) {
 	t.Helper()
+	sort.Strings(wantImports)
 	for idx := 0; idx < len(wantImports) || idx < len(gotImports); idx++ {
 		want := "<nothing>"
 		got := "<missing>"

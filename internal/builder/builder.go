@@ -175,6 +175,13 @@ func (b *Builder) runProtocPlugin(ctx context.Context, pc PluginContext, plugin 
 	start := time.Now()
 
 	ctx = log.WithField(ctx, "builder", plugin.GetName())
+
+	if plugin.Local != nil {
+		ctx = log.WithField(ctx, "local-cmd", plugin.Local.Cmd)
+	} else {
+		ctx = log.WithField(ctx, "docker-runner", plugin.Docker.Image)
+	}
+
 	log.Debug(ctx, "Running Protoc Plugin")
 
 	parameters := make([]string, 0, len(plugin.Opts))

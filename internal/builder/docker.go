@@ -49,7 +49,7 @@ func (dw *Runner) runDocker(ctx context.Context, rc RunContext) error {
 
 		Tty: false,
 
-		Env:        rc.Command.Env,
+		Env:        rc.Command.Docker.Env,
 		Image:      rc.Command.Docker.Image,
 		Entrypoint: rc.Command.Docker.Entrypoint,
 		Cmd:        rc.Command.Docker.Cmd,

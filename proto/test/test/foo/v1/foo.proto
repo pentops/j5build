@@ -17,6 +17,14 @@ message FooKeys {
     (buf.validate.field).required = true,
     (j5.list.v1.field).string.foreign_key.uuid.filtering.filterable = true
   ];
+
+  string bar_id = 2 [
+    (j5.ext.v1.key).foreign_key = {
+      package: "test.foo.v1"
+      entity: "bar"
+    },
+    (j5.ext.v1.field).key.format = FORMAT_UUID
+  ];
 }
 
 message FooState {
