@@ -12,6 +12,10 @@ var ErrPluginCycle = errors.New("plugin cycle detected")
 
 func resolveConfigReferences(config *config_j5pb.RepoConfigFile) error {
 
+	overrides := map[string]*config_j5pb.PluginOverride{}
+	for _, override := range config.PluginOverrides {
+		overrides[override.Name] = override
+	}
 	rootPlugins := map[string]*config_j5pb.BuildPlugin{}
 
 	for _, plugin := range config.Plugins {
@@ -70,10 +74,16 @@ func resolveConfigReferences(config *config_j5pb.RepoConfigFile) error {
 				}
 			}
 
-			plugins[idx] = plugin
 			if plugin.Name != "" {
 				localBases[plugin.Name] = plugin
 			}
+
+			// override AFTER using as a base.
+			if override, ok := overrides[plugin.Name]; ok {
+				plugin.Local = override.Local
+				plugin.Docker = override.Docker
+			}
+			plugins[idx] = plugin
 		}
 		return nil
 	}
@@ -97,20 +107,20 @@ func extendPlugin(base, ext *config_j5pb.BuildPlugin) *config_j5pb.BuildPlugin {
 	if ext.Name == "" {
 		ext.Name = base.Name
 	}
-	if ext.Docker == nil && base.Docker != nil {
+
+	if ext.Local == nil && ext.Docker == nil {
+		ext.Local = base.Local
 		ext.Docker = base.Docker
+		// If either are set, the extension wins.
 	}
+
 	if ext.Type == config_j5pb.Plugin_UNSPECIFIED {
 		ext.Type = base.Type
 	}
+
+	// MERGE options.
 	if ext.Opts == nil {
 		ext.Opts = map[string]string{}
-	}
-	if ext.Cmd == "" {
-		ext.Cmd = base.Cmd
-	}
-	if len(ext.Args) == 0 {
-		ext.Args = base.Args
 	}
 	for k, v := range base.Opts {
 		if _, ok := ext.Opts[k]; !ok {

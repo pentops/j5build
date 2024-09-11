@@ -58,7 +58,6 @@ func CodeGeneratorRequestFromImage(img *source_j5pb.SourceImage) (*pluginpb.Code
 			lastPart := fmt.Sprintf("%s%s", namePart, suffix)
 			fullName := strings.Join([]string{img.Options.Go.Prefix, baseName, lastPart}, "/")
 			file.Options.GoPackage = &fullName
-			fmt.Printf("File %s has no GoPackage, set to %s\n", *file.Name, fullName)
 
 		}
 	}

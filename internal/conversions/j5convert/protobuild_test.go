@@ -6,6 +6,7 @@ import (
 
 	"buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"github.com/google/go-cmp/cmp"
+	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
 	"google.golang.org/protobuf/proto"
@@ -194,22 +195,23 @@ func TestSchemaToProto(t *testing.T) {
 		Options: &descriptorpb.FileOptions{
 			//GoPackage: proto.String("github.com/pentops/j5/test/v1/test_pb"),
 		},
-		Name:    proto.String("test/v1/test.j5s.proto"),
-		Package: proto.String("test.v1"),
+		Dependency: []string{"j5/ext/v1/annotations.proto"},
+		Name:       proto.String("test/v1/test.j5s.proto"),
+		Package:    proto.String("test.v1"),
 		MessageType: []*descriptorpb.DescriptorProto{{
 			Name: proto.String("Referenced"),
 			Field: []*descriptorpb.FieldDescriptorProto{{
 				Name:     proto.String("field_1"),
 				Type:     descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum(),
 				Number:   proto.Int32(1),
-				Options:  &descriptorpb.FieldOptions{},
+				Options:  tEmptyTypeExt(t, "string"),
 				JsonName: proto.String("field1"),
 			}, {
 				Name:     proto.String("enum"),
 				Type:     descriptorpb.FieldDescriptorProto_TYPE_ENUM.Enum(),
 				Number:   proto.Int32(2),
 				TypeName: proto.String(".test.v1.TestEnum"),
-				Options: withOption(&descriptorpb.FieldOptions{}, validate.E_Field, &validate.FieldConstraints{
+				Options: withOption(tEmptyTypeExt(t, "enum"), validate.E_Field, &validate.FieldConstraints{
 					Type: &validate.FieldConstraints_Enum{
 						Enum: &validate.EnumRules{
 							DefinedOnly: ptr(true),
@@ -252,6 +254,34 @@ func TestSchemaToProto(t *testing.T) {
 	*/
 
 }
+
+// Copies the J5 extension object to the equivalent protoreflect extension type
+// by field names.
+func tEmptyTypeExt(t testing.TB, fieldType protoreflect.Name) *descriptorpb.FieldOptions {
+
+	// Options in the *proto* representation.
+	extOptions := &ext_j5pb.FieldOptions{}
+	extOptionsRefl := extOptions.ProtoReflect()
+
+	// The proto extension is a oneof to each field type, which should match the
+	// specified type.
+
+	typeField := extOptionsRefl.Descriptor().Fields().ByName(fieldType)
+	if typeField == nil {
+		t.Fatalf("Field %s does not have a type field", fieldType)
+	}
+
+	extTypedRefl := extOptionsRefl.Mutable(typeField).Message()
+	if extTypedRefl == nil {
+		t.Fatalf("Field %s type field is not a message", fieldType)
+	}
+
+	fieldOptions := &descriptorpb.FieldOptions{}
+
+	proto.SetExtension(fieldOptions, ext_j5pb.E_Field, extOptions)
+	return fieldOptions
+}
+
 func equal(t testing.TB, want, got proto.Message) {
 	t.Helper()
 	diff := cmp.Diff(want, got, protocmp.Transform())
