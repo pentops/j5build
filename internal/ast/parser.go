@@ -273,6 +273,25 @@ func (ww *Walker) popType(tt lexer.TokenType) (lexer.Token, *unexpectedTokenErro
 }
 
 func (ww *Walker) popValue() (Value, *unexpectedTokenError) {
+	if ww.nextType() == lexer.IDENT {
+		ref, err := ww.popReference()
+		if err != nil {
+			return Value{}, err
+		}
+		return Value{
+			token: lexer.Token{
+				Type:  lexer.STRING,
+				Lit:   ref.String(),
+				Start: ref.SourceNode.Start,
+				End:   ref.SourceNode.End,
+			},
+			SourceNode: SourceNode{
+				Start: ref.SourceNode.Start,
+				End:   ref.SourceNode.End,
+			},
+		}, nil
+
+	}
 	if ww.nextType().IsLiteral() {
 		token := ww.popToken()
 		return Value{
