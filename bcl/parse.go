@@ -8,10 +8,10 @@ import (
 	"buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"github.com/bufbuild/protovalidate-go"
 	"github.com/pentops/bcl.go/bcl/errpos"
+	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/bcl.go/internal/ast"
 	"github.com/pentops/bcl.go/internal/walker"
 	"github.com/pentops/bcl.go/internal/walker/schema"
-	"github.com/pentops/j5/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )

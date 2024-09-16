@@ -1,0 +1,92 @@
+syntax = "proto3";
+
+package j5.bcl.v1;
+
+import "j5/bcl/v1/annotations.proto";
+import "j5/ext/v1/annotations.proto";
+
+option go_package = "github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb";
+
+// A Path is the nested field names from a root node to a child node. All path
+// elements are strings, which is the field names, map keys, or in theory list
+// index string-numbers.
+message Path {
+  repeated string path = 1;
+}
+
+// A Tag defines the behavior of the block header components for the type.
+message Tag {
+  Path path = 1;
+  bool is_block = 2;
+
+  bool optional = 3;
+
+  // When set, a leading '!' on the tag sets a boolean to true at the given
+  // path. (e.g. setting required=true). When not set, bang is illegal. You
+  // shouldn't bang where it's illegal.
+  Path bang_bool = 4;
+
+  // Same as bang_bool, but for a ?. Still 'true', e.g. 'optional=true)
+  Path question_bool = 5;
+}
+
+message Child {
+  string name = 1;
+  Path path = 2;
+  bool is_container = 3;
+  bool is_scalar = 4;
+  bool is_collection = 5;
+}
+
+message Block {
+  // The full name (i.e. protoreflect's FullName) of the schema this block
+  // defines.
+  string schema_name = 1;
+
+  optional Tag name = 3;
+  optional Tag type_select = 4;
+  optional Tag qualifier = 5;
+
+  optional Path description = 6;
+
+  repeated Child children = 7;
+
+  ScalarSplit scalar_split = 8;
+
+  // When true, fields in the block which are not mentioned in tags or children
+  // are not settable.
+  bool only_explicit = 9;
+}
+
+message Schema {
+  repeated Block blocks = 1 [(j5.ext.v1.field).array.single_form = "block"];
+}
+
+message SchemaFile {
+  Schema schema = 1;
+  SourceLocation source_location = 2;
+}
+
+// ScalarSplit is a way to set a block (container/object type) from a scalar,
+// either an array of scalars or a single scalar string.
+message ScalarSplit {
+  optional string delimiter = 1; // When the value is a string, split it by this delimiter into array of strings and continue
+
+  // When true, the first element is the rightmost element, walking left to right.
+  bool right_to_left = 2;
+
+  // Fields are popped one by one, and set to the values at the paths specified
+  // in required. If there are not enough values, an error is raised.
+  repeated Path required_fields = 3;
+
+  // After popping all required fields, the remaining values are added to
+  // optional fields one by one. If we run out of values, that's fine here.
+  repeated Path optional_fields = 4;
+
+  // If there are still remaining values after the optional fields, the
+  // remaining values are concatenated (as strings) using delimiter and all
+  // added to this one field. If there are no remaining values, this field is
+  // not touched. If there are remaining values and this field is not set, an
+  // error is raised.
+  optional Path remainder_field = 5;
+}

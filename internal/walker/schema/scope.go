@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/j5/gen/j5/bcl/v1/bcl_j5pb"
+	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
 )
 
@@ -18,6 +18,15 @@ type ArrayOfScalarField interface {
 	FullTypeName() string
 }
 
+type Field interface {
+	j5reflect.Field
+}
+
+type field struct {
+	j5reflect.Field
+	location *bcl_j5pb.SourceLocation
+}
+
 type SourceLocation = errpos.Position
 
 type Scope interface {
@@ -26,9 +35,7 @@ type Scope interface {
 
 	ChildBlock(name string, src SourceLocation) (Scope, *WalkPathError)
 	ScalarField(name string, src SourceLocation) (ScalarField, *WalkPathError)
-	Field(name string, src SourceLocation) (j5reflect.Field, *WalkPathError)
-
-	WrapContainer(j5reflect.ContainerField) (Scope, error)
+	Field(name string, src SourceLocation) (Field, *WalkPathError)
 
 	CurrentBlock() Container
 	RootBlock() Container
@@ -152,7 +159,7 @@ func (sw *schemaWalker) ScalarField(name string, source SourceLocation) (ScalarF
 	}
 }
 
-func (sw *schemaWalker) Field(name string, source SourceLocation) (j5reflect.Field, *WalkPathError) {
+func (sw *schemaWalker) Field(name string, source SourceLocation) (Field, *WalkPathError) {
 	finalField, _, err := sw.field(name, source)
 	if err != nil {
 		return nil, err
@@ -161,7 +168,7 @@ func (sw *schemaWalker) Field(name string, source SourceLocation) (j5reflect.Fie
 	return finalField, nil
 }
 
-func (sw *schemaWalker) field(name string, source SourceLocation) (j5reflect.Field, *ChildSpec, *WalkPathError) {
+func (sw *schemaWalker) field(name string, source SourceLocation) (Field, *ChildSpec, *WalkPathError) {
 	// Root, Parent and Field.
 	// The 'Root' is the container within the current scope which is identified
 	// by the block name.
@@ -206,7 +213,7 @@ func (sw *schemaWalker) field(name string, source SourceLocation) (j5reflect.Fie
 		}
 	}
 
-	finalField, newValErr := parentScope.container.NewValue(final)
+	finalField, newValErr := parentScope.newValue(final, source)
 	if newValErr != nil {
 		return nil, nil, &WalkPathError{
 			Type: UnknownPathError,
@@ -239,15 +246,6 @@ func (sw *schemaWalker) walkToChild(blockSchema *containerField, path []string, 
 	mainField := visitedFields[0]
 	mainField.transparentPath = visitedFields[1:]
 	return mainField, nil
-}
-
-func (sw *schemaWalker) WrapContainer(container j5reflect.ContainerField) (Scope, error) {
-	wrapped, err := sw.schemaSet.wrapContainer(container, []string{}, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return sw.newChild(wrapped, true), nil
 }
 
 func (sw *schemaWalker) findBlock(name string) (*containerField, *ChildSpec, bool) {

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/j5/gen/j5/bcl/v1/bcl_j5pb"
+	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
 )
 
@@ -59,6 +59,23 @@ func (sc *containerField) SchemaName() string {
 		return sc.schemaName + " (" + sc.spec.DebugName + ")"
 	}
 	return sc.schemaName
+}
+
+func (sc *containerField) newValue(name string, hint SourceLocation) (Field, error) {
+	val, err := sc.container.NewValue(name)
+	if err != nil {
+		return nil, err
+	}
+	protoPath := val.ProtoPath()
+	location := sc.location
+	for _, elem := range protoPath {
+		location = childSourceLocation(location, elem, hint)
+	}
+	ff := &field{
+		Field:    val,
+		location: location,
+	}
+	return ff, nil
 }
 
 func childSourceLocation(in *bcl_j5pb.SourceLocation, name string, hint SourceLocation) *bcl_j5pb.SourceLocation {

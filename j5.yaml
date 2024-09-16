@@ -1,0 +1,32 @@
+---
+
+bundles:
+  - name: bcl
+    dir: proto
+
+generate:
+  - name: base
+    inputs:
+      - local: bcl
+    output: .
+    opts:
+      paths: import
+      module: github.com/pentops/bcl.go
+    plugins:
+      - base: go
+      - base: go-sugar
+
+managedPaths:
+ - gen
+
+plugins:
+  - name: go
+    type: PLUGIN_PROTO
+    docker:
+      image: ghcr.io/pentops/protoc-gen-go:v1.34.2
+
+  - name: go-sugar
+    type: PLUGIN_PROTO
+    docker:
+      image: ghcr.io/pentops/protoc-gen-go-sugar:19495b5f5ac3fd3964a03031396d83f1bc1341ca
+

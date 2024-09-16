@@ -262,9 +262,9 @@ func (sc *walkContext) SetAttribute(path schema.PathSpec, ref []ast.Ident, val a
 		}
 	}
 
-	fieldContainer, ok := field.AsContainer()
+	_, ok := field.AsContainer()
 	if ok {
-		containerScope, err := parentScope.WrapContainer(fieldContainer)
+		containerScope, err := parentScope.ChildBlock(last.name, val.Position())
 		if err != nil {
 			return sc.WrapErr(err, val.Position())
 		}
