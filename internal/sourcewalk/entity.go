@@ -9,13 +9,17 @@ import (
 	"github.com/pentops/j5/gen/j5/client/v1/client_j5pb"
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
-	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
-	"google.golang.org/protobuf/proto"
+	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
 )
 
 type entityNode struct {
+	name   string
 	Source SourceNode
 	Schema *sourcedef_j5pb.Entity
+}
+
+func (ent *entityNode) componentName(suffix string) string {
+	return strcase.ToCamel(ent.Schema.Name) + strcase.ToCamel(suffix)
 }
 
 func schemaRefField(pkg, desc string) *schema_j5pb.Field {
@@ -35,50 +39,116 @@ func schemaRefField(pkg, desc string) *schema_j5pb.Field {
 
 // run converts the entity into lower level schema elements and calls the
 // visitors on those.
-func (ent *entityNode) run(visitor FileVisitor) {
+func (ent *entityNode) run(visitor FileVisitor) error {
 
-	entity := proto.Clone(ent.Schema).(*sourcedef_j5pb.Entity)
-
-	name := strcase.ToSnake(entity.Name)
-
-	keys := &schema_j5pb.Object{
-		Name: strcase.ToCamel(entity.Name + "Keys"),
-		Entity: &schema_j5pb.EntityObject{
-			Entity: name,
-			Part:   schema_j5pb.EntityPart_KEYS,
-		},
-		Properties: entity.Keys,
+	if err := ent.acceptKeys(visitor); err != nil {
+		return err
+	}
+	if err := ent.acceptData(visitor); err != nil {
+		return err
+	}
+	if err := ent.acceptStatus(visitor); err != nil {
+		return err
 	}
 
-	visitor.VisitObject(&ObjectNode{
+	if err := ent.acceptState(visitor); err != nil {
+		return err
+	}
+	if err := ent.acceptEventOneof(visitor); err != nil {
+		return err
+	}
+	if err := ent.acceptEvent(visitor); err != nil {
+		return err
+	}
+	if err := ent.acceptQuery(visitor); err != nil {
+		return err
+	}
+	if err := ent.acceptCommands(visitor); err != nil {
+		return err
+	}
+
+	if len(ent.Schema.Schemas) > 0 {
+		nested := mapNested(ent.Source, "schemas", []string{}, ent.Schema.Schemas)
+		if err := rangeNestedSchemas(nested, visitor); err != nil {
+			return wrapErr(ent.Source, err)
+		}
+	}
+
+	return nil
+}
+
+func (ent *entityNode) acceptKeys(visitor FileVisitor) error {
+
+	keys := &schema_j5pb.Object{
+		Name: ent.componentName("Keys"),
+		Entity: &schema_j5pb.EntityObject{
+			Entity: ent.name,
+			Part:   schema_j5pb.EntityPart_KEYS,
+		},
+		Properties: ent.Schema.Keys,
+	}
+
+	err := visitor.VisitObject(&ObjectNode{
 		Schema: keys,
 		objectLikeNode: objectLikeNode{
-			properties: mapProperties(ent.Source.child("keys"), keys.Properties),
+			properties: mapProperties(ent.Source, "keys", keys.Properties),
+			Source:     ent.Source,
+		},
+	})
+	if err != nil {
+		return wrapErr(ent.Source, err)
+	}
+	return nil
+}
+
+func (ent *entityNode) acceptData(visitor FileVisitor) error {
+
+	data := &schema_j5pb.Object{
+		Name: ent.componentName("Data"),
+		Entity: &schema_j5pb.EntityObject{
+			Entity: ent.name,
+			Part:   schema_j5pb.EntityPart_DATA,
+		},
+		Properties: ent.Schema.Data,
+	}
+
+	return visitor.VisitObject(&ObjectNode{
+		Schema: data,
+		objectLikeNode: objectLikeNode{
+			properties: mapProperties(ent.Source, "data", data.Properties),
 			Source:     ent.Source,
 		},
 	})
 
-	data := &schema_j5pb.Object{
-		Name: strcase.ToCamel(entity.Name + "Data"),
-		Entity: &schema_j5pb.EntityObject{
-			Entity: name,
-			Part:   schema_j5pb.EntityPart_DATA,
-		},
-		Properties: entity.Data,
-	}
+}
 
+func (ent *entityNode) acceptStatus(visitor FileVisitor) error {
+	entity := ent.Schema
 	status := &schema_j5pb.Enum{
-		Name:    strcase.ToCamel(entity.Name + "Status"),
+		Name:    ent.componentName("Status"),
 		Options: entity.Status,
 		Prefix:  strcase.ToScreamingSnake(entity.Name) + "_STATUS_",
 	}
+	return visitor.VisitEnum(&EnumNode{
+		Schema: status,
+		Source: ent.Source,
+	})
+}
 
-	objKeys := schemaRefField("", keys.Name)
+func (ent *entityNode) innerRef(name string) *schema_j5pb.Field {
+	return schemaRefField("", ent.componentName(name))
+}
+
+func (ent *entityNode) acceptState(visitor FileVisitor) error {
+	entity := ent.Schema
+
+	objKeys := schemaRefField("", ent.componentName("Keys"))
 	objKeys.GetObject().Flatten = true
+
 	state := &schema_j5pb.Object{
 		Name: strcase.ToCamel(entity.Name + "State"),
 		Entity: &schema_j5pb.EntityObject{
-			Entity: name,
+			Entity: ent.name,
 			Part:   schema_j5pb.EntityPart_STATE,
 		},
 		Properties: []*schema_j5pb.ObjectProperty{{
@@ -95,7 +165,7 @@ func (ent *entityNode) run(visitor FileVisitor) {
 			Name:       "data",
 			ProtoField: []int32{3},
 			Required:   true,
-			Schema:     schemaRefField("", data.Name),
+			Schema:     ent.innerRef("Data"),
 		}, {
 			Name:       "status",
 			ProtoField: []int32{4},
@@ -105,7 +175,7 @@ func (ent *entityNode) run(visitor FileVisitor) {
 					Enum: &schema_j5pb.EnumField{
 						Schema: &schema_j5pb.EnumField_Ref{
 							Ref: &schema_j5pb.Ref{
-								Schema: status.Name,
+								Schema: ent.componentName("Status"),
 							},
 						},
 					},
@@ -114,43 +184,87 @@ func (ent *entityNode) run(visitor FileVisitor) {
 		}},
 	}
 
-	visitor.VisitObject(&ObjectNode{
+	return visitor.VisitObject(&ObjectNode{
 		Schema: state,
 		objectLikeNode: objectLikeNode{
-			properties: mapProperties(ent.Source.maybeChild("_state"), state.Properties),
+			properties: mapProperties(ent.Source.child(virtualPathNode), "state", state.Properties),
 			Source:     ent.Source,
 		},
 	})
+}
 
+func (ent *entityNode) acceptEventOneof(visitor FileVisitor) error {
+
+	entity := ent.Schema
 	eventOneof := &schema_j5pb.Oneof{
 		Name:       strcase.ToCamel(entity.Name + "EventType"),
 		Properties: make([]*schema_j5pb.ObjectProperty, 0, len(entity.Events)),
 	}
 
-	eventParent := &sourcedef_j5pb.Oneof{
-		Def: eventOneof,
-	}
+	eventObjectProperties := make([]*propertyNode, 0, len(entity.Events))
+	listOfEventsSource := ent.Source.child("events")
+	eventObjects := make([]*nestedNode, 0, len(entity.Events))
 
-	for idx, event := range entity.Events {
-		eventParent.Schemas = append(eventParent.Schemas, &sourcedef_j5pb.NestedSchema{
-			Type: &sourcedef_j5pb.NestedSchema_Object{
-				Object: event,
+	for idx, eventObjectSchema := range entity.Events {
+
+		// points to sourcedef.Object, which has def and schemas
+		eventSource := listOfEventsSource.child(strconv.Itoa(idx))
+
+		nested := &nestedNode{
+			schema: &sourcedef_j5pb.NestedSchema_Object{
+				Object: eventObjectSchema,
 			},
-		})
+			source:   eventSource, // Source of the object
+			nestPath: []string{eventOneof.Name},
+		}
 
-		eventOneof.Properties = append(eventOneof.Properties, &schema_j5pb.ObjectProperty{
-			Name:       strcase.ToCamel(event.Def.Name),
+		eventObjects = append(eventObjects, nested)
+
+		propSchema := &schema_j5pb.ObjectProperty{
+			Name:       strcase.ToCamel(eventObjectSchema.Def.Name),
 			ProtoField: []int32{int32(idx + 1)},
-			Schema:     schemaRefField("", eventOneof.Name+"."+event.Def.Name),
-		})
+			Schema: &schema_j5pb.Field{
+				Type: &schema_j5pb.Field_Object{
+					Object: &schema_j5pb.ObjectField{
+						Schema: &schema_j5pb.ObjectField_Ref{
+							Ref: &schema_j5pb.Ref{
+								Package: "",
+								Schema:  eventObjectSchema.Def.Name,
+							},
+						},
+					},
+				},
+			},
+		}
+		property := &propertyNode{
+			schema: propSchema,
+			source: eventSource.child(virtualPathNode, "wrapper"),
+			number: int32(idx + 1),
+		}
+		eventObjectProperties = append(eventObjectProperties, property)
+
 	}
 
-	eventKeys := schemaRefField("", keys.Name)
+	return visitor.VisitOneof(&OneofNode{
+		Schema: eventOneof,
+		objectLikeNode: objectLikeNode{
+			properties: eventObjectProperties,
+			Source:     ent.Source.child(virtualPathNode, "event_type"),
+			children:   eventObjects,
+		},
+	})
+}
+
+func (ent *entityNode) acceptEvent(visitor FileVisitor) error {
+	entity := ent.Schema
+
+	eventKeys := ent.innerRef("Keys")
 	eventKeys.GetObject().Flatten = true
+
 	eventObject := &schema_j5pb.Object{
 		Name: strcase.ToCamel(entity.Name + "Event"),
 		Entity: &schema_j5pb.EntityObject{
-			Entity: name,
+			Entity: ent.name,
 			Part:   schema_j5pb.EntityPart_EVENT,
 		},
 		Properties: []*schema_j5pb.ObjectProperty{{
@@ -172,7 +286,7 @@ func (ent *entityNode) run(visitor FileVisitor) {
 					Oneof: &schema_j5pb.OneofField{
 						Schema: &schema_j5pb.OneofField_Ref{
 							Ref: &schema_j5pb.Ref{
-								Schema: eventOneof.Name,
+								Schema: ent.componentName("EventType"),
 							},
 						},
 					},
@@ -181,6 +295,18 @@ func (ent *entityNode) run(visitor FileVisitor) {
 		}},
 	}
 
+	return visitor.VisitObject(&ObjectNode{
+		Schema: eventObject,
+		objectLikeNode: objectLikeNode{
+			properties: mapProperties(ent.Source.child(virtualPathNode), "event", eventObject.Properties),
+			Source:     ent.Source,
+		},
+	})
+
+}
+
+func (ent *entityNode) acceptCommands(visitor FileVisitor) error {
+	entity := ent.Schema
 	commands := entity.Commands
 	for _, service := range commands {
 		var serviceName string
@@ -192,7 +318,7 @@ func (ent *entityNode) run(visitor FileVisitor) {
 				serviceName += "Command"
 			}
 		} else {
-			serviceName = fmt.Sprintf("%sCommand", strcase.ToCamel(name))
+			serviceName = fmt.Sprintf("%sCommand", strcase.ToCamel(ent.Schema.Name))
 		}
 
 		if service.BasePath != nil {
@@ -207,15 +333,35 @@ func (ent *entityNode) run(visitor FileVisitor) {
 		service.Options = &ext_j5pb.ServiceOptions{
 			Type: &ext_j5pb.ServiceOptions_StateCommand_{
 				StateCommand: &ext_j5pb.ServiceOptions_StateCommand{
-					Entity: name,
+					Entity: ent.name,
 				},
 			},
 		}
 	}
 
-	primaryKeys := make([]*schema_j5pb.ObjectProperty, 0, len(keys.Properties))
+	services := make([]*serviceRef, 0)
+
+	for idx, service := range commands {
+		source := ent.Source.child("commands", strconv.Itoa(idx))
+		services = append(services, &serviceRef{
+			schema: service,
+			source: source,
+		})
+	}
+
+	return visitor.VisitServiceFile(&ServiceFileNode{
+		services: services,
+	})
+}
+
+func (ent *entityNode) acceptQuery(visitor FileVisitor) error {
+
+	entity := ent.Schema
+	name := ent.name
+
+	primaryKeys := make([]*schema_j5pb.ObjectProperty, 0, len(ent.Schema.Keys))
 	httpPath := []string{}
-	for _, key := range keys.Properties {
+	for _, key := range ent.Schema.Keys {
 		kk := key.Schema.GetKey()
 		if kk == nil {
 			continue
@@ -225,6 +371,7 @@ func (ent *entityNode) run(visitor FileVisitor) {
 			httpPath = append(httpPath, fmt.Sprintf(":%s", key.Name))
 		}
 	}
+
 	query := &sourcedef_j5pb.Service{
 		BasePath: ptr(fmt.Sprintf("/%s/q", entity.BaseUrlPath)),
 		Name:     ptr(fmt.Sprintf("%sQuery", strcase.ToCamel(name))),
@@ -238,7 +385,7 @@ func (ent *entityNode) run(visitor FileVisitor) {
 				Properties: []*schema_j5pb.ObjectProperty{{
 					Name:       strcase.ToLowerCamel(name),
 					ProtoField: []int32{1},
-					Schema:     schemaRefField("", state.Name),
+					Schema:     ent.innerRef("State"),
 					Required:   true,
 				}},
 			},
@@ -269,7 +416,7 @@ func (ent *entityNode) run(visitor FileVisitor) {
 					Schema: &schema_j5pb.Field{
 						Type: &schema_j5pb.Field_Array{
 							Array: &schema_j5pb.ArrayField{
-								Items: schemaRefField("", state.Name),
+								Items: ent.innerRef("State"),
 							},
 						},
 					},
@@ -307,7 +454,7 @@ func (ent *entityNode) run(visitor FileVisitor) {
 					Schema: &schema_j5pb.Field{
 						Type: &schema_j5pb.Field_Array{
 							Array: &schema_j5pb.ArrayField{
-								Items: schemaRefField("", eventObject.Name),
+								Items: ent.innerRef("Event"),
 							},
 						},
 					},
@@ -334,52 +481,11 @@ func (ent *entityNode) run(visitor FileVisitor) {
 		},
 	}
 
-	visitor.VisitObject(&ObjectNode{
-		Schema: data,
-		objectLikeNode: objectLikeNode{
-			properties: mapProperties(ent.Source.child("data"), data.Properties),
-			Source:     ent.Source,
-		},
-	})
-
-	visitor.VisitEnum(&EnumNode{
-		Schema: status,
-		Source: ent.Source,
-	})
-
-	visitor.VisitOneof(&OneofNode{
-		Schema: eventOneof,
-		objectLikeNode: objectLikeNode{
-			properties: mapProperties(ent.Source.maybeChild("_event_type"), eventOneof.Properties),
-			Source:     ent.Source.maybeChild("_even_type"),
-		},
-	})
-
-	visitor.VisitObject(&ObjectNode{
-		Schema: eventObject,
-		objectLikeNode: objectLikeNode{
-			properties: mapProperties(ent.Source.maybeChild("_event"), eventObject.Properties),
-			Source:     ent.Source,
-		},
-	})
-
-	services := make([]*serviceRef, 0)
-
-	for idx, service := range commands {
-		source := ent.Source.child("commands", strconv.Itoa(idx))
-		services = append(services, &serviceRef{
-			schema: service,
-			source: source,
-		})
-	}
-
-	services = append(services, &serviceRef{
-		schema: query,
-		source: ent.Source.maybeChild("_query"),
-	})
-
-	visitor.VisitServiceFile(&ServiceFileNode{
-		services: services,
+	return visitor.VisitServiceFile(&ServiceFileNode{
+		services: []*serviceRef{{
+			schema: query,
+			source: ent.Source.child(virtualPathNode, "query"),
+		}},
 	})
 
 }

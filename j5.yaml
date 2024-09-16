@@ -4,10 +4,15 @@ bundles:
   - name: test
     dir: proto/test
 
+  - name: j5build
+    dir: proto/j5build
+
 generate:
   - name: base
     inputs:
       - local: test
+      - local: j5build
+
     output: .
     opts:
       paths: import
@@ -15,7 +20,6 @@ generate:
     plugins:
       - base: go
       - base: go-sugar
-      - base: go-grpc
 
 managedPaths:
  - gen
@@ -25,11 +29,6 @@ plugins:
     type: PLUGIN_PROTO
     docker:
       image: ghcr.io/pentops/protoc-gen-go:v1.34.2
-
-  - name: go-grpc
-    type: PLUGIN_PROTO
-    docker:
-      image: ghcr.io/pentops/protoc-gen-go-grpc:v1.4.0
 
   - name: go-sugar
     type: PLUGIN_PROTO

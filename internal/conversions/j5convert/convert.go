@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/j5/gen/j5/bcl/v1/bcl_j5pb"
+	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
-	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
+	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
 )
 
 type SchemaCollection interface {
@@ -76,9 +76,14 @@ func (er *EnumRef) mapValues(vals []string) ([]int32, error) {
 	return out, nil
 }
 
-type MessageRef struct{}
+type MessageRef struct {
+	Oneof bool
+}
 
 func (typeRef TypeRef) protoTypeName() *string {
+	if typeRef.Package == "" {
+		return ptr(typeRef.Name)
+	}
 	return ptr(fmt.Sprintf(".%s.%s", typeRef.Package, typeRef.Name))
 }
 

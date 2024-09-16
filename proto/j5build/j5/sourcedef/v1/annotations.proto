@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package j5.sourcedef.v1;
+
+import "google/protobuf/descriptor.proto";
+
+option go_package = "github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb";
+
+extend google.protobuf.FieldOptions {
+  FieldOptions field = 555301;
+}
+
+message FieldOptions {
+  oneof type {
+    BlockOptions block = 1;
+    AssignOptions assign = 2;
+  }
+}
+
+message BlockOptions {
+  optional string name = 1;
+}
+
+message AssignOptions {
+  optional string name = 1;
+}
