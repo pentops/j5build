@@ -5,7 +5,7 @@ import (
 
 	"buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
-	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
+	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
@@ -92,6 +92,7 @@ func TestEnumFlexibility(t *testing.T) {
 			}
 			gotFiles, err := ConvertJ5File(deps, &sourcedef_j5pb.SourceFile{
 				Path:     "test/v1/test.j5s",
+				Package:  &sourcedef_j5pb.Package{Name: "test.v1"},
 				Elements: []*sourcedef_j5pb.RootElement{schema},
 			})
 			if err != nil {

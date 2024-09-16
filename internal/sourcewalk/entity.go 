@@ -1,28 +1,25 @@
-package j5convert
+package sourcewalk
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/iancoleman/strcase"
 	"github.com/pentops/j5/gen/j5/client/v1/client_j5pb"
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
-	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
-	"google.golang.org/protobuf/proto"
+	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
 )
 
-type entitySchemas struct {
-	name      string
-	keys      *schema_j5pb.Object
-	data      *schema_j5pb.Object
-	status    *schema_j5pb.Enum
-	state     *schema_j5pb.Object
-	event     *schema_j5pb.Object
-	eventType *sourcedef_j5pb.Oneof
+type entityNode struct {
+	name   string
+	Source SourceNode
+	Schema *sourcedef_j5pb.Entity
+}
 
-	commands []*sourcedef_j5pb.Service
-	query    *sourcedef_j5pb.Service
+func (ent *entityNode) componentName(suffix string) string {
+	return strcase.ToCamel(ent.Schema.Name) + strcase.ToCamel(suffix)
 }
 
 func schemaRefField(pkg, desc string) *schema_j5pb.Field {
@@ -40,41 +37,118 @@ func schemaRefField(pkg, desc string) *schema_j5pb.Field {
 	}
 }
 
-func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
-	entity = proto.Clone(entity).(*sourcedef_j5pb.Entity)
+// run converts the entity into lower level schema elements and calls the
+// visitors on those.
+func (ent *entityNode) run(visitor FileVisitor) error {
 
-	name := strcase.ToSnake(entity.Name)
+	if err := ent.acceptKeys(visitor); err != nil {
+		return err
+	}
+	if err := ent.acceptData(visitor); err != nil {
+		return err
+	}
+	if err := ent.acceptStatus(visitor); err != nil {
+		return err
+	}
+
+	if err := ent.acceptState(visitor); err != nil {
+		return err
+	}
+	if err := ent.acceptEventOneof(visitor); err != nil {
+		return err
+	}
+	if err := ent.acceptEvent(visitor); err != nil {
+		return err
+	}
+	if err := ent.acceptQuery(visitor); err != nil {
+		return err
+	}
+	if err := ent.acceptCommands(visitor); err != nil {
+		return err
+	}
+
+	if len(ent.Schema.Schemas) > 0 {
+		nested := mapNested(ent.Source, "schemas", []string{}, ent.Schema.Schemas)
+		if err := rangeNestedSchemas(nested, visitor); err != nil {
+			return wrapErr(ent.Source, err)
+		}
+	}
+
+	return nil
+}
+
+func (ent *entityNode) acceptKeys(visitor FileVisitor) error {
 
 	keys := &schema_j5pb.Object{
-		Name: strcase.ToCamel(entity.Name + "Keys"),
+		Name: ent.componentName("Keys"),
 		Entity: &schema_j5pb.EntityObject{
-			Entity: name,
+			Entity: ent.name,
 			Part:   schema_j5pb.EntityPart_KEYS,
 		},
-		Properties: entity.Keys,
+		Properties: ent.Schema.Keys,
 	}
+
+	err := visitor.VisitObject(&ObjectNode{
+		Schema: keys,
+		objectLikeNode: objectLikeNode{
+			properties: mapProperties(ent.Source, "keys", keys.Properties),
+			Source:     ent.Source,
+		},
+	})
+	if err != nil {
+		return wrapErr(ent.Source, err)
+	}
+	return nil
+}
+
+func (ent *entityNode) acceptData(visitor FileVisitor) error {
 
 	data := &schema_j5pb.Object{
-		Name: strcase.ToCamel(entity.Name + "Data"),
+		Name: ent.componentName("Data"),
 		Entity: &schema_j5pb.EntityObject{
-			Entity: name,
+			Entity: ent.name,
 			Part:   schema_j5pb.EntityPart_DATA,
 		},
-		Properties: entity.Data,
+		Properties: ent.Schema.Data,
 	}
 
+	return visitor.VisitObject(&ObjectNode{
+		Schema: data,
+		objectLikeNode: objectLikeNode{
+			properties: mapProperties(ent.Source, "data", data.Properties),
+			Source:     ent.Source,
+		},
+	})
+
+}
+
+func (ent *entityNode) acceptStatus(visitor FileVisitor) error {
+	entity := ent.Schema
 	status := &schema_j5pb.Enum{
-		Name:    strcase.ToCamel(entity.Name + "Status"),
+		Name:    ent.componentName("Status"),
 		Options: entity.Status,
 		Prefix:  strcase.ToScreamingSnake(entity.Name) + "_STATUS_",
 	}
+	return visitor.VisitEnum(&EnumNode{
+		Schema: status,
+		Source: ent.Source,
+	})
+}
 
-	objKeys := schemaRefField("", keys.Name)
+func (ent *entityNode) innerRef(name string) *schema_j5pb.Field {
+	return schemaRefField("", ent.componentName(name))
+}
+
+func (ent *entityNode) acceptState(visitor FileVisitor) error {
+	entity := ent.Schema
+
+	objKeys := schemaRefField("", ent.componentName("Keys"))
 	objKeys.GetObject().Flatten = true
+
 	state := &schema_j5pb.Object{
 		Name: strcase.ToCamel(entity.Name + "State"),
 		Entity: &schema_j5pb.EntityObject{
-			Entity: name,
+			Entity: ent.name,
 			Part:   schema_j5pb.EntityPart_STATE,
 		},
 		Properties: []*schema_j5pb.ObjectProperty{{
@@ -91,7 +165,7 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 			Name:       "data",
 			ProtoField: []int32{3},
 			Required:   true,
-			Schema:     schemaRefField("", data.Name),
+			Schema:     ent.innerRef("Data"),
 		}, {
 			Name:       "status",
 			ProtoField: []int32{4},
@@ -101,7 +175,7 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 					Enum: &schema_j5pb.EnumField{
 						Schema: &schema_j5pb.EnumField_Ref{
 							Ref: &schema_j5pb.Ref{
-								Schema: status.Name,
+								Schema: ent.componentName("Status"),
 							},
 						},
 					},
@@ -110,35 +184,87 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 		}},
 	}
 
+	return visitor.VisitObject(&ObjectNode{
+		Schema: state,
+		objectLikeNode: objectLikeNode{
+			properties: mapProperties(ent.Source.child(virtualPathNode), "state", state.Properties),
+			Source:     ent.Source,
+		},
+	})
+}
+
+func (ent *entityNode) acceptEventOneof(visitor FileVisitor) error {
+
+	entity := ent.Schema
 	eventOneof := &schema_j5pb.Oneof{
 		Name:       strcase.ToCamel(entity.Name + "EventType"),
 		Properties: make([]*schema_j5pb.ObjectProperty, 0, len(entity.Events)),
 	}
 
-	eventParent := &sourcedef_j5pb.Oneof{
-		Def: eventOneof,
-	}
+	eventObjectProperties := make([]*propertyNode, 0, len(entity.Events))
+	listOfEventsSource := ent.Source.child("events")
+	eventObjects := make([]*nestedNode, 0, len(entity.Events))
 
-	for idx, event := range entity.Events {
-		eventParent.Schemas = append(eventParent.Schemas, &sourcedef_j5pb.NestedSchema{
-			Type: &sourcedef_j5pb.NestedSchema_Object{
-				Object: event,
+	for idx, eventObjectSchema := range entity.Events {
+
+		// points to sourcedef.Object, which has def and schemas
+		eventSource := listOfEventsSource.child(strconv.Itoa(idx))
+
+		nested := &nestedNode{
+			schema: &sourcedef_j5pb.NestedSchema_Object{
+				Object: eventObjectSchema,
 			},
-		})
+			source:   eventSource, // Source of the object
+			nestPath: []string{eventOneof.Name},
+		}
 
-		eventOneof.Properties = append(eventOneof.Properties, &schema_j5pb.ObjectProperty{
-			Name:       strcase.ToCamel(event.Def.Name),
+		eventObjects = append(eventObjects, nested)
+
+		propSchema := &schema_j5pb.ObjectProperty{
+			Name:       strcase.ToCamel(eventObjectSchema.Def.Name),
 			ProtoField: []int32{int32(idx + 1)},
-			Schema:     schemaRefField("", eventOneof.Name+"."+event.Def.Name),
-		})
+			Schema: &schema_j5pb.Field{
+				Type: &schema_j5pb.Field_Object{
+					Object: &schema_j5pb.ObjectField{
+						Schema: &schema_j5pb.ObjectField_Ref{
+							Ref: &schema_j5pb.Ref{
+								Package: "",
+								Schema:  eventObjectSchema.Def.Name,
+							},
+						},
+					},
+				},
+			},
+		}
+		property := &propertyNode{
+			schema: propSchema,
+			source: eventSource.child(virtualPathNode, "wrapper"),
+			number: int32(idx + 1),
+		}
+		eventObjectProperties = append(eventObjectProperties, property)
+
 	}
 
-	eventKeys := schemaRefField("", keys.Name)
+	return visitor.VisitOneof(&OneofNode{
+		Schema: eventOneof,
+		objectLikeNode: objectLikeNode{
+			properties: eventObjectProperties,
+			Source:     ent.Source.child(virtualPathNode, "event_type"),
+			children:   eventObjects,
+		},
+	})
+}
+
+func (ent *entityNode) acceptEvent(visitor FileVisitor) error {
+	entity := ent.Schema
+
+	eventKeys := ent.innerRef("Keys")
 	eventKeys.GetObject().Flatten = true
+
 	eventObject := &schema_j5pb.Object{
 		Name: strcase.ToCamel(entity.Name + "Event"),
 		Entity: &schema_j5pb.EntityObject{
-			Entity: name,
+			Entity: ent.name,
 			Part:   schema_j5pb.EntityPart_EVENT,
 		},
 		Properties: []*schema_j5pb.ObjectProperty{{
@@ -160,7 +286,7 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 					Oneof: &schema_j5pb.OneofField{
 						Schema: &schema_j5pb.OneofField_Ref{
 							Ref: &schema_j5pb.Ref{
-								Schema: eventOneof.Name,
+								Schema: ent.componentName("EventType"),
 							},
 						},
 					},
@@ -169,6 +295,18 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 		}},
 	}
 
+	return visitor.VisitObject(&ObjectNode{
+		Schema: eventObject,
+		objectLikeNode: objectLikeNode{
+			properties: mapProperties(ent.Source.child(virtualPathNode), "event", eventObject.Properties),
+			Source:     ent.Source,
+		},
+	})
+
+}
+
+func (ent *entityNode) acceptCommands(visitor FileVisitor) error {
+	entity := ent.Schema
 	commands := entity.Commands
 	for _, service := range commands {
 		var serviceName string
@@ -180,7 +318,7 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 				serviceName += "Command"
 			}
 		} else {
-			serviceName = fmt.Sprintf("%sCommand", strcase.ToCamel(name))
+			serviceName = fmt.Sprintf("%sCommand", strcase.ToCamel(ent.Schema.Name))
 		}
 
 		if service.BasePath != nil {
@@ -195,15 +333,35 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 		service.Options = &ext_j5pb.ServiceOptions{
 			Type: &ext_j5pb.ServiceOptions_StateCommand_{
 				StateCommand: &ext_j5pb.ServiceOptions_StateCommand{
-					Entity: name,
+					Entity: ent.name,
 				},
 			},
 		}
 	}
 
-	primaryKeys := make([]*schema_j5pb.ObjectProperty, 0, len(keys.Properties))
+	services := make([]*serviceRef, 0)
+
+	for idx, service := range commands {
+		source := ent.Source.child("commands", strconv.Itoa(idx))
+		services = append(services, &serviceRef{
+			schema: service,
+			source: source,
+		})
+	}
+
+	return visitor.VisitServiceFile(&ServiceFileNode{
+		services: services,
+	})
+}
+
+func (ent *entityNode) acceptQuery(visitor FileVisitor) error {
+
+	entity := ent.Schema
+	name := ent.name
+
+	primaryKeys := make([]*schema_j5pb.ObjectProperty, 0, len(ent.Schema.Keys))
 	httpPath := []string{}
-	for _, key := range keys.Properties {
+	for _, key := range ent.Schema.Keys {
 		kk := key.Schema.GetKey()
 		if kk == nil {
 			continue
@@ -213,6 +371,7 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 			httpPath = append(httpPath, fmt.Sprintf(":%s", key.Name))
 		}
 	}
+
 	query := &sourcedef_j5pb.Service{
 		BasePath: ptr(fmt.Sprintf("/%s/q", entity.BaseUrlPath)),
 		Name:     ptr(fmt.Sprintf("%sQuery", strcase.ToCamel(name))),
@@ -226,7 +385,7 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 				Properties: []*schema_j5pb.ObjectProperty{{
 					Name:       strcase.ToLowerCamel(name),
 					ProtoField: []int32{1},
-					Schema:     schemaRefField("", state.Name),
+					Schema:     ent.innerRef("State"),
 					Required:   true,
 				}},
 			},
@@ -257,7 +416,7 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 					Schema: &schema_j5pb.Field{
 						Type: &schema_j5pb.Field_Array{
 							Array: &schema_j5pb.ArrayField{
-								Items: schemaRefField("", state.Name),
+								Items: ent.innerRef("State"),
 							},
 						},
 					},
@@ -295,7 +454,7 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 					Schema: &schema_j5pb.Field{
 						Type: &schema_j5pb.Field_Array{
 							Array: &schema_j5pb.ArrayField{
-								Items: schemaRefField("", eventObject.Name),
+								Items: ent.innerRef("Event"),
 							},
 						},
 					},
@@ -322,44 +481,15 @@ func convertEntity(entity *sourcedef_j5pb.Entity) *entitySchemas {
 		},
 	}
 
-	/*
-		message ListAccountEventsRequest {
-		  string account_id = 1 [(buf.validate.field).string.uuid = true];
+	return visitor.VisitServiceFile(&ServiceFileNode{
+		services: []*serviceRef{{
+			schema: query,
+			source: ent.Source.child(virtualPathNode, "query"),
+		}},
+	})
 
-		  j5.list.v1.PageRequest page = 100;
-		  j5.list.v1.QueryRequest query = 101;
-		}
+}
 
-		message ListAccountEventsResponse {
-		  repeated interxfi.registration.v1.AccountEvent events = 2 [(buf.validate.field).repeated = {
-		    min_items: 1
-		    max_items: 20
-		  }];
-
-		  j5.list.v1.PageResponse page = 100;
-		}
-
-		message ListAccountsRequest {
-		  j5.list.v1.PageRequest page = 100;
-		  j5.list.v1.QueryRequest query = 101;
-		}
-
-		message ListAccountsResponse {
-		  repeated interxfi.registration.v1.AccountState accounts = 1 [(buf.validate.field).repeated = {
-		    min_items: 1
-		    max_items: 20
-		  }];
-		  j5.list.v1.PageResponse page = 100;
-		}*/
-	return &entitySchemas{
-		name:      name,
-		keys:      keys,
-		data:      data,
-		status:    status,
-		state:     state,
-		event:     eventObject,
-		eventType: eventParent,
-		commands:  commands,
-		query:     query,
-	}
+func ptr[T any](v T) *T {
+	return &v
 }

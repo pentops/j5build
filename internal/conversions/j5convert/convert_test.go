@@ -8,7 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
-	"github.com/pentops/j5/gen/j5/sourcedef/v1/sourcedef_j5pb"
+	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -290,23 +290,3 @@ func equal(t testing.TB, want, got proto.Message) {
 	}
 
 }
-
-/*
-type fileMap map[string][]byte
-
-func NewFileMap() fileMap {
-	return make(fileMap)
-}
-
-func (fm fileMap) GetFile(filename string) ([]byte, error) {
-	if b, ok := fm[filename]; ok {
-		return b, nil
-	}
-	return nil, os.ErrNotExist
-}
-
-func (fm fileMap) PutFile(ctx context.Context, filename string, content []byte) error {
-
-	fm[filename] = content
-	return nil
-}*/

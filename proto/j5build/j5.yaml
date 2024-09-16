@@ -1,0 +1,11 @@
+---
+
+packages:
+  - name: j5.sourcedef.v1
+
+options:
+  subPackages: []
+
+registry:
+  owner: pentops
+  name: j5build

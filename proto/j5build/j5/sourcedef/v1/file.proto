@@ -1,0 +1,156 @@
+syntax = "proto3";
+
+package j5.sourcedef.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/descriptor.proto";
+import "j5/auth/v1/method.proto";
+import "j5/bcl/v1/annotations.proto";
+import "j5/client/v1/client.proto";
+import "j5/ext/v1/annotations.proto";
+import "j5/schema/v1/schema.proto";
+
+option go_package = "github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb";
+
+message SourceFile {
+  string path = 1;
+  Package package = 2;
+
+  repeated Import imports = 4 [(j5.ext.v1.field).array.single_form = "import"];
+
+  repeated RootElement elements = 5;
+
+  j5.bcl.v1.SourceLocation source_locations = 6;
+}
+
+message Package {
+  string name = 1;
+}
+
+message Import {
+  string path = 1;
+  string alias = 2;
+}
+
+message RootElement {
+  oneof type {
+    Entity entity = 4;
+    Oneof oneof = 1;
+    Object object = 2;
+    j5.schema.v1.Enum enum = 3;
+    Topic topic = 5;
+    Service service = 6;
+  }
+}
+
+message Entity {
+  string name = 1;
+  string description = 2;
+  string base_url_path = 9; // The entire path from the root to the beginning of the entity.
+
+  repeated j5.schema.v1.Enum.Option status = 4 [(buf.validate.field).required = true];
+
+  repeated j5.schema.v1.ObjectProperty keys = 3 [(j5.ext.v1.field).array.single_form = "key"];
+
+  repeated j5.schema.v1.ObjectProperty data = 5;
+
+  repeated Object events = 6;
+
+  repeated NestedSchema schemas = 7;
+
+  repeated Service commands = 8 [(j5.ext.v1.field).array.single_form = "command"];
+}
+
+message Method {
+  string name = 1;
+  string http_path = 2;
+  string description = 3;
+
+  j5.client.v1.HTTPMethod http_method = 4 [(buf.validate.field).enum = {
+    not_in: 0
+    defined_only: true
+  }];
+
+  AnonymousObject request = 5 [(buf.validate.field).required = true];
+
+  // The response object for the endpoint, when empty indicates a raw http
+  // response.
+  AnonymousObject response = 6 [(buf.validate.field).required = false];
+
+  j5.auth.v1.MethodAuthType auth = 7;
+  j5.ext.v1.MethodOptions options = 8;
+}
+
+message AnonymousObject {
+  repeated j5.schema.v1.ObjectProperty properties = 1 [(j5.ext.v1.field).array.single_form = "field"];
+}
+
+message Service {
+  optional string name = 1; // Defaults to FooCommand
+  optional string base_path = 2; // appended to the entity's base_url_path, defaults to `/c`
+
+  string description = 3;
+  repeated Method methods = 4 [(j5.ext.v1.field).array.single_form = "method"];
+  j5.ext.v1.ServiceOptions options = 5;
+}
+
+message NestedSchema {
+  oneof type {
+    Oneof oneof = 1;
+    Object object = 2;
+    j5.schema.v1.Enum enum = 3;
+  }
+}
+
+message Oneof {
+  j5.schema.v1.Oneof def = 1 [(j5.ext.v1.field).message.flatten = true];
+
+  repeated NestedSchema schemas = 3;
+}
+
+message Object {
+  j5.schema.v1.Object def = 1 [(j5.ext.v1.field).message.flatten = true];
+
+  repeated NestedSchema schemas = 3;
+}
+
+message EntityElement {
+  Entity entity = 1 [(j5.ext.v1.field).message.flatten = true];
+}
+
+message Topic {
+  string name = 1;
+  string description = 2;
+
+  TopicType type = 3;
+}
+
+message TopicType {
+  oneof type {
+    Publish publish = 1;
+    ReqRes reqres = 2;
+    Upsert upsert = 3;
+  }
+
+  message Publish {
+    repeated NamedTopicMessage messages = 1 [(j5.ext.v1.field).array.single_form = "message"];
+  }
+
+  message ReqRes {
+    AnonTopicMessage request = 2 [(buf.validate.field).required = true];
+    AnonTopicMessage reply = 3 [(buf.validate.field).required = true];
+  }
+
+  message Upsert {
+    AnonTopicMessage message = 2 [(buf.validate.field).required = true];
+  }
+}
+
+message NamedTopicMessage {
+  string name = 1 [(buf.validate.field).string.pattern = "^[A-Z][A-Za-zA-Z0-9]+$"];
+  repeated j5.schema.v1.ObjectProperty fields = 5 [(j5.ext.v1.field).array.single_form = "field"];
+}
+
+message AnonTopicMessage {
+  repeated j5.schema.v1.ObjectProperty fields = 5 [(j5.ext.v1.field).array.single_form = "field"];
+}
