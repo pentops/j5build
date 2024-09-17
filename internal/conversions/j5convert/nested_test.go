@@ -28,7 +28,7 @@ func TestMessageNesting(t *testing.T) {
 				JsonName: proto.String("field"),
 				Number:   proto.Int32(1),
 				Type:     descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum(),
-				TypeName: proto.String("Inner"),
+				TypeName: proto.String("Outer.Inner"),
 				Options:  tEmptyTypeExt(t, "object"),
 			}},
 
