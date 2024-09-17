@@ -22,7 +22,7 @@ func CodeGeneratorRequestFromImage(img *source_j5pb.SourceImage) (*pluginpb.Code
 		includeFiles[*file.Name] = true
 	}
 
-	if img.Options.Go != nil {
+	if img.Options != nil && img.Options.Go != nil {
 		for _, file := range img.File {
 			if file.Options != nil && file.Options.GoPackage != nil {
 				continue

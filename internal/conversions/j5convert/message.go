@@ -36,26 +36,18 @@ func (msg *MessageBuilder) addEnum(enum *EnumBuilder) {
 }
 
 func convertObject(ww *walkContext, node *sourcewalk.ObjectNode) {
-	schema := node.Schema
-	if schema.Name == "" {
-		if ww.field == nil {
-			ww.errorf(node.Source, "missing object name")
-			return
-		}
-		schema.Name = strcase.ToCamel(ww.field.name)
-	}
 
-	message := blankMessage(ww.file, schema.Name)
+	message := blankMessage(ww.file, node.Name)
 
-	if schema.Entity != nil {
+	if node.Entity != nil {
 		ww.file.ensureImport(j5ExtImport)
 		proto.SetExtension(message.descriptor.Options, ext_j5pb.E_Psm, &ext_j5pb.PSMOptions{
-			EntityName: schema.Entity.Entity,
-			EntityPart: schema.Entity.Part.Enum(),
+			EntityName: node.Entity.Entity,
+			EntityPart: node.Entity.Part.Enum(),
 		})
 
 	}
-	message.comment([]int32{}, schema.Description)
+	message.comment([]int32{}, node.Description)
 
 	err := node.RangeProperties(&sourcewalk.PropertyCallbacks{
 		SchemaVisitor: walkerSchemaVisitor(ww.inMessage(message)),
@@ -68,7 +60,7 @@ func convertObject(ww *walkContext, node *sourcewalk.ObjectNode) {
 
 			// Take the index (prior to append len == index), not the field number
 			locPath := []int32{2, int32(len(message.descriptor.Field))}
-			message.comment(locPath, schema.Description)
+			message.comment(locPath, node.Schema.Description)
 			message.descriptor.Field = append(message.descriptor.Field, propertyDesc)
 			return nil
 		},

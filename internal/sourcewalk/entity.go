@@ -44,6 +44,7 @@ func (ent *entityNode) run(visitor FileVisitor) error {
 	if err := ent.acceptKeys(visitor); err != nil {
 		return err
 	}
+
 	if err := ent.acceptData(visitor); err != nil {
 		return err
 	}
@@ -68,9 +69,9 @@ func (ent *entityNode) run(visitor FileVisitor) error {
 	}
 
 	if len(ent.Schema.Schemas) > 0 {
-		nested := mapNested(ent.Source, "schemas", []string{}, ent.Schema.Schemas)
-		if err := rangeNestedSchemas(nested, visitor); err != nil {
-			return wrapErr(ent.Source, err)
+		ss := mapNested(ent.Source, nil, ent.Schema.Schemas)
+		if err := ss.RangeNestedSchemas(visitor); err != nil {
+			return err
 		}
 	}
 
@@ -79,23 +80,23 @@ func (ent *entityNode) run(visitor FileVisitor) error {
 
 func (ent *entityNode) acceptKeys(visitor FileVisitor) error {
 
-	keys := &schema_j5pb.Object{
-		Name: ent.componentName("Keys"),
-		Entity: &schema_j5pb.EntityObject{
-			Entity: ent.name,
-			Part:   schema_j5pb.EntityPart_KEYS,
-		},
-		Properties: ent.Schema.Keys,
+	object, err := newVirtualObjectNode(
+		ent.Source.child("keys"),
+		nil,
+		ent.componentName("Keys"),
+		ent.Schema.Keys,
+	)
+
+	object.Entity = &schema_j5pb.EntityObject{
+		Entity: ent.name,
+		Part:   schema_j5pb.EntityPart_KEYS,
 	}
 
-	err := visitor.VisitObject(&ObjectNode{
-		Schema: keys,
-		objectLikeNode: objectLikeNode{
-			properties: mapProperties(ent.Source, "keys", keys.Properties),
-			Source:     ent.Source.child("keys"),
-		},
-	})
 	if err != nil {
+		return wrapErr(ent.Source, err)
+	}
+
+	if err := visitor.VisitObject(object); err != nil {
 		return wrapErr(ent.Source, err)
 	}
 	return nil
@@ -103,23 +104,22 @@ func (ent *entityNode) acceptKeys(visitor FileVisitor) error {
 
 func (ent *entityNode) acceptData(visitor FileVisitor) error {
 
-	data := &schema_j5pb.Object{
-		Name: ent.componentName("Data"),
-		Entity: &schema_j5pb.EntityObject{
-			Entity: ent.name,
-			Part:   schema_j5pb.EntityPart_DATA,
-		},
-		Properties: ent.Schema.Data,
+	node, err := newVirtualObjectNode(
+		ent.Source.child("data"),
+		nil,
+		ent.componentName("Data"),
+		ent.Schema.Data,
+	)
+	if err != nil {
+		return wrapErr(ent.Source, err)
 	}
 
-	return visitor.VisitObject(&ObjectNode{
-		Schema: data,
-		objectLikeNode: objectLikeNode{
-			properties: mapProperties(ent.Source, "data", data.Properties),
-			Source:     ent.Source,
-		},
-	})
+	node.Entity = &schema_j5pb.EntityObject{
+		Entity: ent.name,
+		Part:   schema_j5pb.EntityPart_DATA,
+	}
 
+	return visitor.VisitObject(node)
 }
 
 func (ent *entityNode) acceptStatus(visitor FileVisitor) error {
@@ -129,10 +129,12 @@ func (ent *entityNode) acceptStatus(visitor FileVisitor) error {
 		Options: entity.Status,
 		Prefix:  strcase.ToScreamingSnake(entity.Name) + "_STATUS_",
 	}
-	return visitor.VisitEnum(&EnumNode{
-		Schema: status,
-		Source: ent.Source,
-	})
+
+	node, err := newEnumNode(ent.Source.child("status"), nil, status)
+	if err != nil {
+		return wrapErr(ent.Source, err)
+	}
+	return visitor.VisitEnum(node)
 }
 
 func (ent *entityNode) innerRef(name string) *schema_j5pb.Field {
@@ -184,13 +186,11 @@ func (ent *entityNode) acceptState(visitor FileVisitor) error {
 		}},
 	}
 
-	return visitor.VisitObject(&ObjectNode{
-		Schema: state,
-		objectLikeNode: objectLikeNode{
-			properties: mapProperties(ent.Source.child(virtualPathNode), "state", state.Properties),
-			Source:     ent.Source,
-		},
-	})
+	node, err := newObjectSchemaNode(ent.Source.child("state"), nil, state)
+	if err != nil {
+		return wrapErr(ent.Source, err)
+	}
+	return visitor.VisitObject(node)
 }
 
 func (ent *entityNode) acceptEventOneof(visitor FileVisitor) error {
@@ -201,27 +201,22 @@ func (ent *entityNode) acceptEventOneof(visitor FileVisitor) error {
 		Properties: make([]*schema_j5pb.ObjectProperty, 0, len(entity.Events)),
 	}
 
-	eventObjectProperties := make([]*propertyNode, 0, len(entity.Events))
-	listOfEventsSource := ent.Source.child("events")
-	eventObjects := make([]*nestedNode, 0, len(entity.Events))
+	eventObjects := make([]*sourcedef_j5pb.NestedSchema, 0, len(entity.Events))
 
 	for idx, eventObjectSchema := range entity.Events {
 
-		// points to sourcedef.Object, which has def and schemas
-		eventSource := listOfEventsSource.child(strconv.Itoa(idx))
+		nestedName := eventObjectSchema.Def.Name
 
-		nested := &nestedNode{
-			schema: &sourcedef_j5pb.NestedSchema_Object{
+		nested := &sourcedef_j5pb.NestedSchema{
+			Type: &sourcedef_j5pb.NestedSchema_Object{
 				Object: eventObjectSchema,
 			},
-			source:   eventSource, // Source of NestedSchema_Object
-			nestPath: []string{eventOneof.Name},
 		}
 
 		eventObjects = append(eventObjects, nested)
 
 		propSchema := &schema_j5pb.ObjectProperty{
-			Name:       strcase.ToCamel(eventObjectSchema.Def.Name),
+			Name:       strcase.ToLowerCamel(eventObjectSchema.Def.Name),
 			ProtoField: []int32{int32(idx + 1)},
 			Schema: &schema_j5pb.Field{
 				Type: &schema_j5pb.Field_Object{
@@ -229,29 +224,30 @@ func (ent *entityNode) acceptEventOneof(visitor FileVisitor) error {
 						Schema: &schema_j5pb.ObjectField_Ref{
 							Ref: &schema_j5pb.Ref{
 								Package: "",
-								Schema:  eventObjectSchema.Def.Name,
+								Schema: fmt.Sprintf("%s.%s",
+									eventOneof.Name,
+									nestedName,
+								),
 							},
 						},
 					},
 				},
 			},
 		}
-		property := &propertyNode{
-			schema: propSchema,
-			source: eventSource.child(virtualPathNode, "wrapper"),
-			number: int32(idx + 1),
-		}
-		eventObjectProperties = append(eventObjectProperties, property)
+
+		eventOneof.Properties = append(eventOneof.Properties, propSchema)
 	}
 
-	return visitor.VisitOneof(&OneofNode{
-		Schema: eventOneof,
-		objectLikeNode: objectLikeNode{
-			properties: eventObjectProperties,
-			Source:     ent.Source.child(virtualPathNode, "event_type"),
-			children:   eventObjects,
-		},
+	node, err := newOneofNode(ent.Source.child(virtualPathNode, "event_type"), nil, &sourcedef_j5pb.Oneof{
+		Def:     eventOneof,
+		Schemas: eventObjects,
 	})
+
+	if err != nil {
+		return wrapErr(ent.Source, err)
+	}
+
+	return visitor.VisitOneof(node)
 }
 
 func (ent *entityNode) acceptEvent(visitor FileVisitor) error {
@@ -294,14 +290,11 @@ func (ent *entityNode) acceptEvent(visitor FileVisitor) error {
 		}},
 	}
 
-	return visitor.VisitObject(&ObjectNode{
-		Schema: eventObject,
-		objectLikeNode: objectLikeNode{
-			properties: mapProperties(ent.Source.child(virtualPathNode), "event", eventObject.Properties),
-			Source:     ent.Source,
-		},
-	})
-
+	node, err := newObjectSchemaNode(ent.Source.child("event"), nil, eventObject)
+	if err != nil {
+		return wrapErr(ent.Source, err)
+	}
+	return visitor.VisitObject(node)
 }
 
 func (ent *entityNode) acceptCommands(visitor FileVisitor) error {

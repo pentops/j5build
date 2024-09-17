@@ -75,13 +75,12 @@ func (sn *serviceRef) accept(visitor ServiceFileVisitor) error {
 			Properties: method.Request.Properties,
 		}
 
-		if err := visitor.VisitObject(&ObjectNode{
-			Schema: request,
-			objectLikeNode: objectLikeNode{
-				Source:     source.child("request"),
-				properties: mapProperties(source.child("request"), "properties", method.Request.Properties),
-			},
-		}); err != nil {
+		requestNode, err := newObjectSchemaNode(source.child("request"), nil, request)
+		if err != nil {
+			return fmt.Errorf("method %s request: %w", method.Name, err)
+		}
+
+		if err := visitor.VisitObject(requestNode); err != nil {
 			return fmt.Errorf("method %s request: %w", method.Name, err)
 		}
 
@@ -93,13 +92,13 @@ func (sn *serviceRef) accept(visitor ServiceFileVisitor) error {
 				Name:       fmt.Sprintf("%sResponse", method.Name),
 				Properties: method.Response.Properties,
 			}
-			if err := visitor.VisitObject(&ObjectNode{
-				Schema: response,
-				objectLikeNode: objectLikeNode{
-					Source:     source.child("response"),
-					properties: mapProperties(source.child("response"), "properties", method.Response.Properties),
-				},
-			}); err != nil {
+
+			responseNode, err := newObjectSchemaNode(source.child("response"), nil, response)
+			if err != nil {
+				return fmt.Errorf("method %s response: %w", method.Name, err)
+			}
+
+			if err := visitor.VisitObject(responseNode); err != nil {
 				return fmt.Errorf("method %s response: %w", method.Name, err)
 			}
 

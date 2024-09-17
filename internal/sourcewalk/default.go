@@ -25,14 +25,21 @@ func (df *DefaultVisitor) VisitProperty(node *PropertyNode) error {
 }
 
 func (df *DefaultVisitor) VisitObject(node *ObjectNode) error {
-	if err := node.RangeNestedSchemas(df); err != nil {
-		return err
+	if df.Object != nil {
+		if err := df.Object(node); err != nil {
+			return err
+		}
 	}
 	if err := node.RangeProperties(df); err != nil {
 		return err
 	}
-	if df.Object != nil {
-		return df.Object(node)
+	if err := node.RangeNestedSchemas(df); err != nil {
+		return err
+	}
+	if df.ObjectExit != nil {
+		if err := df.ObjectExit(node); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -43,10 +50,12 @@ func (df *DefaultVisitor) VisitOneof(node *OneofNode) error {
 			return err
 		}
 	}
-	if err := node.RangeNestedSchemas(df); err != nil {
+
+	if err := node.RangeProperties(df); err != nil {
 		return err
 	}
-	if err := node.RangeProperties(df); err != nil {
+
+	if err := node.RangeNestedSchemas(df); err != nil {
 		return err
 	}
 

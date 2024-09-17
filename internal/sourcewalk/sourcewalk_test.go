@@ -8,6 +8,20 @@ import (
 	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
 )
 
+func walkLoc(walk *bcl_j5pb.SourceLocation, path ...string) *bcl_j5pb.SourceLocation {
+	for _, part := range path {
+		if walk.Children == nil {
+			walk.Children = map[string]*bcl_j5pb.SourceLocation{}
+		}
+		nextLoc := walk.Children[part]
+		if nextLoc == nil {
+			nextLoc = &bcl_j5pb.SourceLocation{}
+			walk.Children[part] = nextLoc
+		}
+		walk = nextLoc
+	}
+	return walk
+}
 func TestSourceNode(t *testing.T) {
 
 	root := &bcl_j5pb.SourceLocation{
@@ -16,7 +30,7 @@ func TestSourceNode(t *testing.T) {
 	walkLoc(root, "foo", "bar").StartLine = 2
 	walkLoc(root, "foo", "bar", "def", "properties", "0").StartLine = 3
 
-	printSource(root, []string{})
+	printSource(t, root, []string{})
 	ww := SourceNode{
 		Path:   []string{},
 		Source: root,
@@ -34,15 +48,15 @@ func TestSourceNode(t *testing.T) {
 	assert(wrap.child(virtualPathNode, "wrapper"), 2)
 }
 
-func printSource(loc *bcl_j5pb.SourceLocation, path []string) {
+func printSource(t testing.TB, loc *bcl_j5pb.SourceLocation, path []string) {
 	if loc == nil {
 		fmt.Printf("NIL LOC\n")
 		return
 	}
-	fmt.Printf("%03d:%03d %s\n",
+	t.Logf("%03d:%03d %s\n",
 		loc.StartLine, loc.StartColumn,
 		strings.Join(path, "."))
 	for k, v := range loc.Children {
-		printSource(v, append(path, k))
+		printSource(t, v, append(path, k))
 	}
 }

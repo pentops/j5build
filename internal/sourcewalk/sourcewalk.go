@@ -32,7 +32,7 @@ func (sn SourceNode) PathString() string {
 	return strings.Join(sn.Path, ".")
 }
 
-const virtualPathNode = "<virtual>"
+const virtualPathNode = "-"
 
 func (sn SourceNode) child(path ...string) SourceNode {
 	walk := sn
@@ -58,7 +58,9 @@ func (sn SourceNode) child(path ...string) SourceNode {
 
 		if !virtual {
 			options := maps.Keys(walk.Source.Children)
-			log.Printf("No source child %q in %s (%v), have %q", part, walk.PathString(), walk.virtual, options)
+			if false {
+				log.Printf("No source child %q in %s (%v), have %q", part, walk.PathString(), walk.virtual, options)
+			}
 		}
 
 		newNode := SourceNode{
@@ -100,7 +102,7 @@ func NewRoot(file *sourcedef_j5pb.SourceFile) *FileNode {
 
 	if root.Source == nil {
 		root.Source = &bcl_j5pb.SourceLocation{}
-		root.Path = []string{virtualPathNode}
+		root.Path = []string{}
 		root.virtual = true
 	}
 

@@ -68,25 +68,20 @@ func (tn *topicRef) accept(visitor TopicFileVisitor) error {
 		methods := make([]*TopicMethodNode, 0)
 		for idx, msg := range tt.Publish.Messages {
 			source := source.child("messages", strconv.Itoa(idx))
-			objSchema := &schema_j5pb.Object{
-				Name:       fmt.Sprintf("%sMessage", msg.Name),
-				Properties: msg.Fields,
+
+			objNode, err := newVirtualObjectNode(source, nil, fmt.Sprintf("%sMessage", msg.Name), msg.Fields)
+			if err != nil {
+				return err
 			}
 
-			if err := visitor.VisitObject(&ObjectNode{
-				Schema: objSchema,
-				objectLikeNode: objectLikeNode{
-					Source:     source,
-					properties: mapProperties(source, "fields", msg.Fields),
-				},
-			}); err != nil {
+			if err := visitor.VisitObject(objNode); err != nil {
 				return err
 			}
 
 			methods = append(methods, &TopicMethodNode{
 				Source:  source,
 				Name:    msg.Name,
-				Request: objSchema.Name,
+				Request: objNode.NameInPackage(),
 			})
 		}
 
@@ -105,25 +100,16 @@ func (tn *topicRef) accept(visitor TopicFileVisitor) error {
 	case *sourcedef_j5pb.TopicType_Reqres:
 		source := tn.source.child("type", "reqres")
 
-		request := &schema_j5pb.Object{
-			Name: fmt.Sprintf("%sRequestMessage", tn.schema.Name),
-		}
-		requestProperties := mapProperties(
-			source.child("request"), "fields",
-			request.Properties,
+		requestNode, err := newVirtualObjectNode(source, nil, fmt.Sprintf("%sRequestMessage", tn.schema.Name), tt.Reqres.Request.Fields,
 			&schema_j5pb.ObjectProperty{
 				Name:   "request",
 				Schema: schemaRefField("j5.messaging.v1", "RequestMetadata"),
-			})
-
-		err := visitor.VisitObject(&ObjectNode{
-			Schema: request,
-			objectLikeNode: objectLikeNode{
-				Source:     source.child("request"),
-				properties: requestProperties,
 			},
-		})
-
+		)
+		if err != nil {
+			return err
+		}
+		err = visitor.VisitObject(requestNode)
 		if err != nil {
 			return fmt.Errorf("request object: %w", err)
 		}
@@ -140,34 +126,26 @@ func (tn *topicRef) accept(visitor TopicFileVisitor) error {
 			Methods: []*TopicMethodNode{{
 				Source:  source,
 				Name:    fmt.Sprintf("%sRequest", tn.schema.Name),
-				Request: request.Name,
+				Request: requestNode.NameInPackage(),
 			}},
 		})
 		if err != nil {
 			return fmt.Errorf("request: %w", err)
 		}
 
-		reply := &schema_j5pb.Object{
-			Name: fmt.Sprintf("%sReplyMessage", tn.schema.Name),
-		}
-
-		replyProperties := mapProperties(
-			source.child("reply"), "fields",
-			reply.Properties,
+		replyNode, err := newVirtualObjectNode(source, nil, fmt.Sprintf("%sReplyMessage", tn.schema.Name), tt.Reqres.Reply.Fields,
 			&schema_j5pb.ObjectProperty{
 				Name:   "request",
 				Schema: schemaRefField("j5.messaging.v1", "RequestMetadata"),
-			})
-
-		err = visitor.VisitObject(&ObjectNode{
-			Schema: reply,
-			objectLikeNode: objectLikeNode{
-				Source:     source.child("reply"),
-				properties: replyProperties,
 			},
-		})
+		)
+
 		if err != nil {
-			return fmt.Errorf("requireply object: %w", err)
+			return err
+		}
+		err = visitor.VisitObject(replyNode)
+		if err != nil {
+			return fmt.Errorf("replyNode object: %w", err)
 		}
 
 		err = visitor.VisitTopic(&TopicNode{
@@ -182,7 +160,7 @@ func (tn *topicRef) accept(visitor TopicFileVisitor) error {
 			Methods: []*TopicMethodNode{{
 				Source:  source.child("reply"),
 				Name:    fmt.Sprintf("%sReply", tn.schema.Name),
-				Request: reply.Name,
+				Request: replyNode.NameInPackage(),
 			}},
 		})
 		if err != nil {
@@ -196,26 +174,17 @@ func (tn *topicRef) accept(visitor TopicFileVisitor) error {
 
 		upsert := tt.Upsert
 
-		properties := mapProperties(
-			source.child("message"), "fields",
-			upsert.Message.Fields,
+		messageNode, err := newVirtualObjectNode(source, nil, fmt.Sprintf("%sMessage", tn.schema.Name), upsert.Message.Fields,
 			&schema_j5pb.ObjectProperty{
 				Name:   "upsert",
 				Schema: schemaRefField("j5.messaging.v1", "UpsertMetadata"),
-			})
-
-		upsertSchema := &schema_j5pb.Object{
-			Name: fmt.Sprintf("%sMessage", tn.schema.Name),
-			//Properties: append([]*schema_j5pb.ObjectProperty{metadata}, upsert.Message.Fields...),
+			},
+		)
+		if err != nil {
+			return err
 		}
 
-		err := visitor.VisitObject(&ObjectNode{
-			Schema: upsertSchema,
-			objectLikeNode: objectLikeNode{
-				Source:     source.child("message"),
-				properties: properties,
-			},
-		})
+		err = visitor.VisitObject(messageNode)
 		if err != nil {
 			return fmt.Errorf("messagre: %w", err)
 		}
@@ -231,8 +200,8 @@ func (tn *topicRef) accept(visitor TopicFileVisitor) error {
 			},
 			Methods: []*TopicMethodNode{{
 				Source:  source,
-				Name:    fmt.Sprintf("%sUpsert", tn.schema.Name),
-				Request: upsertSchema.Name,
+				Name:    tn.schema.Name,
+				Request: messageNode.NameInPackage(),
 			}},
 		})
 		if err != nil {

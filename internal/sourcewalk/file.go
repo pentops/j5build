@@ -45,17 +45,9 @@ func (fn *FileNode) RangeRootElements(visitor FileVisitor) error {
 		switch element := element.Type.(type) {
 		case *sourcedef_j5pb.RootElement_Object:
 			source := source.child("object")
-			object := element.Object.Def
-			objectNode := &ObjectNode{
-				Schema: object,
-				objectLikeNode: objectLikeNode{
-					Source: source.child("def"),
-					children: mapNested(
-						source, "schemas",
-						[]string{object.Name},
-						element.Object.Schemas),
-					properties: mapProperties(source.child("def"), "properties", element.Object.Def.Properties),
-				},
+			objectNode, err := newObjectNode(source.child("object"), nil, element.Object)
+			if err != nil {
+				return wrapErr(source, err)
 			}
 			if err := visitor.VisitObject(objectNode); err != nil {
 				return wrapErr(source, err)
@@ -63,18 +55,9 @@ func (fn *FileNode) RangeRootElements(visitor FileVisitor) error {
 
 		case *sourcedef_j5pb.RootElement_Oneof:
 			source := source.child("oneof")
-			oneof := element.Oneof.Def
-			oneofNode := &OneofNode{
-				Schema: oneof,
-				objectLikeNode: objectLikeNode{
-					Source: source.child("def"),
-					children: mapNested(
-						source, "schemas",
-						[]string{oneof.Name},
-						element.Oneof.Schemas,
-					),
-					properties: mapProperties(source.child("def"), "properties", element.Oneof.Def.Properties),
-				},
+			oneofNode, err := newOneofNode(source.child("oneof"), nil, element.Oneof)
+			if err != nil {
+				return wrapErr(source, err)
 			}
 			if err := visitor.VisitOneof(oneofNode); err != nil {
 				return err
@@ -82,9 +65,9 @@ func (fn *FileNode) RangeRootElements(visitor FileVisitor) error {
 
 		case *sourcedef_j5pb.RootElement_Enum:
 			enum := element.Enum
-			enumNode := &EnumNode{
-				Schema: enum,
-				Source: source.child("enum"),
+			enumNode, err := newEnumNode(source.child("enum"), nil, enum)
+			if err != nil {
+				return wrapErr(source, err)
 			}
 			if err := visitor.VisitEnum(enumNode); err != nil {
 				return err

@@ -72,6 +72,7 @@ func SourceSummary(sourceFile *sourcedef_j5pb.SourceFile) (*FileSummary, error) 
 		export.Package = sourceFile.Package.Name
 		export.File = importPath
 		fs.Exports[export.Name] = export
+		//fmt.Printf("export from %s: %s\n", export.Package, export.Name)
 	}
 
 	return fs, nil
@@ -127,7 +128,7 @@ func (cc *collector) collectFileRefs(sourceFile *sourcedef_j5pb.SourceFile) erro
 
 func objectTypeRef(node *sourcewalk.ObjectNode) *TypeRef {
 	return &TypeRef{
-		Name:       node.Schema.Name,
+		Name:       node.NameInPackage(),
 		Position:   node.Source.GetPos(),
 		MessageRef: &MessageRef{},
 	}
@@ -135,7 +136,7 @@ func objectTypeRef(node *sourcewalk.ObjectNode) *TypeRef {
 
 func oneofTypeRef(node *sourcewalk.OneofNode) *TypeRef {
 	return &TypeRef{
-		Name:     node.Schema.Name,
+		Name:     node.NameInPackage(),
 		Position: node.Source.GetPos(),
 		MessageRef: &MessageRef{
 			Oneof: true,

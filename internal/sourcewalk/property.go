@@ -3,6 +3,7 @@ package sourcewalk
 import (
 	"fmt"
 
+	"github.com/iancoleman/strcase"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -25,7 +26,12 @@ type PropertyNode struct {
 	Schema *schema_j5pb.ObjectProperty
 	Source SourceNode
 	Number int32
+	parent parentNode
 	Field  FieldNode
+}
+
+func (pn *PropertyNode) NameInPackage() string {
+	return fmt.Sprintf("%s.%s", pn.parent.NameInPackage(), pn.Schema.Name)
 }
 
 type FieldNode struct {
@@ -54,6 +60,7 @@ type RefNode struct {
 type propertyNode struct {
 	schema *schema_j5pb.ObjectProperty
 	source SourceNode
+	parent parentNode
 	number int32
 }
 
@@ -63,11 +70,13 @@ func (pn *propertyNode) accept(visitor PropertyVisitor) error {
 		Schema: pn.schema,
 		Source: pn.source,
 		Number: pn.number,
+		parent: pn.parent,
 	}
 
 	source := pn.source.child("schema")
 
-	fieldNode, err := buildFieldNode(source, pn.schema.Schema, visitor)
+	defaultNestingName := strcase.ToCamel(pn.schema.Name)
+	fieldNode, err := buildFieldNode(source, pn.parent, defaultNestingName, pn.schema.Schema, visitor)
 	if err != nil {
 		return err
 	}
@@ -78,14 +87,14 @@ func (pn *propertyNode) accept(visitor PropertyVisitor) error {
 
 }
 
-func buildFieldNode(source SourceNode, pn *schema_j5pb.Field, visitor PropertyVisitor) (*FieldNode, error) {
+func buildFieldNode(source SourceNode, parent parentNode, defaultNestingName string, pn *schema_j5pb.Field, visitor PropertyVisitor) (*FieldNode, error) {
 	if pn == nil || pn.Type == nil {
 		return nil, fmt.Errorf("field type is nil")
 	}
 	switch pt := pn.Type.(type) {
 	case *schema_j5pb.Field_Array:
 		items := pt.Array.Items
-		itemsNode, err := buildFieldNode(source.child("array", "items"), items, visitor)
+		itemsNode, err := buildFieldNode(source.child("array", "items"), parent, defaultNestingName, items, visitor)
 		if err != nil {
 			return nil, err
 		}
@@ -98,7 +107,7 @@ func buildFieldNode(source SourceNode, pn *schema_j5pb.Field, visitor PropertyVi
 
 	case *schema_j5pb.Field_Map:
 		values := pt.Map.ItemSchema
-		itemsNode, err := buildFieldNode(source.child("map", "itemSchema"), values, visitor)
+		itemsNode, err := buildFieldNode(source.child("map", "itemSchema"), parent, defaultNestingName, values, visitor)
 		if err != nil {
 			return nil, err
 		}
@@ -110,7 +119,7 @@ func buildFieldNode(source SourceNode, pn *schema_j5pb.Field, visitor PropertyVi
 		}, nil
 
 	case *schema_j5pb.Field_Object:
-		ref, err := replaceNestedObject(source.child("object"), pt.Object, visitor)
+		ref, err := replaceNestedObject(source.child("object"), parent, defaultNestingName, pt.Object, visitor)
 		if err != nil {
 			return nil, err
 		}
@@ -121,7 +130,7 @@ func buildFieldNode(source SourceNode, pn *schema_j5pb.Field, visitor PropertyVi
 		}, nil
 
 	case *schema_j5pb.Field_Oneof:
-		ref, err := replaceNestedOneof(source.child("oneof"), pt.Oneof, visitor)
+		ref, err := replaceNestedOneof(source.child("oneof"), parent, defaultNestingName, pt.Oneof, visitor)
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +141,7 @@ func buildFieldNode(source SourceNode, pn *schema_j5pb.Field, visitor PropertyVi
 		}, nil
 
 	case *schema_j5pb.Field_Enum:
-		ref, err := replaceNestedEnum(source.child("enum"), pt.Enum, visitor)
+		ref, err := replaceNestedEnum(source.child("enum"), parent, defaultNestingName, pt.Enum, visitor)
 		if err != nil {
 			return nil, err
 		}
@@ -158,7 +167,7 @@ func buildFieldNode(source SourceNode, pn *schema_j5pb.Field, visitor PropertyVi
 
 }
 
-func replaceNestedObject(source SourceNode, field *schema_j5pb.ObjectField, visitor SchemaVisitor) (*RefNode, error) {
+func replaceNestedObject(source SourceNode, parent parentNode, defaultName string, field *schema_j5pb.ObjectField, visitor SchemaVisitor) (*RefNode, error) {
 	switch st := field.Schema.(type) {
 	case *schema_j5pb.ObjectField_Ref:
 		return &RefNode{
@@ -167,24 +176,23 @@ func replaceNestedObject(source SourceNode, field *schema_j5pb.ObjectField, visi
 		}, nil
 
 	case *schema_j5pb.ObjectField_Object:
-		objectNode := &ObjectNode{
-			Schema: st.Object,
-			objectLikeNode: objectLikeNode{
-				name:       st.Object.Name,
-				Source:     source.child("object"),
-				properties: mapProperties(source.child("object"), "properties", st.Object.Properties),
-			},
+		if st.Object.Name == "" {
+			st.Object.Name = defaultName
 		}
-		if err := visitor.VisitObject(objectNode); err != nil {
+		node, err := newObjectSchemaNode(source.child("object"), parent, st.Object)
+		if err != nil {
+			return nil, err
+		}
+		if err := visitor.VisitObject(node); err != nil {
 			return nil, err
 		}
 		return &RefNode{
 			Ref: &schema_j5pb.Ref{
-				Schema: st.Object.Name,
+				Schema: node.NameInPackage(),
 			},
 			Source:       source.child("object"),
 			Inline:       true,
-			InlineObject: objectNode,
+			InlineObject: node,
 		}, nil
 
 	default:
@@ -192,7 +200,7 @@ func replaceNestedObject(source SourceNode, field *schema_j5pb.ObjectField, visi
 	}
 }
 
-func replaceNestedOneof(source SourceNode, field *schema_j5pb.OneofField, visitor SchemaVisitor) (*RefNode, error) {
+func replaceNestedOneof(source SourceNode, parent parentNode, defaultName string, field *schema_j5pb.OneofField, visitor SchemaVisitor) (*RefNode, error) {
 	switch st := field.Schema.(type) {
 	case *schema_j5pb.OneofField_Ref:
 		return &RefNode{
@@ -200,31 +208,30 @@ func replaceNestedOneof(source SourceNode, field *schema_j5pb.OneofField, visito
 			Source: source.child("ref"),
 		}, nil
 	case *schema_j5pb.OneofField_Oneof:
-		oneofNode := &OneofNode{
-			Schema: st.Oneof,
-			objectLikeNode: objectLikeNode{
-				name:       st.Oneof.Name,
-				Source:     source.child("oneof"),
-				properties: mapProperties(source.child("oneof"), "properties", st.Oneof.Properties),
-			},
+		if st.Oneof.Name == "" {
+			st.Oneof.Name = defaultName
 		}
-		if err := visitor.VisitOneof(oneofNode); err != nil {
+		node, err := newOneofSchemaNode(source.child("oneof"), parent, st.Oneof)
+		if err != nil {
+			return nil, err
+		}
+		if err := visitor.VisitOneof(node); err != nil {
 			return nil, err
 		}
 		return &RefNode{
 			Ref: &schema_j5pb.Ref{
-				Schema: st.Oneof.Name,
+				Schema: node.NameInPackage(),
 			},
 			Source:      source.child("oneof"),
 			Inline:      true,
-			InlineOneof: oneofNode,
+			InlineOneof: node,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unhandled oneof schema type %T", st)
 	}
 }
 
-func replaceNestedEnum(source SourceNode, field *schema_j5pb.EnumField, visitor SchemaVisitor) (*RefNode, error) {
+func replaceNestedEnum(source SourceNode, parent parentNode, defaultName string, field *schema_j5pb.EnumField, visitor SchemaVisitor) (*RefNode, error) {
 	switch st := field.Schema.(type) {
 	case *schema_j5pb.EnumField_Ref:
 		return &RefNode{
@@ -232,11 +239,14 @@ func replaceNestedEnum(source SourceNode, field *schema_j5pb.EnumField, visitor 
 			Source: source.child("ref"),
 		}, nil
 	case *schema_j5pb.EnumField_Enum:
-		enumNode := &EnumNode{
-			Schema: st.Enum,
-			Source: source.child("enum"),
+		if st.Enum.Name == "" {
+			st.Enum.Name = defaultName
 		}
-		if err := visitor.VisitEnum(enumNode); err != nil {
+		node, err := newEnumNode(source.child("enum"), parent, st.Enum)
+		if err != nil {
+			return nil, err
+		}
+		if err := visitor.VisitEnum(node); err != nil {
 			return nil, err
 		}
 		return &RefNode{
@@ -245,7 +255,7 @@ func replaceNestedEnum(source SourceNode, field *schema_j5pb.EnumField, visitor 
 			},
 			Source:     source.child("enum"),
 			Inline:     true,
-			InlineEnum: enumNode,
+			InlineEnum: node,
 		}, nil
 
 	default:
