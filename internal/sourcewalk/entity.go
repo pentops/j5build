@@ -92,7 +92,7 @@ func (ent *entityNode) acceptKeys(visitor FileVisitor) error {
 		Schema: keys,
 		objectLikeNode: objectLikeNode{
 			properties: mapProperties(ent.Source, "keys", keys.Properties),
-			Source:     ent.Source,
+			Source:     ent.Source.child("keys"),
 		},
 	})
 	if err != nil {
@@ -214,7 +214,7 @@ func (ent *entityNode) acceptEventOneof(visitor FileVisitor) error {
 			schema: &sourcedef_j5pb.NestedSchema_Object{
 				Object: eventObjectSchema,
 			},
-			source:   eventSource, // Source of the object
+			source:   eventSource, // Source of NestedSchema_Object
 			nestPath: []string{eventOneof.Name},
 		}
 
@@ -242,7 +242,6 @@ func (ent *entityNode) acceptEventOneof(visitor FileVisitor) error {
 			number: int32(idx + 1),
 		}
 		eventObjectProperties = append(eventObjectProperties, property)
-
 	}
 
 	return visitor.VisitOneof(&OneofNode{

@@ -32,7 +32,7 @@ func (sn SourceNode) PathString() string {
 	return strings.Join(sn.Path, ".")
 }
 
-const virtualPathNode = "<->"
+const virtualPathNode = "<virtual>"
 
 func (sn SourceNode) child(path ...string) SourceNode {
 	walk := sn
@@ -59,7 +59,6 @@ func (sn SourceNode) child(path ...string) SourceNode {
 		if !virtual {
 			options := maps.Keys(walk.Source.Children)
 			log.Printf("No source child %q in %s (%v), have %q", part, walk.PathString(), walk.virtual, options)
-			//panic("Mark")
 		}
 
 		newNode := SourceNode{
@@ -94,8 +93,6 @@ func (sn SourceNode) GetPos() *errpos.Position {
 
 func NewRoot(file *sourcedef_j5pb.SourceFile) *FileNode {
 
-	printSource(file.SourceLocations, []string{})
-
 	root := SourceNode{
 		Path:   []string{},
 		Source: file.SourceLocations,
@@ -113,17 +110,4 @@ func NewRoot(file *sourcedef_j5pb.SourceFile) *FileNode {
 	}
 
 	return fn
-}
-
-func printSource(loc *bcl_j5pb.SourceLocation, path []string) {
-	if loc == nil {
-		fmt.Printf("NIL LOC\n")
-		return
-	}
-	fmt.Printf("%03d:%03d %s\n",
-		loc.StartLine, loc.StartColumn,
-		strings.Join(path, "."))
-	for k, v := range loc.Children {
-		printSource(v, append(path, k))
-	}
 }

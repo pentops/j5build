@@ -158,31 +158,6 @@ func buildFieldNode(source SourceNode, pn *schema_j5pb.Field, visitor PropertyVi
 
 }
 
-/*
-func replaceNestedSchemas(source SourceNode, schema *schema_j5pb.Field, visitor SchemaVisitor) (*FieldNode, error) {
-	switch pt := schema.Type.(type) {
-	case *schema_j5pb.Field_Object:
-		ref, err := replaceNestedObject(source.child("object"), pt.Object, visitor)
-		if err != nil {
-			return nil, err
-		}
-
-	case *schema_j5pb.Field_Oneof:
-		ref, err := replaceNestedOneof(source.child("oneof"), pt.Oneof, visitor)
-		if err != nil {
-			return nil, err
-		}
-
-	case *schema_j5pb.Field_Enum:
-		ref, err := replaceNestedEnum(source.child("enum"), pt.Enum, visitor)
-		if err != nil {
-			return nil, err
-		}
-
-	}
-	return nil, nil
-}*/
-
 func replaceNestedObject(source SourceNode, field *schema_j5pb.ObjectField, visitor SchemaVisitor) (*RefNode, error) {
 	switch st := field.Schema.(type) {
 	case *schema_j5pb.ObjectField_Ref:

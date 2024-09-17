@@ -47,6 +47,7 @@ func TestEntity(t *testing.T) {
 			},
 		}},
 	}
+
 	file := &sourcedef_j5pb.SourceFile{
 		Package: &sourcedef_j5pb.Package{
 			Name: "test.v1",
@@ -74,17 +75,19 @@ func TestEntity(t *testing.T) {
 	walkLoc(entSrc, "events", "0", "def").StartLine = 5
 	walkLoc(entSrc, "events", "0", "def", "properties", "0", "schema", "string").StartLine = 7
 
-	objects := map[string]SourceNode{}
+	sources := map[string]SourceNode{}
+	objects := map[string]*ObjectNode{}
 
 	visitor := &DefaultVisitor{
 		Object: func(obj *ObjectNode) error {
-			t.Logf("ADD %s: Object %s", obj.Source.PathString(), obj.Schema.Name)
-			objects[obj.Source.PathString()] = obj.Source
+			t.Logf("ADD %s: Object %s at %s", obj.Source.PathString(), obj.Schema.Name, obj.Source.GetPos())
+			sources[obj.Source.PathString()] = obj.Source
+			objects[obj.Schema.Name] = obj
 			return nil
 		},
 		Property: func(prop *PropertyNode) error {
 			t.Logf("ADD %s: Property %s at %s", prop.Source.PathString(), prop.Schema.Name, prop.Source.GetPos())
-			objects[prop.Source.PathString()] = prop.Source
+			sources[prop.Source.PathString()] = prop.Source
 			return nil
 		},
 	}
@@ -95,7 +98,7 @@ func TestEntity(t *testing.T) {
 	}
 
 	assert := func(req string, line int32) {
-		got, ok := objects[req]
+		got, ok := sources[req]
 		if !ok {
 			t.Errorf("Missing %s", req)
 			return
