@@ -33,11 +33,6 @@ func convertFile(ww *walkContext, src *sourcedef_j5pb.SourceFile) error {
 	})
 }
 
-func convertEnum(ww *walkContext, node *sourcewalk.EnumNode) {
-	eb := buildEnum(node.Schema)
-	ww.parentContext.addEnum(eb)
-}
-
 func walkerSchemaVisitor(ww *walkContext) sourcewalk.SchemaVisitor {
 	return &sourcewalk.SchemaCallbacks{
 		Object: func(on *sourcewalk.ObjectNode) error {
