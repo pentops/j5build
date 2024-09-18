@@ -255,6 +255,7 @@ func (sc *walkContext) SetAttribute(path schema.PathSpec, ref []ast.Ident, val a
 
 	field, walkPathErr := parentScope.Field(last.name, val.Position())
 	if walkPathErr != nil {
+		sc.Logf("parentScope.Field(%q) failed: %s", last.name, walkPathErr)
 		if last.position != nil {
 			return sc.WrapErr(walkPathErr, *last.position)
 		} else {
@@ -479,9 +480,6 @@ func (wc *walkContext) withSchema(newScope schema.Scope, fn SpanCallback) error 
 	}
 	if wc.verbose {
 		wc.Logf("|<<< Exiting %q <<<", lastBlock.Name())
-	}
-	if err := lastBlock.RunCloseHooks(); err != nil {
-		return err
 	}
 	return nil
 }

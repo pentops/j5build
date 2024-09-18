@@ -8,7 +8,6 @@ type Container interface {
 	Path() []string
 	Spec() BlockSpec
 	Name() string
-	RunCloseHooks() error
 }
 
 func (bs containerSet) schemaNames() []string {

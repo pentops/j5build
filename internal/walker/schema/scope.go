@@ -126,6 +126,10 @@ func (sw *schemaWalker) ChildBlock(name string, source SourceLocation) (Scope, *
 
 	container, err := sw.walkToChild(root, spec.Path, source)
 	if err != nil {
+		switch err.Type {
+		case NodeNotContainer:
+			err.Path = []string{name}
+		}
 		return nil, err
 	}
 
@@ -256,6 +260,21 @@ func (sw *schemaWalker) findBlock(name string) (*containerField, *ChildSpec, boo
 		}
 
 		return &blockSchema, &childSpec, true
+	}
+
+	for _, blockSchema := range sw.blockSet {
+		childSpec, ok := blockSchema.spec.Children["*"]
+		if !ok {
+			continue
+		}
+
+		virtualSpec := ChildSpec{
+			Path:        []string{name},
+			IsContainer: childSpec.IsContainer,
+			IsScalar:    childSpec.IsScalar,
+			// is certainly not a collection or map.
+		}
+		return &blockSchema, &virtualSpec, true
 	}
 	return nil, nil, false
 }

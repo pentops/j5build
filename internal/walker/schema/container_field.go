@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
 )
@@ -17,29 +16,47 @@ type containerField struct {
 
 	transparentPath []*containerField
 
-	container j5reflect.PropertySet
-	field     j5reflect.ContainerField
+	container j5PropSet
 	spec      BlockSpec
 	isRoot    bool
 	location  *bcl_j5pb.SourceLocation
 }
 
-func (sc *containerField) RunCloseHooks() error {
-	if sc.spec.RunAfter != nil {
-		if err := sc.spec.RunAfter.RunHook(sc.field); err != nil {
-			err := fmt.Errorf("In Close Hook for %s: %w", sc.schemaName, err)
-			err = errpos.AddPosition(err, sc.errPosition())
-			err = errpos.AddContext(err, sc.schemaName)
-			return err
-		}
-	}
+type j5PropSet interface {
+	SchemaName() string
+	RangePropertySchemas(j5reflect.RangePropertySchemasCallback) error
+	NewValue(name string) (j5reflect.Field, error)
+	HasProperty(name string) bool
+	GetOrCreateValue(name string) (j5reflect.Field, error)
+	ListPropertyNames() []string
+}
 
-	for _, child := range sc.transparentPath {
-		if err := child.RunCloseHooks(); err != nil {
-			return err
-		}
-	}
-	return nil
+type mapContainer struct {
+	mapNode j5reflect.MapField
+}
+
+func (mc mapContainer) SchemaName() string {
+	return mc.mapNode.FullTypeName()
+}
+
+func (mc mapContainer) RangePropertySchemas(cb j5reflect.RangePropertySchemasCallback) error {
+	return cb("*", false, mc.mapNode.ItemSchema().ToJ5Field())
+}
+
+func (mc mapContainer) NewValue(name string) (j5reflect.Field, error) {
+	return mc.mapNode.NewElement(name)
+}
+
+func (mc mapContainer) GetOrCreateValue(name string) (j5reflect.Field, error) {
+	return mc.mapNode.GetOrCreateElement(name)
+}
+
+func (mc mapContainer) HasProperty(name string) bool {
+	return true
+}
+
+func (mc mapContainer) ListPropertyNames() []string {
+	return []string{"<any map key>"}
 }
 
 func (sc *containerField) Spec() BlockSpec {
@@ -93,19 +110,6 @@ func childSourceLocation(in *bcl_j5pb.SourceLocation, name string, hint SourceLo
 	return in.Children[name]
 }
 
-func (sc *containerField) errPosition() errpos.Position {
-	return errpos.Position{
-		Start: errpos.Point{
-			Line:   int(sc.location.StartLine),
-			Column: int(sc.location.StartColumn),
-		},
-		End: errpos.Point{
-			Line:   int(sc.location.EndLine),
-			Column: int(sc.location.EndColumn),
-		},
-	}
-}
-
 type PathErrorType int
 
 const (
@@ -137,10 +141,7 @@ func (wpe *WalkPathError) Error() string {
 func (wpe *WalkPathError) LongMessage() string {
 	switch wpe.Type {
 	case NodeNotContainer:
-		if wpe.Schema != "" {
-			return fmt.Sprintf("node at %q is not a container (is %s in %s)", strings.Join(wpe.Path, "."), wpe.Schema, wpe.Field)
-		}
-		return fmt.Sprintf("node at %q is not a container (is %s)", strings.Join(wpe.Path, "."), wpe.Schema)
+		return fmt.Sprintf("node at %q (%s) is %s, not a container", strings.Join(wpe.Path, "."), wpe.Field, wpe.Schema)
 	case NodeNotScalar:
 		return fmt.Sprintf("node at %q is not a scalar (is %s)", strings.Join(wpe.Path, "."), wpe.Schema)
 	case NodeNotScalarArray:
@@ -190,7 +191,7 @@ func (container *containerField) walkPath(path []string, loc SourceLocation) ([]
 
 	protoPath := val.ProtoPath()
 	schemaPath := container.path
-	var fieldWithContainer j5reflect.ContainerField
+	var fieldWithContainer j5PropSet
 	if array, ok := val.AsArrayOfContainer(); ok {
 		element, idx := array.NewContainerElement()
 		protoPath = append(protoPath, element.ProtoPath()...)
@@ -200,18 +201,17 @@ func (container *containerField) walkPath(path []string, loc SourceLocation) ([]
 	} else if container, ok := val.AsContainer(); ok {
 		fieldWithContainer = container
 		schemaPath = append(schemaPath, name)
+	} else if mapNode, ok := val.AsMap(); ok {
+		fieldWithContainer = mapContainer{mapNode: mapNode}
+		schemaPath = append(schemaPath, name)
 	} else {
 		return nil, &WalkPathError{
+			Path:   path,
 			Field:  val.FullTypeName(),
 			Type:   NodeNotContainer,
 			Schema: val.TypeName(),
 		}
 	}
-
-	//	fmt.Printf("WALK PATH %s\n", path)
-	//	fmt.Printf("  Schema: %s\n", fieldWithContainer.SchemaName())
-	//	fmt.Printf("  Path:   %s\n", strings.Join(schemaPath, "."))
-	//	fmt.Printf("  Proto:  %s\n", strings.Join(protoPath, "."))
 
 	sourceLocation := container.location
 	for _, elem := range protoPath {
@@ -222,7 +222,6 @@ func (container *containerField) walkPath(path []string, loc SourceLocation) ([]
 		path:       schemaPath,
 		schemaName: fieldWithContainer.SchemaName(),
 		container:  fieldWithContainer,
-		field:      fieldWithContainer,
 		location:   sourceLocation,
 	}
 

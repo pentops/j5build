@@ -91,7 +91,7 @@ func NewSchemaSet(given *bcl_j5pb.Schema) (*SchemaSet, error) {
 	}, nil
 }
 
-func (ss *SchemaSet) _buildSpec(node j5reflect.PropertySet) (*BlockSpec, error) {
+func (ss *SchemaSet) _buildSpec(node j5PropSet) (*BlockSpec, error) {
 	schemaName := node.SchemaName()
 	blockSpec := ss.givenSpecs[schemaName]
 	if blockSpec == nil {
@@ -110,15 +110,13 @@ func (ss *SchemaSet) _buildSpec(node j5reflect.PropertySet) (*BlockSpec, error) 
 		blockSpec.Children = map[string]ChildSpec{}
 	}
 
-	err := node.RangeProperties(func(prop j5reflect.Property) error {
+	err := node.RangePropertySchemas(func(name string, required bool, schema *schema_j5pb.Field) error {
 
-		schema := prop.Schema().ToJ5Proto()
-		name := schema.Name
 		spec := ChildSpec{
-			Path: PathSpec{schema.Name},
+			Path: PathSpec{name},
 		}
 
-		switch field := schema.Schema.Type.(type) {
+		switch field := schema.Type.(type) {
 		case *schema_j5pb.Field_Object:
 			spec.IsContainer = true
 
@@ -130,9 +128,7 @@ func (ss *SchemaSet) _buildSpec(node j5reflect.PropertySet) (*BlockSpec, error) 
 				blockSpec.Name = &Tag{
 					Path: []string{"name"},
 				}
-				if schema.ExplicitlyOptional {
-					blockSpec.Name.IsOptional = true
-				}
+				blockSpec.Name.IsOptional = !required
 			}
 			if name == "description" && len(blockSpec.Description) == 0 {
 				blockSpec.Description = []string{"description"}
@@ -166,6 +162,14 @@ func (ss *SchemaSet) _buildSpec(node j5reflect.PropertySet) (*BlockSpec, error) 
 				if name == "" {
 					name = arrayName(itemSchema.Object)
 				}
+			}
+
+		case *schema_j5pb.Field_Map:
+			spec.IsMap = true
+
+			if field.Map != nil && field.Map.Ext != nil && field.Map.Ext.SingleForm != nil {
+				spec.IsScalar = true
+				name = *field.Map.Ext.SingleForm
 			}
 
 		default:
@@ -202,7 +206,7 @@ func (ss *SchemaSet) wrapContainer(node j5reflect.PropertySet, path []string, lo
 
 }
 
-func (ss *SchemaSet) blockSpec(node j5reflect.PropertySet) (*BlockSpec, error) {
+func (ss *SchemaSet) blockSpec(node j5PropSet) (*BlockSpec, error) {
 	schemaName := node.SchemaName()
 
 	var err error

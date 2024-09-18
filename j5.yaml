@@ -2,12 +2,15 @@
 
 bundles:
   - name: bcl
-    dir: proto
+    dir: proto/j5
+  - name: test
+    dir: proto/test
 
 generate:
   - name: base
     inputs:
       - local: bcl
+      - local: test
     output: .
     opts:
       paths: import

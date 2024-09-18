@@ -92,6 +92,7 @@ type ChildSpec struct {
 	IsContainer  bool
 	IsScalar     bool
 	IsCollection bool
+	IsMap        bool
 }
 
 func (cs ChildSpec) TagString() string {
