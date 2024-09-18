@@ -213,6 +213,7 @@ func buildField(ww *walkContext, node sourcewalk.FieldNode) (*descriptorpb.Field
 				Enum: enumRules,
 			},
 		}
+		ww.file.ensureImport(bufValidateImport)
 		proto.SetExtension(desc.Options, validate.E_Field, rules)
 		return desc, nil
 

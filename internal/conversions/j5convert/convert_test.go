@@ -195,9 +195,12 @@ func TestSchemaToProto(t *testing.T) {
 		Options: &descriptorpb.FileOptions{
 			//GoPackage: proto.String("github.com/pentops/j5/test/v1/test_pb"),
 		},
-		Dependency: []string{"j5/ext/v1/annotations.proto"},
-		Name:       proto.String("test/v1/test.j5s.proto"),
-		Package:    proto.String("test.v1"),
+		Dependency: []string{
+			"buf/validate/validate.proto",
+			"j5/ext/v1/annotations.proto",
+		},
+		Name:    proto.String("test/v1/test.j5s.proto"),
+		Package: proto.String("test.v1"),
 		MessageType: []*descriptorpb.DescriptorProto{{
 			Name: proto.String("Referenced"),
 			Field: []*descriptorpb.FieldDescriptorProto{{
