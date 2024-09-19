@@ -60,156 +60,131 @@ func (fn *TopicFileNode) Accept(visitor TopicFileVisitor) error {
 }
 
 func (tn *topicRef) accept(visitor TopicFileVisitor) error {
-
 	switch tt := tn.schema.Type.Type.(type) {
 	case *sourcedef_j5pb.TopicType_Publish_:
 		source := tn.source.child("type", "publish")
-
-		methods := make([]*TopicMethodNode, 0)
-		for idx, msg := range tt.Publish.Messages {
-			source := source.child("messages", strconv.Itoa(idx))
-
-			objNode, err := newVirtualObjectNode(source, nil, fmt.Sprintf("%sMessage", msg.Name), msg.Fields)
-			if err != nil {
-				return err
-			}
-
-			if err := visitor.VisitObject(objNode); err != nil {
-				return err
-			}
-
-			methods = append(methods, &TopicMethodNode{
-				Source:  source,
-				Name:    msg.Name,
-				Request: objNode.NameInPackage(),
-			})
-		}
-
-		return visitor.VisitTopic(&TopicNode{
-			Source:  source,
-			Methods: methods,
-			Name:    fmt.Sprintf("%sTopic", strcase.ToCamel(tn.schema.Name)),
-			ServiceConfig: &messaging_j5pb.ServiceConfig{
+		return acceptTopic(source, topicNode{
+			name:    tn.schema.Name,
+			methods: tt.Publish.Messages,
+			serviceConfig: &messaging_j5pb.ServiceConfig{
 				TopicName: ptr(strcase.ToSnake(tn.schema.Name)),
 				Role: &messaging_j5pb.ServiceConfig_Publish_{
 					Publish: &messaging_j5pb.ServiceConfig_Publish{},
 				},
 			},
-		})
+		}, visitor)
 
 	case *sourcedef_j5pb.TopicType_Reqres:
 		source := tn.source.child("type", "reqres")
-
-		requestNode, err := newVirtualObjectNode(source, nil, fmt.Sprintf("%sRequestMessage", tn.schema.Name), tt.Reqres.Request.Fields,
-			&schema_j5pb.ObjectProperty{
-				Name:   "request",
-				Schema: schemaRefField("j5.messaging.v1", "RequestMetadata"),
-			},
-		)
-		if err != nil {
-			return err
-		}
-		err = visitor.VisitObject(requestNode)
-		if err != nil {
-			return fmt.Errorf("request object: %w", err)
-		}
-
-		err = visitor.VisitTopic(&TopicNode{
-			Source: source,
-			Name:   fmt.Sprintf("%sRequestTopic", strcase.ToCamel(tn.schema.Name)),
-			ServiceConfig: &messaging_j5pb.ServiceConfig{
-				TopicName: ptr(strcase.ToSnake(tn.schema.Name)),
-				Role: &messaging_j5pb.ServiceConfig_Request_{
-					Request: &messaging_j5pb.ServiceConfig_Request{},
-				},
-			},
-			Methods: []*TopicMethodNode{{
-				Source:  source,
-				Name:    fmt.Sprintf("%sRequest", tn.schema.Name),
-				Request: requestNode.NameInPackage(),
-			}},
-		})
-		if err != nil {
-			return fmt.Errorf("request: %w", err)
-		}
-
-		replyNode, err := newVirtualObjectNode(source, nil, fmt.Sprintf("%sReplyMessage", tn.schema.Name), tt.Reqres.Reply.Fields,
-			&schema_j5pb.ObjectProperty{
-				Name:   "request",
-				Schema: schemaRefField("j5.messaging.v1", "RequestMetadata"),
-			},
-		)
-
-		if err != nil {
-			return err
-		}
-		err = visitor.VisitObject(replyNode)
-		if err != nil {
-			return fmt.Errorf("replyNode object: %w", err)
-		}
-
-		err = visitor.VisitTopic(&TopicNode{
-			Source: source,
-			Name:   fmt.Sprintf("%sReplyTopic", strcase.ToCamel(tn.schema.Name)),
-			ServiceConfig: &messaging_j5pb.ServiceConfig{
-				TopicName: ptr(strcase.ToSnake(tn.schema.Name)),
-				Role: &messaging_j5pb.ServiceConfig_Reply_{
-					Reply: &messaging_j5pb.ServiceConfig_Reply{},
-				},
-			},
-			Methods: []*TopicMethodNode{{
-				Source:  source.child("reply"),
-				Name:    fmt.Sprintf("%sReply", tn.schema.Name),
-				Request: replyNode.NameInPackage(),
-			}},
-		})
-		if err != nil {
-			return fmt.Errorf("reply: %w", err)
-		}
-		return nil
+		return acceptMultiReqResTopic(source, tn.schema.Name, tt.Reqres, visitor)
 
 	case *sourcedef_j5pb.TopicType_Upsert_:
-
 		source := tn.source.child("type", "upsert")
-
-		upsert := tt.Upsert
-
-		messageNode, err := newVirtualObjectNode(source, nil, fmt.Sprintf("%sMessage", tn.schema.Name), upsert.Message.Fields,
-			&schema_j5pb.ObjectProperty{
-				Name:   "upsert",
-				Schema: schemaRefField("j5.messaging.v1", "UpsertMetadata"),
+		name := tn.schema.Name
+		if tt.Upsert.Message.Name == nil {
+			tt.Upsert.Message.Name = &name
+		}
+		return acceptTopic(source, topicNode{
+			name: name,
+			methods: []*sourcedef_j5pb.TopicMethod{
+				tt.Upsert.Message,
 			},
-		)
-		if err != nil {
-			return err
-		}
-
-		err = visitor.VisitObject(messageNode)
-		if err != nil {
-			return fmt.Errorf("messagre: %w", err)
-		}
-
-		err = visitor.VisitTopic(&TopicNode{
-			Source: source,
-			Name:   fmt.Sprintf("%sTopic", strcase.ToCamel(tn.schema.Name)),
-			ServiceConfig: &messaging_j5pb.ServiceConfig{
-				TopicName: ptr(strcase.ToSnake(tn.schema.Name)),
+			serviceConfig: &messaging_j5pb.ServiceConfig{
+				TopicName: ptr(strcase.ToSnake(name)),
 				Role: &messaging_j5pb.ServiceConfig_Publish_{
 					Publish: &messaging_j5pb.ServiceConfig_Publish{},
 				},
 			},
-			Methods: []*TopicMethodNode{{
-				Source:  source,
-				Name:    tn.schema.Name,
-				Request: messageNode.NameInPackage(),
+			prependFields: []*schema_j5pb.ObjectProperty{{
+				Name:   "upsert",
+				Schema: schemaRefField("j5.messaging.v1", "UpsertMetadata"),
 			}},
-		})
-		if err != nil {
-			return err
-		}
-		return nil
+		}, visitor)
 
 	default:
 		return walkerErrorf("unknown topic type %T", tt)
 	}
+}
+
+type topicNode struct {
+	name          string
+	serviceConfig *messaging_j5pb.ServiceConfig
+	methods       []*sourcedef_j5pb.TopicMethod
+	prependFields []*schema_j5pb.ObjectProperty
+}
+
+func acceptTopic(source SourceNode, topic topicNode, visitor TopicFileVisitor) error {
+	methods := make([]*TopicMethodNode, 0)
+	for idx, method := range topic.methods {
+		source := source.child("messages", strconv.Itoa(idx))
+
+		var methodName string
+		if method.Name != nil {
+			methodName = *method.Name
+		} else if len(topic.methods) == 1 {
+			name := topic.name
+			methodName = name
+		} else {
+			return walkerErrorf("method name is required (multiple methods specified)")
+		}
+		messageNode, err := newVirtualObjectNode(source, nil, fmt.Sprintf("%sMessage", methodName), method.Fields, topic.prependFields...)
+		if err != nil {
+			return err
+		}
+
+		if err := visitor.VisitObject(messageNode); err != nil {
+			return err
+		}
+
+		methods = append(methods, &TopicMethodNode{
+			Source:  source,
+			Name:    methodName,
+			Request: messageNode.NameInPackage(),
+		})
+	}
+
+	return visitor.VisitTopic(&TopicNode{
+		Source:        source,
+		Methods:       methods,
+		Name:          fmt.Sprintf("%sTopic", strcase.ToCamel(topic.name)),
+		ServiceConfig: topic.serviceConfig,
+	})
+}
+
+func acceptMultiReqResTopic(source SourceNode, name string, topic *sourcedef_j5pb.TopicType_ReqRes, visitor TopicFileVisitor) error {
+	if err := acceptTopic(source, topicNode{
+		name:    fmt.Sprintf("%sRequest", name),
+		methods: topic.Request,
+		serviceConfig: &messaging_j5pb.ServiceConfig{
+			TopicName: ptr(strcase.ToSnake(name)),
+			Role: &messaging_j5pb.ServiceConfig_Request_{
+				Request: &messaging_j5pb.ServiceConfig_Request{},
+			},
+		},
+		prependFields: []*schema_j5pb.ObjectProperty{{
+			Name:   "request",
+			Schema: schemaRefField("j5.messaging.v1", "RequestMetadata"),
+		}},
+	}, visitor); err != nil {
+		return fmt.Errorf("req: %w", err)
+	}
+
+	if err := acceptTopic(source, topicNode{
+		name:    fmt.Sprintf("%sReply", name),
+		methods: topic.Reply,
+		serviceConfig: &messaging_j5pb.ServiceConfig{
+			TopicName: ptr(strcase.ToSnake(name)),
+			Role: &messaging_j5pb.ServiceConfig_Reply_{
+				Reply: &messaging_j5pb.ServiceConfig_Reply{},
+			},
+		},
+		prependFields: []*schema_j5pb.ObjectProperty{{
+			Name:   "request",
+			Schema: schemaRefField("j5.messaging.v1", "RequestMetadata"),
+		}},
+	}, visitor); err != nil {
+		return fmt.Errorf("req: %w", err)
+	}
+
+	return nil
 }
