@@ -367,7 +367,7 @@ func (ent *entityNode) acceptQuery(visitor FileVisitor) error {
 	query := &sourcedef_j5pb.Service{
 		BasePath: ptr(fmt.Sprintf("/%s/q", entity.BaseUrlPath)),
 		Name:     ptr(fmt.Sprintf("%sQuery", strcase.ToCamel(name))),
-		Methods: []*sourcedef_j5pb.Method{{
+		Methods: []*sourcedef_j5pb.APIMethod{{
 			Name: fmt.Sprintf("%sGet", strcase.ToCamel(name)),
 			Request: &sourcedef_j5pb.AnonymousObject{
 				Properties: primaryKeys,

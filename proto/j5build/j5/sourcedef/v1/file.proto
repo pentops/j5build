@@ -61,7 +61,7 @@ message Entity {
   repeated Service commands = 8 [(j5.ext.v1.field).array.single_form = "command"];
 }
 
-message Method {
+message APIMethod {
   string name = 1;
   string http_path = 2;
   string description = 3;
@@ -90,7 +90,7 @@ message Service {
   optional string base_path = 2; // appended to the entity's base_url_path, defaults to `/c`
 
   string description = 3;
-  repeated Method methods = 4 [(j5.ext.v1.field).array.single_form = "method"];
+  repeated APIMethod methods = 4 [(j5.ext.v1.field).array.single_form = "method"];
   j5.ext.v1.ServiceOptions options = 5;
 }
 
@@ -133,24 +133,21 @@ message TopicType {
   }
 
   message Publish {
-    repeated NamedTopicMessage messages = 1 [(j5.ext.v1.field).array.single_form = "message"];
+    repeated TopicMethod messages = 1 [(j5.ext.v1.field).array.single_form = "message"];
   }
 
   message ReqRes {
-    AnonTopicMessage request = 2 [(buf.validate.field).required = true];
-    AnonTopicMessage reply = 3 [(buf.validate.field).required = true];
+    repeated TopicMethod request = 2 [(j5.ext.v1.field).array.single_form = "request"];
+    repeated TopicMethod reply = 3 [(j5.ext.v1.field).array.single_form = "reply"];
   }
 
   message Upsert {
-    AnonTopicMessage message = 2 [(buf.validate.field).required = true];
+    TopicMethod message = 2 [(buf.validate.field).required = true];
   }
 }
 
-message NamedTopicMessage {
-  string name = 1 [(buf.validate.field).string.pattern = "^[A-Z][A-Za-zA-Z0-9]+$"];
-  repeated j5.schema.v1.ObjectProperty fields = 5 [(j5.ext.v1.field).array.single_form = "field"];
-}
-
-message AnonTopicMessage {
+message TopicMethod {
+  optional string name = 1 [(buf.validate.field).string.pattern = "^[A-Z][A-Za-zA-Z0-9]+$"];
+  string description = 2;
   repeated j5.schema.v1.ObjectProperty fields = 5 [(j5.ext.v1.field).array.single_form = "field"];
 }

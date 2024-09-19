@@ -27,7 +27,7 @@ type ServiceMethodNode struct {
 	Source     SourceNode
 	InputType  string
 	OutputType string
-	Schema     *sourcedef_j5pb.Method
+	Schema     *sourcedef_j5pb.APIMethod
 }
 
 type ServiceFileVisitor interface {
