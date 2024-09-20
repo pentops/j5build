@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/pentops/j5/gen/j5/client/v1/client_j5pb"
-	"github.com/pentops/j5/gen/j5/config/v1/config_j5pb"
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
 )
 
@@ -14,7 +13,7 @@ func ResolveProse(source *source_j5pb.SourceImage, api *client_j5pb.API) error {
 
 	resolver := imageResolver(source.Prose)
 
-	configsByName := map[string]*config_j5pb.PackageConfig{}
+	configsByName := map[string]*source_j5pb.PackageInfo{}
 	for _, cfg := range source.Packages {
 		configsByName[cfg.Name] = cfg
 	}

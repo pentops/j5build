@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package j5.config.v1;
+
+import "j5/config/v1/bundle.proto";
+import "j5/config/v1/input.proto";
+import "j5/config/v1/mods.proto";
+import "j5/config/v1/plugin.proto";
+
+option go_package = "github.com/pentops/j5build/gen/j5/config/v1/config_j5pb";
+
+// Config represents the config file (j5.yaml) for a repo.
+message RepoConfigFile {
+  repeated BuildPlugin plugins = 3;
+  repeated PluginOverride plugin_overrides = 2;
+  repeated GenerateConfig generate = 4;
+  repeated BundleReference bundles = 6;
+
+  GitConfig git = 7;
+
+  // Managed Paths get deleted on `j5 generate --clean`
+  repeated string managed_paths = 5;
+
+  // Inline Bundle
+  RegistryConfig registry = 8;
+  repeated PackageConfig packages = 9;
+  repeated PublishConfig publish = 10;
+  PackageOptions options = 11;
+  repeated Input dependencies = 12;
+}
+
+message BundleReference {
+  string name = 1;
+  string dir = 2;
+}
+
+// When code is managed through git, configures mapping between git branches,
+// tags and commits to output version tags.
+message GitConfig {
+  // used to determine if a commit is the 'latest' or 'main' or 'stable' branch.
+  // defaults to /refs/heads/main
+  // accepts wildcard *
+  // e.g. /refs/heads/main or /refs/tags/v*
+  // Will become 'latest' in go mod packages
+  string main = 1;
+}
+
+message GenerateConfig {
+  string name = 1;
+  repeated Input inputs = 2;
+
+  // Sets an option variable for all plugins in the build.
+  map<string, string> opts = 4;
+  repeated BuildPlugin plugins = 5;
+
+  string output = 3;
+  repeated ImageMod mods = 6;
+}

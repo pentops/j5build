@@ -7,7 +7,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/pentops/flowtest/prototest"
 	"github.com/pentops/j5/gen/j5/client/v1/client_j5pb"
-	"github.com/pentops/j5/gen/j5/config/v1/config_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
 	"github.com/stretchr/testify/assert"
@@ -80,15 +79,10 @@ const (
 
 func testImage() *source_j5pb.SourceImage {
 	return &source_j5pb.SourceImage{
-		Packages: []*config_j5pb.PackageConfig{{
+		Packages: []*source_j5pb.PackageInfo{{
 			Label: "Test",
 			Name:  "test.v1",
 		}},
-		Options: &config_j5pb.PackageOptions{
-			SubPackages: []*config_j5pb.SubPackageType{{
-				Name: "service",
-			}},
-		},
 		File: []*descriptorpb.FileDescriptorProto{{
 			Syntax: proto.String("proto3"),
 			Options: &descriptorpb.FileOptions{

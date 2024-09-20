@@ -66,6 +66,7 @@ func NewCompiler(resolver *Resolver) *Compiler {
 	return cc
 }
 
+// FindFileByPath implements protocompile.Resolver
 func (c *Compiler) FindFileByPath(filename string) (protocompile.SearchResult, error) {
 	if filename == "" {
 		return protocompile.SearchResult{}, errors.New("FindFileByPath: empty filename")

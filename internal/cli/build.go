@@ -5,14 +5,16 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/pentops/j5/gen/j5/config/v1/config_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
 	"github.com/pentops/j5/lib/j5schema"
+	"github.com/pentops/j5build/gen/j5/config/v1/config_j5pb"
 	"github.com/pentops/j5build/internal/builder"
 	"github.com/pentops/j5build/internal/j5client"
+	"github.com/pentops/j5build/internal/source"
 	"github.com/pentops/j5build/internal/structure"
 	"github.com/pentops/log.go/log"
+	"google.golang.org/protobuf/proto"
 )
 
 func runVerify(ctx context.Context, cfg struct {
@@ -59,14 +61,16 @@ func runVerify(ctx context.Context, cfg struct {
 		_, err = j5schema.PackageSetFromSourceAPI(sourceAPI.Packages)
 		if err != nil {
 			return fmt.Errorf("building reflection from descriptor: %w", err)
-
-		}
-
-		for _, pkg := range sourceAPI.Packages {
-			fmt.Printf("Package %s OK\n", pkg.Name)
 		}
 
 		for _, publish := range bundleConfig.Publish {
+			img := img
+			if len(bundleConfig.Publish) > 1 {
+				img = proto.Clone(img).(*source_j5pb.SourceImage)
+			}
+			if err := builder.MutateImageWithMods(img, publish.Mods); err != nil {
+				return fmt.Errorf("MutateImageWithMods: %w", err)
+			}
 			if err := bb.RunPublishBuild(ctx, builder.PluginContext{
 				Variables: map[string]string{},
 				ErrOut:    os.Stderr,
@@ -75,17 +79,14 @@ func runVerify(ctx context.Context, cfg struct {
 				return err
 			}
 		}
+
 	}
 
 	outRoot := NewDiscardFS()
 
 	j5Config := src.RepoConfig()
 	for _, generator := range j5Config.Generate {
-		img, err := src.CombinedSourceImage(ctx, generator.Inputs)
-		if err != nil {
-			return err
-		}
-		if err := runGeneratePlugin(ctx, bb, img, generator, outRoot); err != nil {
+		if err := runGeneratePlugin(ctx, bb, src, generator, outRoot); err != nil {
 			return err
 
 		}
@@ -123,11 +124,7 @@ func runGenerate(ctx context.Context, cfg struct {
 
 	j5Config := src.RepoConfig()
 	for _, generator := range j5Config.Generate {
-		img, err := src.CombinedSourceImage(ctx, generator.Inputs)
-		if err != nil {
-			return err
-		}
-		if err := runGeneratePlugin(ctx, bb, img, generator, outRoot); err != nil {
+		if err := runGeneratePlugin(ctx, bb, src, generator, outRoot); err != nil {
 			return err
 
 		}
@@ -135,7 +132,12 @@ func runGenerate(ctx context.Context, cfg struct {
 	return nil
 }
 
-func runGeneratePlugin(ctx context.Context, bb *builder.Builder, img *source_j5pb.SourceImage, generator *config_j5pb.GenerateConfig, out Dest) error {
+func runGeneratePlugin(ctx context.Context, bb *builder.Builder, src *source.Source, generator *config_j5pb.GenerateConfig, out Dest) error {
+
+	img, err := src.CombinedSourceImage(ctx, generator.Inputs)
+	if err != nil {
+		return err
+	}
 
 	errOut := &lineWriter{
 		writeLine: func(line string) {
@@ -151,7 +153,11 @@ func runGeneratePlugin(ctx context.Context, bb *builder.Builder, img *source_j5p
 		ErrOut:    errOut,
 	}
 
-	err := bb.RunGenerateBuild(ctx, pc, img, generator)
+	if err := builder.MutateImageWithMods(img, generator.Mods); err != nil {
+		return fmt.Errorf("MutateImageWithMods: %w", err)
+	}
+
+	err = bb.RunGenerateBuild(ctx, pc, img, generator)
 	errOut.flush()
 	if err != nil {
 		return err
@@ -187,6 +193,10 @@ func runPublish(ctx context.Context, cfg struct {
 		if publish == nil {
 			return fmt.Errorf("no publish found with name %q", cfg.Publish)
 		}
+	}
+
+	if err := builder.MutateImageWithMods(img, publish.Mods); err != nil {
+		return fmt.Errorf("MutateImageWithMods: %w", err)
 	}
 
 	dockerWrapper, err := builder.NewRunner(builder.DefaultRegistryAuths)
@@ -275,7 +285,7 @@ func (ww *vetWalker) vetObjectProperty(prop *schema_j5pb.ObjectProperty, path []
 	switch st := prop.Schema.Type.(type) {
 	case *schema_j5pb.Field_Object:
 		if obj := st.Object.GetObject(); obj != nil {
-			ww.vetObject(obj, append(path, "schema", "oject", "object"))
+			ww.vetObject(obj, append(path, "schema", "object", "object"))
 		}
 	case *schema_j5pb.Field_Enum:
 		if en := st.Enum.GetEnum(); en != nil {
