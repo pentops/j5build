@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/pentops/j5/gen/j5/config/v1/config_j5pb"
+	"github.com/pentops/j5build/gen/j5/config/v1/config_j5pb"
 	"google.golang.org/protobuf/proto"
 )
 

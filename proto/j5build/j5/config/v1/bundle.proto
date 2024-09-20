@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package j5.config.v1;
+
+import "j5/config/v1/input.proto";
+import "j5/config/v1/mods.proto";
+import "j5/config/v1/plugin.proto";
+
+option go_package = "github.com/pentops/j5build/gen/j5/config/v1/config_j5pb";
+
+message BundleConfigFile {
+  RegistryConfig registry = 1;
+  repeated PackageConfig packages = 2;
+  repeated PublishConfig publish = 3;
+  PackageOptions options = 4;
+
+  repeated Input dependencies = 5;
+}
+
+message RegistryConfig {
+  string owner = 1;
+  string name = 2;
+}
+
+message PackageConfig {
+  string label = 1;
+  string name = 2;
+  string prose = 3;
+}
+
+message PublishConfig {
+  string name = 1;
+  OutputType output_format = 2;
+  map<string, string> opts = 3;
+  repeated BuildPlugin plugins = 4;
+  repeated ImageMod mods = 5;
+}
+
+message PackageOptions {
+  repeated SubPackageType sub_packages = 1;
+}
+
+message SubPackageType {
+  string name = 1;
+}
+
+message OutputType {
+  oneof type {
+    GoProxy go_proxy = 10;
+  }
+
+  // GoProxy serves a go module using the go module proxy protocol
+  // https://golang.org/cmd/go/#hdr-Module_proxy_protocol
+  // The 'canonical' URL of the module should be a HTTP page which redirects
+  // to the registry server, e.g.:
+  // <meta name="go-import" content="example.org mod https://code.org/moduleproxy">
+  // This allows the commit info from the source to map directly to the built
+  // package, where using VCS requires a new commit for the build.
+  message GoProxy {
+    string path = 1; // e.g. github.com/pentops/o5-go
+    string go_version = 2;
+    repeated Dep deps = 3;
+
+    message Dep {
+      string path = 1; // e.g. github.com/pentops/o5-go
+      string version = 2; // e.g. v0.1.0
+    }
+  }
+}

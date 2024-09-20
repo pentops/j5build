@@ -14,8 +14,8 @@ import (
 	"github.com/bufbuild/protoyaml-go"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
-	"github.com/pentops/j5/gen/j5/config/v1/config_j5pb"
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
+	"github.com/pentops/j5build/gen/j5/config/v1/config_j5pb"
 	"github.com/pentops/j5build/internal/builtin"
 	"github.com/pentops/log.go/log"
 	"google.golang.org/protobuf/proto"
@@ -117,8 +117,13 @@ func (bundle *bundleSource) readImageFromDir(ctx context.Context, resolver Input
 		return nil, err
 	}
 
-	img.Packages = bundle.config.Packages
-	img.Options = bundle.config.Options
+	img.Packages = make([]*source_j5pb.PackageInfo, len(bundle.config.Packages))
+	for idx, pkg := range bundle.config.Packages {
+		img.Packages[idx] = &source_j5pb.PackageInfo{
+			Name:  pkg.Name,
+			Prose: pkg.Prose,
+		}
+	}
 	return img, nil
 }
 

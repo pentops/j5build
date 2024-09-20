@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/pentops/j5/gen/j5/client/v1/client_j5pb"
-	"github.com/pentops/j5/gen/j5/config/v1/config_j5pb"
 	"github.com/pentops/j5/gen/j5/plugin/v1/plugin_j5pb"
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
+	"github.com/pentops/j5build/gen/j5/config/v1/config_j5pb"
 	"github.com/pentops/j5build/internal/j5client"
 	"github.com/pentops/j5build/internal/source"
 	"github.com/pentops/j5build/internal/structure"

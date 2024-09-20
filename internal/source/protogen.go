@@ -2,16 +2,13 @@ package source
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
-	"github.com/pentops/j5build/internal/structure"
 	"google.golang.org/protobuf/types/descriptorpb"
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
 func CodeGeneratorRequestFromImage(img *source_j5pb.SourceImage) (*pluginpb.CodeGeneratorRequest, error) {
-
 	out := &pluginpb.CodeGeneratorRequest{
 		CompilerVersion: nil,
 		FileToGenerate:  img.SourceFilenames,
@@ -22,45 +19,6 @@ func CodeGeneratorRequestFromImage(img *source_j5pb.SourceImage) (*pluginpb.Code
 		includeFiles[*file.Name] = true
 	}
 
-	if img.Options != nil && img.Options.Go != nil {
-		for _, file := range img.File {
-			if file.Options != nil && file.Options.GoPackage != nil {
-				continue
-			}
-			if file.Options == nil {
-				file.Options = &descriptorpb.FileOptions{}
-			}
-
-			pkg := *file.Package
-			for _, prefix := range img.Options.Go.TrimPrefixes {
-				if strings.HasPrefix(pkg, prefix) {
-					pkg = pkg[len(prefix):]
-					pkg = strings.TrimPrefix(pkg, ".")
-					break
-				}
-			}
-			basePkg, subPkg, err := structure.SplitPackageParts(pkg)
-			if err != nil {
-				return nil, fmt.Errorf("splitting package %q: %w", pkg, err)
-			}
-
-			suffix := "_pb"
-			if subPkg != nil {
-				sub := *subPkg
-				suffix = fmt.Sprintf("_%spb", sub[0:1])
-			}
-			if img.Options.Go.Suffix != nil {
-				suffix = *img.Options.Go.Suffix
-			}
-			pkgParts := strings.Split(basePkg, ".")
-			baseName := strings.Join(pkgParts, "/")
-			namePart := pkgParts[len(pkgParts)-2]
-			lastPart := fmt.Sprintf("%s%s", namePart, suffix)
-			fullName := strings.Join([]string{img.Options.Go.Prefix, baseName, lastPart}, "/")
-			file.Options.GoPackage = &fullName
-
-		}
-	}
 	// Prepare the files for the generator.
 	// From the docs on out.ProtoFile:
 	// FileDescriptorProtos for all files in files_to_generate and everything

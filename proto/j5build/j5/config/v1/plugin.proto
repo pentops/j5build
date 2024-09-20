@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package j5.config.v1;
+
+import "j5/config/v1/mods.proto";
+
+option go_package = "github.com/pentops/j5build/gen/j5/config/v1/config_j5pb";
+
+message BuildPlugin {
+  // extend the base plugin.
+  optional string base = 1;
+
+  // the name of this plugin
+  string name = 2;
+
+  // Specifies the input and output format
+  Plugin type = 3;
+
+  // Options for the given input type, e.g. protc-gen options.
+  // On conflicts, the last option wins in the order:
+  // 1. base opts (including the resolved opts of the base's base if applicable)
+  // 2. publish or generate opts (i.e. the parent of the plugin)
+  // 3. plugin opts here
+  map<string, string> opts = 4;
+
+  // For non-docker, an executable in $PATH, also serves as the 'name' of the
+  // command for logging. Not passed in when using docker comtainers.
+  CommandSpec local = 5;
+
+  // a docker container to replace the local $PATH executable.
+  DockerSpec docker = 8;
+}
+
+message DockerSpec {
+  string image = 1;
+
+  // passed as-is to the docker API, does not default to or reference Command.cmd
+  repeated string entrypoint = 2;
+
+  // passed as-is to the docker API, does not default to or reference Command.cmd
+  repeated string cmd = 3;
+
+  repeated string args = 6; // CLI Arguments, passed as specified
+
+  // Environment Variables for the container.
+  // Expansion of runtime variables is performed, the available
+  // variables are set by the context calling the build,
+  repeated string env = 7;
+}
+
+message CommandSpec {
+  string cmd = 1;
+
+  repeated string args = 6; // CLI Arguments, passed as specified
+
+  // Environment Variables for the command
+  // Expansion of runtime variables is performed, the available
+  // variables are set by the context calling the build,
+  repeated string env = 7;
+}
+
+// TODO: This currently floats without a config, we need to decide if it belongs
+// in the repo config or builder shared config. The complication is that the
+// builder has access to all pulled images on the host, so linking this to the
+// repo is a bit misleading.
+message DockerRegistryAuth {
+  // Matches which images this auth applies to
+  // e.g. ghrc.io/* or *.dkr.ecr.*.amazonaws.com/*
+  string registry = 1;
+
+  // Supplies the method for auth.
+  // Not retuired if the registry matches a known pattern.
+  oneof auth {
+    Basic basic = 10;
+    AWSECS aws_ecs = 11; // default if *.dkr.ecr.*.amazonaws.com/*
+    Github github = 12; // default if ghrc.io/*
+  }
+
+  message Basic {
+    string username = 1;
+    string password_env_var = 2;
+  }
+
+  message AWSECS {
+    // TODO: Options for aws auth. Current implementations assume ec2 metadata.
+  }
+
+  message Github {
+    string token_env_var = 1; // defaults to GITHUB_TOKEN
+  }
+}
+
+enum Plugin {
+  PLUGIN_UNSPECIFIED = 0;
+  PLUGIN_PROTO = 1;
+  PLUGIN_J5_CLIENT = 2;
+}
+
+// Override the plugin globally for temporary development of plugins.
+message PluginOverride {
+  // The name of the plugin to override
+  string name = 1;
+
+  // For non-docker, an executable in $PATH, also serves as the 'name' of the
+  // command for logging. Not passed in when using docker comtainers.
+  CommandSpec local = 5;
+
+  // a docker container to replace the local $PATH executable.
+  DockerSpec docker = 8;
+}

@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/pentops/j5/gen/j5/client/v1/client_j5pb"
-	"github.com/pentops/j5/gen/j5/config/v1/config_j5pb"
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
@@ -22,18 +21,8 @@ import (
 
 func APIFromImage(image *source_j5pb.SourceImage) (*source_j5pb.API, error) {
 
-	if image.Options == nil {
-		image.Options = &config_j5pb.PackageOptions{}
-	}
-
-	subPackageNames := make(map[string]struct{})
-	for _, subPackage := range image.Options.SubPackages {
-		subPackageNames[subPackage.Name] = struct{}{}
-	}
-
 	bb := packageSet{
-		subPackageNames: subPackageNames,
-		wantPackages:    map[string]bool{},
+		wantPackages: map[string]bool{},
 	}
 
 	for _, pkg := range image.Packages {
@@ -149,9 +138,8 @@ func (b packageSet) addStructure(descFiles *protoregistry.Files) error {
 }
 
 type packageSet struct {
-	packages        []*source_j5pb.Package
-	wantPackages    map[string]bool
-	subPackageNames map[string]struct{}
+	packages     []*source_j5pb.Package
+	wantPackages map[string]bool
 }
 
 func (bb *packageSet) getSchemaSet(name string) (map[string]*schema_j5pb.RootSchema, error) {
@@ -197,10 +185,6 @@ func (bb *packageSet) getSubPackage(packageID *packageID) (*source_j5pb.SubPacka
 
 	if packageID.subPackage == nil {
 		return nil, fmt.Errorf("missing sub-package name")
-	}
-
-	if _, ok := bb.subPackageNames[*packageID.subPackage]; !ok {
-		return nil, fmt.Errorf("unknown sub-package name in %q %q", packageID.packageName, *packageID.subPackage)
 	}
 
 	parentPkg := bb.getPackage(packageID.packageName)

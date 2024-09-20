@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package j5.config.v1;
+
+option go_package = "github.com/pentops/j5build/gen/j5/config/v1/config_j5pb";
+
+message ImageMod {
+  oneof type {
+    GoPackageNames go_package_names = 2;
+  }
+
+  // This sets the option go_package = "{prefix}/foo/bar/v1/bar{suffix}"
+  // Go packages are named "{prefix}/{package_root}/{version}/{name}{suffix}"
+  // PackageRoot is everything up to the Version part: foo/bar
+  // Name is the part just before the version: bar
+  // Suffix comes from the suffixes map.
+  // Prefix comes from the Prefix field
+  // Package part replace '.' with '/'.
+  message GoPackageNames {
+    string prefix = 1;
+
+    // Maps the sub package name to a suffix.
+    // If a suffix is not found, default is to take the first letter.
+    // multiple sub-packages with the same suffix will 'work' but probably best
+    // avoided.
+    // Empty string is the package root, which also maps to just _pb by default.
+    map<string, string> suffixes = 4;
+
+    // These are stripped off the start package name before running the rest,
+    // but does not act as a filter - if the package doesn't begin with the
+    // prefix it is left as-is.
+    repeated string trim_prefixes = 2;
+  }
+}

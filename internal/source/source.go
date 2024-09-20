@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io/fs"
 
-	"github.com/pentops/j5/gen/j5/config/v1/config_j5pb"
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
+	"github.com/pentops/j5build/gen/j5/config/v1/config_j5pb"
 )
 
 // A repo has:
@@ -192,9 +192,7 @@ func (src *Source) CombinedSourceImage(ctx context.Context, inputs []*config_j5p
 		return src.GetSourceImage(ctx, inputs[0])
 	}
 
-	fullImage := &source_j5pb.SourceImage{
-		Options: &config_j5pb.PackageOptions{},
-	}
+	fullImage := &source_j5pb.SourceImage{}
 
 	images := make([]*source_j5pb.SourceImage, 0, len(inputs))
 	for _, input := range inputs {
@@ -203,22 +201,6 @@ func (src *Source) CombinedSourceImage(ctx context.Context, inputs []*config_j5p
 			return nil, fmt.Errorf("input %v: %w", input, err)
 		}
 		images = append(images, img)
-
-		if img.Options != nil {
-			for _, subPkg := range img.Options.SubPackages {
-				found := false
-				for _, existing := range fullImage.Options.SubPackages {
-					if existing.Name == subPkg.Name {
-						// no config other than name for now.
-						found = true
-						break
-					}
-				}
-				if !found {
-					fullImage.Options.SubPackages = append(fullImage.Options.SubPackages, subPkg)
-				}
-			}
-		}
 
 		fullImage.Packages = append(fullImage.Packages, img.Packages...)
 	}
