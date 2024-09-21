@@ -31,7 +31,16 @@ func MutateImageWithMods(img *source_j5pb.SourceImage, mods []*config_j5pb.Image
 }
 
 func runGoPackageNamesMod(img *source_j5pb.SourceImage, mod *config_j5pb.ImageMod_GoPackageNames) error {
+
+	isSource := make(map[string]bool)
+	for _, file := range img.SourceFilenames {
+		isSource[file] = true
+	}
+
 	for _, file := range img.File {
+		if !isSource[*file.Name] {
+			continue
+		}
 		if file.Options == nil {
 			file.Options = &descriptorpb.FileOptions{}
 		}

@@ -11,78 +11,14 @@ import (
 
 	"github.com/bufbuild/protocompile"
 	"github.com/bufbuild/protocompile/reporter"
-	"github.com/bufbuild/protoyaml-go"
 	"github.com/jhump/protoreflect/desc"
 	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
-	"github.com/pentops/j5build/gen/j5/config/v1/config_j5pb"
 	"github.com/pentops/j5build/internal/builtin"
 	"github.com/pentops/log.go/log"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
-
-var configPaths = []string{
-	"j5.yaml",
-	"ext/j5/j5.yaml",
-}
-
-func readDirConfigs(root fs.FS) (*config_j5pb.RepoConfigFile, error) {
-	var config *config_j5pb.RepoConfigFile
-	var err error
-	for _, filename := range configPaths {
-		config, err = readConfigFile(root, filename)
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				continue
-			}
-			return nil, fmt.Errorf("reading file %s: %w", filename, err)
-		}
-		break
-	}
-
-	if config == nil {
-		return nil, fmt.Errorf("no J5 config found")
-	}
-
-	return config, nil
-}
-
-func readConfigFile(root fs.FS, filename string) (*config_j5pb.RepoConfigFile, error) {
-	data, err := fs.ReadFile(root, filename)
-	if err != nil {
-		return nil, err
-	}
-	config := &config_j5pb.RepoConfigFile{}
-	if err := protoyaml.Unmarshal(data, config); err != nil {
-		return nil, err
-	}
-	return config, nil
-}
-
-func readBundleConfigFile(root fs.FS, filename string) (*config_j5pb.BundleConfigFile, error) {
-	data, err := fs.ReadFile(root, filename)
-	if err != nil {
-		return nil, err
-	}
-	config := &config_j5pb.BundleConfigFile{}
-	if err := protoyaml.Unmarshal(data, config); err != nil {
-		return nil, err
-	}
-	return config, nil
-}
-
-func readLockFile(root fs.FS, filename string) (*config_j5pb.LockFile, error) {
-	data, err := fs.ReadFile(root, filename)
-	if err != nil {
-		return nil, err
-	}
-	lockFile := &config_j5pb.LockFile{}
-	if err := protoyaml.Unmarshal(data, lockFile); err != nil {
-		return nil, err
-	}
-	return lockFile, nil
-}
 
 func (bundle *bundleSource) GetDependencies(ctx context.Context, resolver InputSource) (DependencySet, error) {
 	j5Config, err := bundle.J5Config()
@@ -97,22 +33,75 @@ func (bundle *bundleSource) GetDependencies(ctx context.Context, resolver InputS
 		}
 		dependencies = append(dependencies, img)
 	}
+	for _, dep := range j5Config.Includes {
+		img, err := resolver.GetSourceImage(ctx, dep.Input)
+		if err != nil {
+			return nil, err
+		}
+		dependencies = append(dependencies, img)
+	}
+	return combineSourceImages(dependencies)
 
-	dependencyImage, err := combineSourceImages(dependencies)
+}
+func (bundle *bundleSource) getDependencies(ctx context.Context, resolver InputSource) ([]*source_j5pb.SourceImage, error) {
+	j5Config, err := bundle.J5Config()
 	if err != nil {
 		return nil, err
 	}
-	return dependencyImage, nil
+	dependencies := make([]*source_j5pb.SourceImage, len(j5Config.Dependencies))
+	for idx, dep := range j5Config.Dependencies {
+		img, err := resolver.GetSourceImage(ctx, dep)
+		if err != nil {
+			return nil, err
+		}
+		dependencies[idx] = img
+	}
+	return dependencies, nil
+}
+
+// getIncludes returns the images corresponding to the inputs. The returned
+// slice will have the same indexes as the input.
+func (bundle *bundleSource) getIncludes(ctx context.Context, resolver InputSource) ([]*source_j5pb.SourceImage, error) {
+	j5Config, err := bundle.J5Config()
+	if err != nil {
+		return nil, err
+	}
+	dependencies := make([]*source_j5pb.SourceImage, len(j5Config.Includes))
+	for idx, spec := range j5Config.Includes {
+		img, err := resolver.GetSourceImage(ctx, spec.Input)
+		if err != nil {
+			return nil, err
+		}
+
+		dependencies[idx] = img
+	}
+
+	return dependencies, nil
 }
 
 func (bundle *bundleSource) readImageFromDir(ctx context.Context, resolver InputSource) (*source_j5pb.SourceImage, error) {
 
-	dependencies, err := bundle.GetDependencies(ctx, resolver)
+	dependencyImages, err := bundle.getDependencies(ctx, resolver)
 	if err != nil {
 		return nil, err
 	}
 
-	img, err := readImageFromDir(ctx, bundle.fs, dependencies)
+	includeImages, err := bundle.getIncludes(ctx, resolver)
+	if err != nil {
+		return nil, err
+	}
+
+	combinedDeps, err := combineSourceImages(append(dependencyImages, includeImages...))
+	if err != nil {
+		return nil, err
+	}
+
+	includedFilenames := make([]string, 0)
+	for _, included := range includeImages {
+		includedFilenames = append(includedFilenames, included.SourceFilenames...)
+	}
+
+	img, err := readImageFromDir(ctx, bundle.fs, includedFilenames, combinedDeps)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +111,13 @@ func (bundle *bundleSource) readImageFromDir(ctx context.Context, resolver Input
 		img.Packages[idx] = &source_j5pb.PackageInfo{
 			Name:  pkg.Name,
 			Prose: pkg.Prose,
+			Label: pkg.Label,
 		}
+	}
+
+	for _, included := range includeImages {
+		img.Prose = append(img.Prose, included.Prose...)
+		img.Packages = append(img.Packages, included.Packages...)
 	}
 	return img, nil
 }
@@ -229,10 +224,10 @@ type DependencySet interface {
 	AllDependencyFiles() ([]*descriptorpb.FileDescriptorProto, []string)
 }
 
-func readImageFromDir(ctx context.Context, bundleRoot fs.FS, dependencies DependencySet) (*source_j5pb.SourceImage, error) {
+func readImageFromDir(ctx context.Context, bundleRoot fs.FS, includeFilenames []string, dependencies DependencySet) (*source_j5pb.SourceImage, error) {
 
 	proseFiles := []*source_j5pb.ProseFile{}
-	filenames := []string{}
+	filenames := includeFilenames
 	err := fs.WalkDir(bundleRoot, ".", func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
 			return err

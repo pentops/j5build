@@ -114,7 +114,12 @@ func (src *Source) newRepo(debugName string, repoRoot fs.FS) (*repo, error) {
 		return nil, err
 	}
 
-	if err := resolveConfigReferences(config); err != nil {
+	pluginBase, err := repoPluginBase(config)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := resolveRepoPluginReferences(pluginBase, config); err != nil {
 		return nil, fmt.Errorf("resolving config references: %w", err)
 	}
 
@@ -135,18 +140,30 @@ func (src *Source) newRepo(debugName string, repoRoot fs.FS) (*repo, error) {
 
 	for _, refConfig := range config.Bundles {
 		bundleRoot := repoRoot
+		debugName := fmt.Sprintf("%s/%s", debugName, refConfig.Dir)
 		if refConfig.Dir != "" {
 			bundleRoot, err = fs.Sub(bundleRoot, refConfig.Dir)
 			if err != nil {
-				return nil, fmt.Errorf("subdir %q: %w", refConfig.Dir, err)
+				return nil, fmt.Errorf("bundle %q: %w", debugName, err)
 			}
 		}
 
+		bundleConfig, err := readBundleConfigFile(bundleRoot)
+		if err != nil {
+			return nil, fmt.Errorf("bundle %q: %w", debugName, err)
+		}
+
+		err = resolveBundlePluginReferences(pluginBase, bundleConfig)
+		if err != nil {
+			return nil, fmt.Errorf("bundle %q Plugin References: %w", debugName, err)
+		}
+
 		thisRepo.bundles[refConfig.Name] = &bundleSource{
-			debugName: fmt.Sprintf("%s/%s", debugName, refConfig.Dir),
+			debugName: debugName,
 			fs:        bundleRoot,
 			dirInRepo: refConfig.Dir,
 			refConfig: refConfig,
+			config:    bundleConfig,
 		}
 	}
 
@@ -223,6 +240,14 @@ func (src *Source) BundleConfig(name string) (*config_j5pb.BundleConfigFile, err
 		return nil, err
 	}
 	return bs.J5Config()
+}
+
+func (src *Source) BundleDir(name string) (string, error) {
+	bs, err := src.BundleSource(name)
+	if err != nil {
+		return "", err
+	}
+	return bs.dirInRepo, nil
 }
 
 func (src *Source) BundleDependencies(ctx context.Context, name string) (DependencySet, error) {

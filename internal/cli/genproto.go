@@ -2,64 +2,116 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"log"
-	"os"
-	"path"
+	"sort"
 	"strings"
 
 	"github.com/pentops/j5build/internal/conversions/protobuild"
-	"github.com/pentops/j5build/lib/j5source"
 	"github.com/pentops/prototools/protoprint"
+	"golang.org/x/exp/maps"
 )
 
-func runGenProto(ctx context.Context, cfg struct {
-	Dir     string `flag:"dir" default:"." desc:"Root schema directory"`
-	Bundle  string `flag:"bundle" default:"" desc:"Bundle file"`
-	Verbose bool   `flag:"verbose" env:"BCL_VERBOSE" default:"false" desc:"Verbose output"`
+func runJ5sInfo(ctx context.Context, cfg struct {
+	SourceConfig
+	Filename string `flag:"filename" desc:"Filename to print information about"`
 }) error {
 
-	outWriter := &fileWriter{dir: cfg.Dir}
-
-	source, err := j5source.NewFSSource(ctx, os.DirFS(cfg.Dir))
+	bs, err := newBundleSet(ctx, cfg.SourceConfig)
 	if err != nil {
 		return err
 	}
 
-	bundleConfig, err := source.BundleConfig(cfg.Bundle)
+	info, err := bs.resolver.FileInfo(ctx, cfg.Filename)
 	if err != nil {
 		return err
 	}
 
-	bundleFS, err := source.BundleFS(cfg.Bundle)
+	fmt.Printf("File: %s\n", cfg.Filename)
+	fmt.Printf("Package: %s\n", info.Package)
+	exports := maps.Keys(info.Exports)
+	sort.Strings(exports)
+	for _, key := range exports {
+		export := info.Exports[key]
+		fmt.Printf("Export: %s\n", export.Name)
+	}
+
+	return nil
+}
+
+type bundleSet struct {
+	resolver *protobuild.Resolver
+	packages []string
+}
+
+func newBundleSet(ctx context.Context, cfg SourceConfig) (*bundleSet, error) {
+
+	src, err := cfg.GetSource(ctx)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	bundleDir, err := src.BundleDir(cfg.Bundle)
+	if err != nil {
+		return nil, err
+	}
+
+	bundleConfig, err := src.BundleConfig(cfg.Bundle)
+	if err != nil {
+		return nil, err
+	}
+
+	bundleFS, err := src.BundleFS(cfg.Bundle)
+	if err != nil {
+		return nil, err
 	}
 
 	packages := []string{}
 	for _, pkg := range bundleConfig.Packages {
 		packages = append(packages, pkg.Name)
-
 	}
 
 	localFiles := &fileReader{
 		fs:       bundleFS,
+		fsName:   bundleDir,
 		packages: packages,
 	}
 
-	deps, err := source.BundleDependencies(ctx, cfg.Bundle)
+	deps, err := src.BundleDependencies(ctx, cfg.Bundle)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	resolver, err := protobuild.NewResolver(deps, localFiles)
 	if err != nil {
+		return nil, err
+	}
+
+	return &bundleSet{
+		resolver: resolver,
+		packages: packages,
+	}, nil
+}
+
+func runGenProto(ctx context.Context, cfg struct {
+	SourceConfig
+	Verbose bool `flag:"verbose" env:"BCL_VERBOSE" default:"false" desc:"Verbose output"`
+}) error {
+
+	bs, err := newBundleSet(ctx, cfg.SourceConfig)
+	if err != nil {
 		return err
 	}
 
-	compiler := protobuild.NewCompiler(resolver)
+	outWriter, err := cfg.BundleWriter(ctx)
+	if err != nil {
+		return err
+	}
 
-	for _, pkg := range packages {
+	compiler := protobuild.NewCompiler(bs.resolver)
+
+	for _, pkg := range bs.packages {
 		out, err := compiler.CompilePackage(ctx, pkg)
 		if err != nil {
 			return err
@@ -90,20 +142,9 @@ func runGenProto(ctx context.Context, cfg struct {
 
 }
 
-type fileWriter struct {
-	dir string
-}
-
-func (f *fileWriter) PutFile(ctx context.Context, filename string, data []byte) error {
-	dir := path.Join(f.dir, path.Dir(filename))
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-	return os.WriteFile(path.Join(f.dir, filename), data, 0644)
-}
-
 type fileReader struct {
 	fs       fs.FS
+	fsName   string
 	packages []string
 }
 
@@ -135,7 +176,7 @@ func (rr *fileReader) ListSourceFiles(ctx context.Context, pkgName string) ([]st
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("walk %s: %w", rr.fsName, err)
 	}
 	return files, nil
 }

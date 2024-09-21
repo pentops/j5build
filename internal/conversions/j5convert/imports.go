@@ -91,6 +91,9 @@ type TypeNotFoundError struct {
 }
 
 func (e *TypeNotFoundError) Error() string {
+	if e.Package == "" {
+		return fmt.Sprintf("type %s not found", e.Name)
+	}
 	return fmt.Sprintf("type %s not found in package %s", e.Name, e.Package)
 }
 

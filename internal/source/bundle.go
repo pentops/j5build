@@ -9,6 +9,12 @@ import (
 	"github.com/pentops/j5build/gen/j5/config/v1/config_j5pb"
 )
 
+type Bundle interface {
+	Name() string
+	J5Config() (*config_j5pb.BundleConfigFile, error)
+	SourceImage(ctx context.Context, resolver InputSource) (*source_j5pb.SourceImage, error)
+}
+
 type bundleSource struct {
 	debugName string
 	fs        fs.FS
@@ -22,17 +28,7 @@ func (b bundleSource) Name() string {
 }
 
 func (b *bundleSource) J5Config() (*config_j5pb.BundleConfigFile, error) {
-	if b.config != nil {
-		return b.config, nil
-	}
-
-	config, err := readBundleConfigFile(b.fs, "j5.yaml")
-	if err != nil {
-		return nil, fmt.Errorf("config for bundle %s: %w", b.debugName, err)
-	}
-
-	b.config = config
-	return config, nil
+	return b.config, nil
 }
 
 func (b *bundleSource) SourceImage(ctx context.Context, resolver InputSource) (*source_j5pb.SourceImage, error) {

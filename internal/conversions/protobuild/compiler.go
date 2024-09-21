@@ -31,8 +31,8 @@ func (pkg *Package) ResolveType(pkgName string, name string) (*j5convert.TypeRef
 			return gotType, nil
 		}
 		return nil, &j5convert.TypeNotFoundError{
-			Package: "(SELF)",
-			Name:    name,
+			// no package, is own package.
+			Name: name,
 		}
 	}
 
@@ -171,7 +171,7 @@ func (c *Compiler) loadPackage(ctx context.Context, name string, chain []string)
 func (c *Compiler) CompilePackage(ctx context.Context, packageName string) (linker.Files, error) {
 	pkg, err := c.loadPackage(ctx, packageName, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("loadPackage %s: %w", packageName, err)
 	}
 
 	cc := protocompile.Compiler{
@@ -194,7 +194,7 @@ func (c *Compiler) CompilePackage(ctx context.Context, packageName string) (link
 			log.Printf("STACK\n%s", panicErr.Stack)
 			return nil, panicErr
 		}
-		return nil, err
+		return nil, fmt.Errorf("compile package %s: %w", packageName, err)
 	}
 
 	return files, nil

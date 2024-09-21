@@ -15,11 +15,11 @@ require (
 	github.com/iancoleman/strcase v0.3.0
 	github.com/jhump/protoreflect v1.16.0
 	github.com/pentops/bcl.go v0.0.0-20240918210554-578839f5feb0
-	github.com/pentops/flowtest v0.0.0-20240909065422-e4f7f68d5fb0
-	github.com/pentops/j5 v0.0.0-20240918205947-5d6a48315046
+	github.com/pentops/flowtest v0.0.0-20240917192406-c387da443c68
+	github.com/pentops/j5 v0.0.0-20240920232958-e4745d5d4e7a
 	github.com/pentops/log.go v0.0.0-20240806161938-2742d05b4c24
 	github.com/pentops/prototools v0.0.0-20240918205158-5a41a1d78d46
-	github.com/pentops/runner v0.0.0-20240806162317-0eb1ced9ab3d
+	github.com/pentops/runner v0.0.0-20240920235254-d99051980854
 	github.com/ryanuber/go-glob v1.0.0
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.17.3
@@ -92,5 +92,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.1 // indirect
 )
-
-replace github.com/pentops/j5 => /Users/daemonl/pentops/j5

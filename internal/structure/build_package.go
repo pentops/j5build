@@ -172,8 +172,9 @@ func (bb *packageSet) getPackage(name string) *source_j5pb.Package {
 
 	if pkg == nil {
 		pkg = &source_j5pb.Package{
-			Name:    name,
-			Schemas: make(map[string]*schema_j5pb.RootSchema),
+			Name:     name,
+			Schemas:  make(map[string]*schema_j5pb.RootSchema),
+			Indirect: true,
 		}
 		bb.packages = append(bb.packages, pkg)
 	}
@@ -313,11 +314,12 @@ func buildService(src protoreflect.ServiceDescriptor) (*source_j5pb.Service, err
 		}
 
 		service.DefaultAuth = serviceExt.DefaultAuth
+		service.Audience = serviceExt.Audience
 	}
 
 	for ii := 0; ii < methods.Len(); ii++ {
 		method := methods.Get(ii)
-		builtMethod, err := buildMethod(method)
+		builtMethod, err := buildMethod(service, method)
 		if err != nil {
 			return nil, fmt.Errorf("build method %s: %w", method.FullName(), err)
 		}
@@ -326,7 +328,7 @@ func buildService(src protoreflect.ServiceDescriptor) (*source_j5pb.Service, err
 	return service, nil
 }
 
-func buildMethod(method protoreflect.MethodDescriptor) (*source_j5pb.Method, error) {
+func buildMethod(service *source_j5pb.Service, method protoreflect.MethodDescriptor) (*source_j5pb.Method, error) {
 
 	input := method.Input()
 	expectedInputName := method.Name() + "Request"
@@ -402,6 +404,31 @@ func buildMethod(method protoreflect.MethodDescriptor) (*source_j5pb.Method, err
 
 	if ext := proto.GetExtension(method.Options(), ext_j5pb.E_Method).(*ext_j5pb.MethodOptions); ext != nil {
 		builtMethod.Auth = ext.Auth
+		if ext.StateQuery != nil {
+			serviceQuery := service.Type.GetStateEntityQuery()
+			if serviceQuery == nil {
+				return nil, fmt.Errorf("service %q is not a state query service, but has state query annotations.", service.Name)
+			}
+
+			query := &client_j5pb.MethodType_StateQuery{
+				EntityName: serviceQuery.Entity,
+			}
+			if ext.StateQuery.Get {
+				query.QueryPart = client_j5pb.StateQueryPart_STATE_QUERY_PART_GET
+			} else if ext.StateQuery.List {
+				query.QueryPart = client_j5pb.StateQueryPart_STATE_QUERY_PART_LIST
+			} else if ext.StateQuery.ListEvents {
+				query.QueryPart = client_j5pb.StateQueryPart_STATE_QUERY_PART_LIST_EVENTS
+			} else {
+				return nil, fmt.Errorf("invalid state query part %v", ext.StateQuery)
+			}
+
+			builtMethod.MethodType = &client_j5pb.MethodType{
+				Type: &client_j5pb.MethodType_StateQuery_{
+					StateQuery: query,
+				},
+			}
+		}
 	}
 
 	return builtMethod, nil

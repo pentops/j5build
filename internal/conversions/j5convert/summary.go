@@ -109,6 +109,7 @@ func (cc *collector) collectFileRefs(sourceFile *sourcedef_j5pb.SourceFile) erro
 			return nil
 		},
 		Oneof: func(node *sourcewalk.OneofNode) error {
+
 			cc.addExport(oneofTypeRef(node))
 			return nil
 		},
@@ -150,7 +151,7 @@ func enumTypeRef(node *sourcewalk.EnumNode) *TypeRef {
 		valMap[node.Schema.Prefix+value.Name] = value.Number
 	}
 	return &TypeRef{
-		Name:     node.Schema.Name,
+		Name:     node.NameInPackage(),
 		Position: node.Source.GetPos(),
 
 		EnumRef: &EnumRef{
