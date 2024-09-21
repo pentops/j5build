@@ -47,6 +47,10 @@ type Resolver struct {
 	inbuilt map[string]protocompile.SearchResult
 }
 
+func ptr[T any](v T) *T {
+	return &v
+}
+
 func NewResolver(externalDeps DependencySet, localFiles LocalFileSource) (*Resolver, error) {
 	packages := localFiles.ListPackages()
 	packagePrefixes := make([]string, len(packages))
@@ -70,7 +74,14 @@ func NewResolver(externalDeps DependencySet, localFiles LocalFileSource) (*Resol
 
 	errs := func(err reporter.ErrorWithPos) error {
 		rr.Logf("Compiler Error: %s", err.Error())
-		return err
+		pos := err.GetPosition()
+		return errpos.AddPosition(err.Unwrap(), errpos.Position{
+			Filename: ptr(pos.Filename),
+			Start: errpos.Point{
+				Line:   pos.Line - 1,
+				Column: pos.Col - 1,
+			},
+		})
 	}
 
 	warnings := func(err reporter.ErrorWithPos) {
@@ -267,6 +278,27 @@ func (rr *Resolver) localFile(sourceFilename string) (*SourceFile, error) {
 	}
 
 	return nil, fmt.Errorf("unknown file type for proto compile: %s", sourceFilename)
+}
+
+func (rr *Resolver) FileInfo(ctx context.Context, sourceFilename string) (*j5convert.FileSummary, error) {
+
+	data, err := rr.BundleFiles.GetLocalFile(ctx, sourceFilename)
+	if err != nil {
+		return nil, err
+	}
+
+	sourceFile, err := rr.j5Parser.ParseFile(sourceFilename, string(data))
+	if err != nil {
+		return nil, errpos.AddSourceFile(err, sourceFilename, string(data))
+	}
+
+	summary, err := j5convert.SourceSummary(sourceFile)
+	if err != nil {
+		return nil, errpos.AddSourceFile(err, sourceFilename, string(data))
+	}
+
+	return summary, nil
+
 }
 
 func (rr *Resolver) parseToSource(ctx context.Context, sourceFilename string) (*SourceFile, error) {

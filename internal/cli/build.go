@@ -34,50 +34,58 @@ func runVerify(ctx context.Context, cfg struct {
 
 	for _, bundle := range src.AllBundles() {
 
-		img, err := bundle.SourceImage(ctx, src)
-		if err != nil {
-			return err
-		}
+		err := func(bundle source.Bundle) error {
 
-		bundleConfig, err := bundle.J5Config()
-		if err != nil {
-			return err
-		}
-
-		sourceAPI, err := structure.APIFromImage(img)
-		if err != nil {
-			return fmt.Errorf("Source API From Image: %w", err)
-		}
-
-		clientAPI, err := j5client.APIFromSource(sourceAPI)
-		if err != nil {
-			return fmt.Errorf("Client API From Source: %w", err)
-		}
-
-		if err := structure.ResolveProse(img, clientAPI); err != nil {
-			return fmt.Errorf("ResolveProse: %w", err)
-		}
-
-		_, err = j5schema.PackageSetFromSourceAPI(sourceAPI.Packages)
-		if err != nil {
-			return fmt.Errorf("building reflection from descriptor: %w", err)
-		}
-
-		for _, publish := range bundleConfig.Publish {
-			img := img
-			if len(bundleConfig.Publish) > 1 {
-				img = proto.Clone(img).(*source_j5pb.SourceImage)
-			}
-			if err := builder.MutateImageWithMods(img, publish.Mods); err != nil {
-				return fmt.Errorf("MutateImageWithMods: %w", err)
-			}
-			if err := bb.RunPublishBuild(ctx, builder.PluginContext{
-				Variables: map[string]string{},
-				ErrOut:    os.Stderr,
-				Dest:      NewDiscardFS(),
-			}, img, publish); err != nil {
+			img, err := bundle.SourceImage(ctx, src)
+			if err != nil {
 				return err
 			}
+
+			bundleConfig, err := bundle.J5Config()
+			if err != nil {
+				return err
+			}
+
+			sourceAPI, err := structure.APIFromImage(img)
+			if err != nil {
+				return fmt.Errorf("Source API From Image: %w", err)
+			}
+
+			clientAPI, err := j5client.APIFromSource(sourceAPI)
+			if err != nil {
+				return fmt.Errorf("Client API From Source: %w", err)
+			}
+
+			if err := structure.ResolveProse(img, clientAPI); err != nil {
+				return fmt.Errorf("ResolveProse: %w", err)
+			}
+
+			_, err = j5schema.PackageSetFromSourceAPI(sourceAPI.Packages)
+			if err != nil {
+				return fmt.Errorf("building reflection from descriptor: %w", err)
+			}
+
+			for _, publish := range bundleConfig.Publish {
+				img := img
+				if len(bundleConfig.Publish) > 1 {
+					img = proto.Clone(img).(*source_j5pb.SourceImage)
+				}
+				if err := builder.MutateImageWithMods(img, publish.Mods); err != nil {
+					return fmt.Errorf("MutateImageWithMods: %w", err)
+				}
+				if err := bb.RunPublishBuild(ctx, builder.PluginContext{
+					Variables: map[string]string{},
+					ErrOut:    os.Stderr,
+					Dest:      NewDiscardFS(),
+				}, img, publish); err != nil {
+					return err
+				}
+			}
+			return nil
+		}(bundle)
+
+		if err != nil {
+			return fmt.Errorf("bundle %s: %w", bundle.Name(), err)
 		}
 
 	}

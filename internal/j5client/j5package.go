@@ -78,6 +78,7 @@ func (api *API) ToJ5Proto() (*client_j5pb.API, error) {
 type Package struct {
 	Name          string
 	Label         string
+	Indirect      bool
 	Services      []*Service
 	StateEntities []*StateEntity
 }
@@ -106,6 +107,7 @@ func (pkg *Package) ToJ5Proto() (*client_j5pb.Package, error) {
 	return &client_j5pb.Package{
 		Label:         pkg.Label,
 		Name:          pkg.Name,
+		Indirect:      pkg.Indirect,
 		Schemas:       map[string]*schema_j5pb.RootSchema{},
 		Services:      services,
 		StateEntities: stateEntities,
@@ -186,6 +188,7 @@ type Method struct {
 	ResponseBody *j5schema.ObjectSchema
 	RawResponse  bool
 	Auth         *auth_j5pb.MethodAuthType
+	MethodType   *client_j5pb.MethodType
 
 	Service *Service
 }

@@ -8,6 +8,7 @@ import "j5/config/v1/plugin.proto";
 
 option go_package = "github.com/pentops/j5build/gen/j5/config/v1/config_j5pb";
 
+// BundleConfigFile represents j5.bundle.yaml
 message BundleConfigFile {
   RegistryConfig registry = 1;
   repeated PackageConfig packages = 2;
@@ -15,6 +16,15 @@ message BundleConfigFile {
   PackageOptions options = 4;
 
   repeated Input dependencies = 5;
+  // Includes the image of the input in the output of the bundle, republishing
+  // it. The included input will also be used in resolving dependencies.
+  // All packages from the included input will be included in the output.
+  repeated Include includes = 7;
+  repeated BuildPlugin plugins = 6;
+}
+
+message Include {
+  Input input = 1;
 }
 
 message RegistryConfig {

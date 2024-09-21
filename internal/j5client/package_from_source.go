@@ -41,8 +41,9 @@ func (sb *sourceBuilder) apiBaseFromSource(api *source_j5pb.API) (*API, error) {
 
 	for _, pkgSource := range api.Packages {
 		pkg := &Package{
-			Name:  pkgSource.Name,
-			Label: pkgSource.Label,
+			Name:     pkgSource.Name,
+			Label:    pkgSource.Label,
+			Indirect: pkgSource.Indirect,
 		}
 		apiPkg.Packages = append(apiPkg.Packages, pkg)
 
@@ -90,6 +91,7 @@ func (sb *sourceBuilder) apiBaseFromSource(api *source_j5pb.API) (*API, error) {
 							return nil, fmt.Errorf("duplicate query service for entity %q", entity.Name)
 						}
 						entity.Query = service
+
 						continue
 					}
 				}
@@ -228,6 +230,7 @@ func (sb *sourceBuilder) methodFromSource(pkg *subPackage, service *Service, src
 		HTTPPath:       src.HttpPath,
 		HTTPMethod:     src.HttpMethod,
 		HasBody:        src.HttpMethod != client_j5pb.HTTPMethod_GET,
+		MethodType:     src.MethodType,
 	}
 
 	if src.Auth != nil {

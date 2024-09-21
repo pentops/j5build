@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 
 	"runtime/debug"
@@ -38,6 +39,7 @@ func CommandSet() *commander.CommandSet {
 	cmdGroup.Add("version", commander.NewCommand(runVersion))
 	cmdGroup.Add("generate", commander.NewCommand(runGenerate))
 	cmdGroup.Add("genproto", commander.NewCommand(runGenProto))
+	cmdGroup.Add("fileinfo", commander.NewCommand(runJ5sInfo))
 	cmdGroup.Add("publish", commander.NewCommand(runPublish))
 	cmdGroup.Add("verify", commander.NewCommand(runVerify))
 	cmdGroup.Add("latest-deps", commander.NewCommand(runLatestDeps))
@@ -100,6 +102,20 @@ func (cfg SourceConfig) GetSource(ctx context.Context) (*source.Source, error) {
 
 	fsRoot := os.DirFS(cfg.Source)
 	return source.NewFSSource(ctx, fsRoot, resolver)
+}
+
+func (cfg SourceConfig) BundleWriter(ctx context.Context) (*fileWriter, error) {
+	source, err := cfg.GetSource(ctx)
+	if err != nil {
+		return nil, err
+	}
+	bundleDir, err := source.BundleDir(cfg.Bundle)
+	if err != nil {
+		return nil, err
+	}
+	return &fileWriter{
+		dir: filepath.Join(cfg.Source, bundleDir),
+	}, nil
 }
 
 func (cfg SourceConfig) GetBundleImage(ctx context.Context) (*source_j5pb.SourceImage, *config_j5pb.BundleConfigFile, error) {
@@ -198,4 +214,16 @@ func (local *LocalFS) PutFile(ctx context.Context, subPath string, body io.Reade
 	}
 
 	return nil
+}
+
+type fileWriter struct {
+	dir string
+}
+
+func (f *fileWriter) PutFile(ctx context.Context, filename string, data []byte) error {
+	dir := path.Join(f.dir, path.Dir(filename))
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(path.Join(f.dir, filename), data, 0644)
 }
