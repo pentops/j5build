@@ -36,7 +36,11 @@ var DefaultRegistryAuths = []*config_j5pb.DockerRegistryAuth{{
 
 func (dw *Runner) runDocker(ctx context.Context, rc RunContext) error {
 
+	ctx = log.WithField(ctx, "image", rc.Command.Docker.Image)
+	t0 := time.Now()
+	log.WithField(ctx, "t0", time.Since(t0).String()).Debug("Pull If Needed")
 	if err := dw.pullIfNeeded(ctx, rc.Command.Docker.Image); err != nil {
+		log.WithError(ctx, err).Error("failed to pull image")
 		return err
 	}
 
@@ -55,6 +59,7 @@ func (dw *Runner) runDocker(ctx context.Context, rc RunContext) error {
 		Cmd:        rc.Command.Docker.Cmd,
 	}, nil, nil, nil, "")
 	if err != nil {
+		log.WithError(ctx, err).Error("failed to start container")
 		return err
 	}
 	defer func() {
@@ -75,8 +80,6 @@ func (dw *Runner) runDocker(ctx context.Context, rc RunContext) error {
 	}
 
 	defer hj.Close()
-
-	t0 := time.Now()
 
 	log.WithField(ctx, "t0", time.Since(t0).String()).Debug("ContainerStart")
 
@@ -141,6 +144,7 @@ func (dw *Runner) pullIfNeeded(ctx context.Context, img string) error {
 
 	alreadyPulled := dw.markPull(img)
 	if alreadyPulled {
+		log.Debug(ctx, "image already pulled")
 		return nil
 	}
 
@@ -151,6 +155,7 @@ func (dw *Runner) pullIfNeeded(ctx context.Context, img string) error {
 		return fmt.Errorf("image list: %w", err)
 	}
 	if len(images) > 0 {
+		log.Debug(ctx, "found images")
 		return nil
 	}
 
@@ -265,6 +270,8 @@ func (dw *Runner) pullIfNeeded(ctx context.Context, img string) error {
 			return fmt.Errorf("image pull: %w", err)
 		}
 	}
+
+	log.Debug(ctx, "wait for imagePull")
 
 	// cli.ImagePull is asynchronous.
 	// The reader needs to be read completely for the pull operation to complete.

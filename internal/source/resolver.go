@@ -46,13 +46,18 @@ func (rr *Resolver) GetRemoteDependency(ctx context.Context, input *config_j5pb.
 	switch st := input.Type.(type) {
 
 	case *config_j5pb.Input_Registry_:
-		return rr.cacheDance(ctx, cacheSpec{
+		img, err := rr.cacheDance(ctx, cacheSpec{
 			repoType:  "registry",
 			owner:     st.Registry.Owner,
 			repoName:  st.Registry.Name,
 			version:   st.Registry.Version,
 			reference: coalesce(st.Registry.Reference, ptr("main")),
 		}, rr.regClient, locks)
+		if err != nil {
+			return nil, fmt.Errorf("resolving remote %s:%s : %w", st.Registry.Owner, st.Registry.Name, err)
+		}
+
+		return img, nil
 
 	default:
 		return nil, fmt.Errorf("unsupported source type %T", input.Type)
