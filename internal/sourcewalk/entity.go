@@ -13,9 +13,10 @@ import (
 )
 
 type entityNode struct {
-	name   string
-	Source SourceNode
-	Schema *sourcedef_j5pb.Entity
+	name        string
+	packageName string
+	Source      SourceNode
+	Schema      *sourcedef_j5pb.Entity
 }
 
 func (ent *entityNode) componentName(suffix string) string {
@@ -40,6 +41,12 @@ func schemaRefField(pkg, desc string) *schema_j5pb.Field {
 // run converts the entity into lower level schema elements and calls the
 // visitors on those.
 func (ent *entityNode) run(visitor FileVisitor) error {
+
+	if ent.Schema.BaseUrlPath == "" {
+		pkgParts := strings.Split(ent.packageName, ".")
+		pkgParts = append(pkgParts, strcase.ToSnake(ent.Schema.Name))
+		ent.Schema.BaseUrlPath = strings.Join(pkgParts, "/")
+	}
 
 	if err := ent.acceptKeys(visitor); err != nil {
 		return err
@@ -299,8 +306,9 @@ func (ent *entityNode) acceptEvent(visitor FileVisitor) error {
 
 func (ent *entityNode) acceptCommands(visitor FileVisitor) error {
 	entity := ent.Schema
-	commands := entity.Commands
-	for _, service := range commands {
+
+	services := make([]*serviceRef, 0)
+	for idx, service := range entity.Commands {
 		var serviceName string
 		var servicePath string
 
@@ -314,12 +322,11 @@ func (ent *entityNode) acceptCommands(visitor FileVisitor) error {
 		}
 
 		if service.BasePath != nil {
-			servicePath = fmt.Sprintf("%s%s", entity.BaseUrlPath, *service.BasePath)
+			servicePath = fmt.Sprintf("/%s/%s", entity.BaseUrlPath, *service.BasePath)
 		} else {
 			servicePath = fmt.Sprintf("/%s/c", entity.BaseUrlPath)
 		}
 
-		service.BasePath = &servicePath
 		service.Name = &serviceName
 
 		service.Options = &ext_j5pb.ServiceOptions{
@@ -329,15 +336,12 @@ func (ent *entityNode) acceptCommands(visitor FileVisitor) error {
 				},
 			},
 		}
-	}
 
-	services := make([]*serviceRef, 0)
-
-	for idx, service := range commands {
 		source := ent.Source.child("commands", strconv.Itoa(idx))
 		services = append(services, &serviceRef{
-			schema: service,
-			source: source,
+			BasePath: servicePath,
+			schema:   service,
+			source:   source,
 		})
 	}
 
@@ -475,8 +479,9 @@ func (ent *entityNode) acceptQuery(visitor FileVisitor) error {
 
 	return visitor.VisitServiceFile(&ServiceFileNode{
 		services: []*serviceRef{{
-			schema: query,
-			source: ent.Source.child(virtualPathNode, "query"),
+			BasePath: *query.BasePath,
+			schema:   query,
+			source:   ent.Source.child(virtualPathNode, "query"),
 		}},
 	})
 

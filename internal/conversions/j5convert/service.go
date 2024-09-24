@@ -57,34 +57,20 @@ func convertService(ww *walkContext, sn *sourcewalk.ServiceFileNode) error {
 	})
 }
 
-func convertServiceNode(ww *walkContext, sn *sourcewalk.ServiceNode) {
-
-	spec := sn.Schema
-	if spec.Name == nil {
-		ww.errorf(sn.Source, "missing service name")
-		return
-	}
+func convertServiceNode(ww *walkContext, node *sourcewalk.ServiceNode) {
 
 	serviceWalker := ww.subPackageFile("service")
 
-	if spec.Name == nil {
-		ww.errorf(sn.Source, "missing service name")
-		return
-	}
+	service := blankService(serviceWalker.file, node.Name)
+	service.basePath = node.BasePath
 
-	service := blankService(serviceWalker.file, *spec.Name+"Service")
-	service.basePath = ""
-	if spec.BasePath != nil {
-		service.basePath = *spec.BasePath
-	}
-
-	for _, method := range sn.Methods {
+	for _, method := range node.Methods {
 		convertMethod(ww, service, method)
 	}
 
-	if spec.Options != nil {
+	if node.ServiceOptions != nil {
 		service.desc.Options = &descriptorpb.ServiceOptions{}
-		proto.SetExtension(service.desc.Options, ext_j5pb.E_Service, spec.Options)
+		proto.SetExtension(service.desc.Options, ext_j5pb.E_Service, node.ServiceOptions)
 	}
 
 	serviceWalker.file.addService(service)

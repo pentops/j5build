@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
 )
@@ -13,14 +14,20 @@ type ServiceFileNode struct {
 }
 
 type serviceRef struct {
-	schema *sourcedef_j5pb.Service
-	source SourceNode
+	BasePath string
+	schema   *sourcedef_j5pb.Service
+	source   SourceNode
 }
 
 type ServiceNode struct {
-	Schema  *sourcedef_j5pb.Service
-	Source  SourceNode
-	Methods []*ServiceMethodNode
+	// Schema  *sourcedef_j5pb.Service
+	BasePath string
+	Source   SourceNode
+	Methods  []*ServiceMethodNode
+
+	Name string
+
+	ServiceOptions *ext_j5pb.ServiceOptions
 }
 
 type ServiceMethodNode struct {
@@ -113,9 +120,17 @@ func (sn *serviceRef) accept(visitor ServiceFileVisitor) error {
 		})
 
 	}
-	return visitor.VisitService(&ServiceNode{
-		Schema:  sn.schema,
-		Source:  sn.source,
-		Methods: methods,
-	})
+	if sn.schema.Name == nil {
+		return fmt.Errorf("missing service name")
+	}
+	serviceNode := &ServiceNode{
+		//Schema:  sn.schema,
+		BasePath:       sn.BasePath,
+		Source:         sn.source,
+		Methods:        methods,
+		Name:           *sn.schema.Name + "Service",
+		ServiceOptions: sn.schema.Options,
+	}
+
+	return visitor.VisitService(serviceNode)
 }

@@ -85,7 +85,7 @@ func runVerify(ctx context.Context, cfg struct {
 		}(bundle)
 
 		if err != nil {
-			return fmt.Errorf("bundle %s: %w", bundle.Name(), err)
+			return fmt.Errorf("bundle %s: %w", bundle.DebugName(), err)
 		}
 
 	}

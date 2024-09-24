@@ -76,9 +76,10 @@ func (fn *FileNode) RangeRootElements(visitor FileVisitor) error {
 		case *sourcedef_j5pb.RootElement_Entity:
 			entity := element.Entity
 			entityNode := &entityNode{
-				name:   strcase.ToSnake(entity.Name),
-				Schema: entity,
-				Source: source.child("entity"),
+				name:        strcase.ToSnake(entity.Name),
+				packageName: fn.Package.Name,
+				Schema:      entity,
+				Source:      source.child("entity"),
 			}
 			if err := entityNode.run(visitor); err != nil {
 				return err

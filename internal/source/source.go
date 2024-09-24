@@ -77,7 +77,7 @@ func (src *Source) ListAllDependencies() ([]*config_j5pb.Input, error) {
 	for _, bundle := range src.thisRepo.bundles {
 		cfg, err := bundle.J5Config()
 		if err != nil {
-			return nil, fmt.Errorf("bundle %q: %w", bundle.Name(), err)
+			return nil, fmt.Errorf("bundle %q: %w", bundle.DebugName(), err)
 		}
 		allDeps = append(allDeps, cfg.Dependencies...)
 	}
@@ -234,36 +234,12 @@ func (src *Source) CombinedSourceImage(ctx context.Context, inputs []*config_j5p
 	return fullImage, nil
 }
 
-func (src *Source) BundleConfig(name string) (*config_j5pb.BundleConfigFile, error) {
-	bs, err := src.BundleSource(name)
-	if err != nil {
-		return nil, err
-	}
-	return bs.J5Config()
-}
-
-func (src *Source) BundleDir(name string) (string, error) {
-	bs, err := src.BundleSource(name)
-	if err != nil {
-		return "", err
-	}
-	return bs.dirInRepo, nil
-}
-
 func (src *Source) BundleDependencies(ctx context.Context, name string) (DependencySet, error) {
 	bs, err := src.BundleSource(name)
 	if err != nil {
 		return nil, err
 	}
 	return bs.GetDependencies(ctx, src)
-}
-
-func (src *Source) BundleFS(name string) (fs.FS, error) {
-	bs, err := src.BundleSource(name)
-	if err != nil {
-		return nil, err
-	}
-	return bs.fs, nil
 }
 
 func (src *Source) BundleImageSource(ctx context.Context, name string) (*source_j5pb.SourceImage, *config_j5pb.BundleConfigFile, error) {
