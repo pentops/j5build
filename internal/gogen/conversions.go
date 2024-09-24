@@ -5,7 +5,7 @@ import (
 )
 
 func goTypeName(name string) string {
-	// Undescores are used to separate nested-scoped types, e.g. a message
+	// Underscores are used to separate nested-scoped types, e.g. a message
 	// defined within a message in proto, this function preserves the underscores
 	// but fixes up any casing in between - which basically results in capatalizing
 	// the first letter.
