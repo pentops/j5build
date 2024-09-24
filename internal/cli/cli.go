@@ -39,7 +39,6 @@ func CommandSet() *commander.CommandSet {
 	cmdGroup.Add("version", commander.NewCommand(runVersion))
 	cmdGroup.Add("generate", commander.NewCommand(runGenerate))
 	cmdGroup.Add("genproto", commander.NewCommand(runGenProto))
-	cmdGroup.Add("fileinfo", commander.NewCommand(runJ5sInfo))
 	cmdGroup.Add("publish", commander.NewCommand(runPublish))
 	cmdGroup.Add("verify", commander.NewCommand(runVerify))
 	cmdGroup.Add("latest-deps", commander.NewCommand(runLatestDeps))
@@ -104,17 +103,31 @@ func (cfg SourceConfig) GetSource(ctx context.Context) (*source.Source, error) {
 	return source.NewFSSource(ctx, fsRoot, resolver)
 }
 
-func (cfg SourceConfig) BundleWriter(ctx context.Context) (*fileWriter, error) {
-	source, err := cfg.GetSource(ctx)
+func (cfg SourceConfig) EachBundle(ctx context.Context, fn func(source.Bundle) error) error {
+	src, err := cfg.GetSource(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	bundleDir, err := source.BundleDir(cfg.Bundle)
-	if err != nil {
-		return nil, err
+
+	if cfg.Bundle != "" {
+		bundle, err := src.BundleSource(cfg.Bundle)
+		if err != nil {
+			return err
+		}
+		return fn(bundle)
 	}
+
+	for _, bundle := range src.AllBundles() {
+		if err := fn(bundle); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (cfg SourceConfig) FileWriterAt(ctx context.Context, prefix string) (*fileWriter, error) {
 	return &fileWriter{
-		dir: filepath.Join(cfg.Source, bundleDir),
+		dir: filepath.Join(cfg.Source, prefix),
 	}, nil
 }
 
