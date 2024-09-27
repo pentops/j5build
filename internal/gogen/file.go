@@ -5,77 +5,11 @@ import (
 	"fmt"
 	"go/format"
 	"log"
-	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 )
-
-func quoteString(s string) string {
-	return fmt.Sprintf("%q", s)
-}
-
-type StringGen struct {
-	imports   map[string]string
-	buf       *bytes.Buffer
-	myPackage string
-}
-
-func (g *StringGen) ImportPath(importSrc string) string {
-	existing, ok := g.imports[importSrc]
-	if ok {
-		return existing
-	}
-
-	importName := g.findUnusedPackage(path.Base(importSrc))
-	g.imports[importSrc] = importName
-	return g.imports[importSrc]
-}
-
-func (g *StringGen) findUnusedPackage(want string) string {
-	for _, used := range g.imports {
-		if used == want {
-			// TODO if the name is already a number, increment it
-			return g.findUnusedPackage(want + "_1")
-		}
-	}
-
-	return want
-}
-
-func (g *StringGen) ChildGen() *StringGen {
-	return &StringGen{
-		buf:       &bytes.Buffer{},
-		imports:   g.imports,
-		myPackage: g.myPackage,
-	}
-}
-
-// P prints a line to the generated output. It converts each parameter to a
-// string following the same rules as fmt.Print. It never inserts spaces
-// between parameters.
-func (g *StringGen) P(v ...interface{}) {
-	for _, x := range v {
-		if packaged, ok := x.(DataType); ok {
-			if packaged.GoPackage == "" {
-				fmt.Fprint(g.buf, packaged.Prefix(), packaged.Name)
-				continue
-			}
-
-			specified := packaged.GoPackage
-			if specified == g.myPackage {
-				fmt.Fprint(g.buf, packaged.Prefix(), packaged.Name)
-			} else {
-				importedName := g.ImportPath(packaged.GoPackage)
-				fmt.Fprint(g.buf, packaged.Prefix(), importedName, ".", packaged.Name)
-			}
-		} else {
-			fmt.Fprint(g.buf, x)
-		}
-	}
-	fmt.Fprintln(g.buf)
-}
 
 type FileSet struct {
 	files  map[string]*GeneratedFile
@@ -120,27 +54,20 @@ func (fs *FileSet) File(packagePath string, packageName string) (*GeneratedFile,
 	return file, nil
 }
 
-type GoIdent struct {
-	Package string
-	Name    string
-}
-
-func (gi GoIdent) PackageName() string {
-	return gi.Package
-}
-
-func (gi GoIdent) Identity() string {
-	return gi.Name
+type FileElement interface {
+	Print(gen *StringGen)
 }
 
 type GeneratedFile struct {
 	path        string
 	packageName string
 
-	interfaces map[string]*Interface
-	services   map[string]*Struct
-	types      map[string]*Struct
-	funcs      map[string]*Function
+	elements    []FileElement
+	_interfaces map[string]*Interface
+	_services   map[string]*Struct
+	_enums      map[string]*Enum
+	_types      map[string]*Struct
+	_funcs      map[string]*Function
 
 	*StringGen
 }
@@ -149,10 +76,11 @@ func NewFile(importPath string, packageName string) *GeneratedFile {
 	gen := &GeneratedFile{
 		path:        importPath,
 		packageName: packageName,
-		services:    make(map[string]*Struct),
-		types:       make(map[string]*Struct),
-		funcs:       make(map[string]*Function),
-		interfaces:  make(map[string]*Interface),
+		_services:   make(map[string]*Struct),
+		_enums:      make(map[string]*Enum),
+		_types:      make(map[string]*Struct),
+		_funcs:      make(map[string]*Function),
+		_interfaces: make(map[string]*Interface),
 		StringGen: &StringGen{
 			buf:       &bytes.Buffer{},
 			imports:   make(map[string]string),
@@ -169,7 +97,7 @@ type PackagedIdentity interface {
 }
 
 func (gen *GeneratedFile) addCombinedClient() {
-	if len(gen.services) == 0 {
+	if len(gen._services) == 0 {
 		return
 	}
 
@@ -196,7 +124,7 @@ func (gen *GeneratedFile) addCombinedClient() {
 	}
 
 	constructor.P("  return &CombinedClient{")
-	for _, service := range gen.services {
+	for _, service := range gen._services {
 		combined.Fields = append(combined.Fields, &Field{
 			//Name:     service.Name,
 			DataType: DataType{Name: service.Name, Pointer: true},
@@ -205,11 +133,12 @@ func (gen *GeneratedFile) addCombinedClient() {
 	}
 	constructor.P("  }")
 
-	gen.types["CombinedClient"] = combined
+	gen._types["CombinedClient"] = combined
+	gen.elements = append(gen.elements, combined)
 }
 
 func (gen *GeneratedFile) Service(serviceName string) *Struct {
-	existing, ok := gen.services[serviceName]
+	existing, ok := gen._services[serviceName]
 	if ok {
 		return existing
 	}
@@ -245,19 +174,41 @@ func (gen *GeneratedFile) Service(serviceName string) *Struct {
 		}},
 		Constructors: []*Function{constructor},
 	}
-	gen.services[serviceName] = service
 
+	gen._services[serviceName] = service
+	gen.elements = append(gen.elements, service)
 	return service
 }
 
 func (gen *GeneratedFile) EnsureInterface(ii *Interface) {
-	_, ok := gen.interfaces[ii.Name]
+	_, ok := gen._interfaces[ii.Name]
 	if ok {
 		return
 	}
 	// TODO: Compare Methods
 
-	gen.interfaces[ii.Name] = ii
+	gen._interfaces[ii.Name] = ii
+	gen.elements = append(gen.elements, ii)
+}
+
+func (gen *GeneratedFile) AddStruct(ss *Struct) error {
+	_, ok := gen._types[ss.Name]
+	if ok {
+		return fmt.Errorf("struct %s already exists", ss.Name)
+	}
+	gen._types[ss.Name] = ss
+	gen.elements = append(gen.elements, ss)
+	return nil
+}
+
+func (gen *GeneratedFile) AddEnum(ee *Enum) error {
+	_, ok := gen._enums[ee.Name]
+	if ok {
+		return fmt.Errorf("enum %s already exists", ee.Name)
+	}
+	gen._enums[ee.Name] = ee
+	gen.elements = append(gen.elements, ee)
+	return nil
 }
 
 type Field struct {
@@ -273,7 +224,8 @@ type DataType struct {
 	J5Package string
 	Pointer   bool
 	TakeAddr  bool
-	Slice     bool
+	Slice     bool // Is []X
+	Map       bool // Is map<string, X>
 }
 
 func (dt DataType) Addr() DataType {
@@ -298,18 +250,29 @@ func (dt DataType) AsSlice() DataType {
 }
 
 func (dt DataType) Prefix() string {
-
-	ptr := ""
-	if dt.Slice && dt.Pointer {
-		ptr = "[]*"
-	} else if dt.Slice {
-		ptr = "[]"
-	} else if dt.Pointer {
-		ptr = "*"
-	} else if dt.TakeAddr {
-		ptr = "&"
+	if dt.Slice {
+		if dt.Pointer {
+			return "[]*"
+		} else {
+			return "[]"
+		}
 	}
-	return ptr
+
+	if dt.Map {
+		if dt.Pointer {
+			return "map[string]*"
+		} else {
+			return "map[string]"
+		}
+	}
+
+	if dt.Pointer {
+		return "*"
+	} else if dt.TakeAddr {
+		return "&"
+	}
+
+	return ""
 }
 
 type Parameter struct {
@@ -382,6 +345,29 @@ func (f *Function) PrintAsMethod(gen *StringGen, methodOf string) {
 	gen.P()
 }
 
+type Enum struct {
+	Name    string
+	Comment string
+	Values  []*EnumValue
+}
+
+type EnumValue struct {
+	Name    string
+	Comment string
+}
+
+func (ee *Enum) Print(gen *StringGen) {
+	gen.P("// ", ee.Name, " ", ee.Comment)
+	gen.P("type ", ee.Name, " string")
+	gen.P("const (")
+	prefix := ee.Name + "_"
+	for _, value := range ee.Values {
+		gen.P("  ", prefix, value.Name, " ", ee.Name, " = ", quoteString(value.Name))
+	}
+	gen.P(")")
+	gen.P()
+}
+
 type Struct struct {
 	Name         string
 	Comment      string
@@ -442,23 +428,32 @@ func (ii *Interface) Print(gen *StringGen) {
 
 func (g *GeneratedFile) ExportBytes() ([]byte, error) {
 
-	header := g.ChildGen()
+	fileGen := g.ChildGen()
 
-	for _, ii := range g.interfaces {
-		ii.Print(header)
+	for _, ii := range g.elements {
+		ii.Print(fileGen)
 	}
 
-	for _, ss := range g.services {
-		ss.Print(header)
-	}
+	/*
+		for _, ii := range g.interfaces {
+			ii.Print(fileGen)
+		}
 
-	for _, ss := range g.types {
-		ss.Print(header)
-	}
+		for _, ss := range g.services {
+			ss.Print(fileGen)
+		}
 
-	for _, ff := range g.funcs {
-		ff.Print(header)
-	}
+		for _, ee := range g.enums {
+			ee.Print(fileGen)
+		}
+
+		for _, ss := range g.types {
+			ss.Print(fileGen)
+		}
+
+		for _, ff := range g.funcs {
+			ff.Print(fileGen)
+		}*/
 
 	bb := g.buf.Bytes()
 
@@ -475,7 +470,7 @@ func (g *GeneratedFile) ExportBytes() ([]byte, error) {
 	headerBytes.WriteString(")\n")
 	headerBytes.WriteString("\n")
 
-	headerBytes.Write(header.buf.Bytes())
+	headerBytes.Write(fileGen.buf.Bytes())
 	headerBytes.Write(bb)
 
 	p, err := format.Source(headerBytes.Bytes())
