@@ -441,6 +441,22 @@ func (ww *Walker) walkStatement(ref Reference) (Fragment, *unexpectedTokenError)
 		return ww.walkValueAssign(ref)
 	}
 
+	if ww.nextType() == lexer.PLUS {
+		// +=
+		ww.popToken() // Pop +
+		if ww.nextType() != lexer.ASSIGN {
+			return nil, unexpectedToken(ww.popToken(), lexer.ASSIGN)
+		}
+
+		assign, err := ww.walkValueAssign(ref)
+		if err != nil {
+			return nil, err
+		}
+		assign.Append = true
+		return assign, nil
+
+	}
+
 	nameParts := []TagValue{}
 
 	hdr := BlockHeader{

@@ -109,6 +109,7 @@ type Assignment struct {
 	Key   Reference
 	Value Value
 	SourceNode
+	Append bool // If += was used, otherwise =
 }
 
 var _ Statement = &Assignment{}
@@ -123,6 +124,9 @@ func (a Assignment) Kind() FragmentKind {
 }
 
 func (a Assignment) GoString() string {
+	if a.Append {
+		return fmt.Sprintf("assign(%s += %#v)", a.Key, a.Value)
+	}
 	return fmt.Sprintf("assign(%s = %#v)", a.Key, a.Value)
 }
 

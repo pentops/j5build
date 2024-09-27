@@ -176,6 +176,20 @@ v6 = []
 	)
 }
 
+func TestArrayAppend(t *testing.T) {
+	input := `
+v1 += 1
+v1 += 2
+`
+
+	file := tParseFile(t, input)
+
+	assertStatements(t, file.Body.Statements,
+		tAssignAppend("v1", tDecimal("1")),
+		tAssignAppend("v1", tDecimal("2")),
+	)
+}
+
 func TestBlockQualifier(t *testing.T) {
 	input := `block Foo:type`
 
@@ -289,7 +303,25 @@ var tFalse = Value{token: lexer.Token{Type: lexer.BOOL, Lit: "false"}}
 func tArray(values ...Value) Value {
 	return Value{array: values}
 }
+func tAssignAppend(key string, value ASTValue) tAssertion {
+	return func(t *testing.T, s Statement) {
+		assign, ok := s.(*Assignment)
+		if !ok {
+			t.Fatalf("expected Assignment, got %T", s)
+		}
 
+		if assign.Key.String() != key {
+			t.Fatalf("expected key %q, got %#v", key, assign.Key)
+		}
+
+		if !valuesEqual(assign.Value, value) {
+			t.Fatalf("expected val %#v, got %#v", value, assign.Value)
+		}
+		if !assign.Append {
+			t.Fatalf("expected append, got false")
+		}
+	}
+}
 func tAssign(key string, value ASTValue) tAssertion {
 	return func(t *testing.T, s Statement) {
 		assign, ok := s.(*Assignment)
@@ -303,6 +335,9 @@ func tAssign(key string, value ASTValue) tAssertion {
 
 		if !valuesEqual(assign.Value, value) {
 			t.Fatalf("expected val %#v, got %#v", value, assign.Value)
+		}
+		if assign.Append {
+			t.Fatalf("expected no append")
 		}
 	}
 }

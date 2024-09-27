@@ -77,12 +77,23 @@ func (sc *containerField) SchemaName() string {
 	}
 	return sc.schemaName
 }
+func (sc *containerField) getOrSetValue(name string, hint SourceLocation) (Field, error) {
+	val, err := sc.container.GetOrCreateValue(name)
+	if err != nil {
+		return nil, err
+	}
+	return sc.wrap(val, hint)
+}
 
 func (sc *containerField) newValue(name string, hint SourceLocation) (Field, error) {
 	val, err := sc.container.NewValue(name)
 	if err != nil {
 		return nil, err
 	}
+	return sc.wrap(val, hint)
+}
+
+func (sc *containerField) wrap(val j5reflect.Field, hint SourceLocation) (Field, error) {
 	protoPath := val.ProtoPath()
 	location := sc.location
 	for _, elem := range protoPath {

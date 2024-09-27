@@ -43,17 +43,15 @@ func TestEndToEnd(t *testing.T) {
 
 	t.Run("basic", func(t *testing.T) {
 		msg := run(t, fb(
-			`topLevelSingle = "foo"`,
-			`topLevelRepeated = ["a","b"]`,
+			`sString = "foo"`,
+			`rString = ["a","b"]`,
 			`foo Name {`,
 			`  | Description Text`,
-			`  tag.a = "a-val"`,
-			`  tag.b = "b-val"`,
 			`}`,
 		))
 
-		assert.Equal(t, "foo", msg.TopLevelSingle)
-		assert.Equal(t, []string{"a", "b"}, msg.TopLevelRepeated)
+		assert.Equal(t, "foo", msg.SString)
+		assert.Equal(t, []string{"a", "b"}, msg.RString)
 		if len(msg.Elements) != 1 {
 			t.Fatalf("expected 1 element, got %d", len(msg.Elements))
 		}
@@ -64,12 +62,29 @@ func TestEndToEnd(t *testing.T) {
 		}
 		assert.Equal(t, "Name", foo.Name)
 		assert.Equal(t, "Description Text", foo.Description)
-		assert.Equal(t, "a-val", foo.Tags["a"])
-		assert.Equal(t, "b-val", foo.Tags["b"])
 
 		locs := msg.SourceLocation
-		assertLoc(t, locs, "topLevelSingle", 0)
-		assertLoc(t, locs, "topLevelRepeated", 1)
+		assertLoc(t, locs, "sString", 0)
+		assertLoc(t, locs, "rString", 1)
+	})
+
+	t.Run("map", func(t *testing.T) {
+		msg := run(t, fb(
+			`tag.a = "a-val"`,
+			`tag.b = "b-val"`,
+		))
+
+		assert.Equal(t, "a-val", msg.Tags["a"])
+		assert.Equal(t, "b-val", msg.Tags["b"])
+	})
+
+	t.Run("array flat", func(t *testing.T) {
+		msg := run(t, fb(
+			`rString = ["a", "b"]`,
+			`rString += "c"`,
+		))
+
+		assert.Equal(t, []string{"a", "b", "c"}, msg.RString)
 	})
 
 }

@@ -33,11 +33,12 @@ func (sf ScopeFlag) String() string {
 }
 
 type Context interface {
-	BuildScope(schemaPath schema.PathSpec, userPath []ast.Ident, flag ScopeFlag) (schema.Scope, error)
-	WithScope(newScope schema.Scope, fn SpanCallback) error
+	BuildScope(schemaPath schema.PathSpec, userPath []ast.Ident, flag ScopeFlag) (*schema.Scope, error)
+	WithScope(newScope *schema.Scope, fn SpanCallback) error
 
 	SetDescription(desc ast.ASTValue) error
 	SetAttribute(path schema.PathSpec, ref []ast.Ident, value ast.ASTValue) error
+	AppendAttribute(path schema.PathSpec, ref []ast.Ident, value ast.ASTValue) error
 	WithContainer(loc *schema.SourceLocation, path schema.PathSpec, ref []ast.Ident, resetScope ScopeFlag, fn SpanCallback) error
 	SetLocation(loc schema.SourceLocation)
 	SetName(name string)
@@ -51,7 +52,7 @@ type Context interface {
 type SpanCallback func(Context, schema.BlockSpec) error
 
 type walkContext struct {
-	scope schema.Scope
+	scope *schema.Scope
 
 	// path is the full path from the root to this context, as field names
 	path []string
@@ -66,7 +67,7 @@ type walkContext struct {
 	verbose bool
 }
 
-func WalkSchema(scope schema.Scope, body ast.Body, verbose bool) error {
+func WalkSchema(scope *schema.Scope, body ast.Body, verbose bool) error {
 
 	rootContext := &walkContext{
 		scope:   scope,
@@ -120,11 +121,11 @@ func (sc *walkContext) SetLocation(loc schema.SourceLocation) {
 	sc.blockLocation = loc
 }
 
-func (sc *walkContext) walkScopePath(path []pathElement) (schema.Scope, error) {
+func (sc *walkContext) walkScopePath(path []pathElement) (*schema.Scope, error) {
 	return walkScope(sc.scope, path, sc.blockLocation)
 }
 
-func walkScope(scope schema.Scope, path []pathElement, loc schema.SourceLocation) (schema.Scope, error) {
+func walkScope(scope *schema.Scope, path []pathElement, loc schema.SourceLocation) (*schema.Scope, error) {
 	for _, ident := range path {
 		if ident.position != nil {
 			loc = *ident.position
@@ -176,7 +177,7 @@ func (sc *walkContext) SetName(name string) {
 	sc.path[len(sc.path)-1] = fmt.Sprintf("%s(%s)", sc.path[len(sc.path)-1], name)
 }
 
-func (sc *walkContext) BuildScope(schemaPath schema.PathSpec, userPath []ast.Ident, flag ScopeFlag) (schema.Scope, error) {
+func (sc *walkContext) BuildScope(schemaPath schema.PathSpec, userPath []ast.Ident, flag ScopeFlag) (*schema.Scope, error) {
 	fullPath := combinePath(schemaPath, userPath)
 	if len(fullPath) == 0 {
 		if flag == KeepScope {
@@ -238,8 +239,17 @@ func (sc *walkContext) SetDescription(description ast.ASTValue) error {
 	return sc.SetAttribute(descSpec, nil, description)
 }
 
+func (sc *walkContext) AppendAttribute(path schema.PathSpec, ref []ast.Ident, val ast.ASTValue) error {
+	sc.Logf("AppendAttribute(%#v, %#v, %#v, %s)", path, ref, val, val.Position())
+	return sc.setAttribute(path, ref, val, true)
+}
+
 func (sc *walkContext) SetAttribute(path schema.PathSpec, ref []ast.Ident, val ast.ASTValue) error {
 	sc.Logf("SetAttribute(%#v, %#v, %#v, %s)", path, ref, val, val.Position())
+	return sc.setAttribute(path, ref, val, false)
+}
+
+func (sc *walkContext) setAttribute(path schema.PathSpec, ref []ast.Ident, val ast.ASTValue, appendValue bool) error {
 
 	fullPath := combinePath(path, ref)
 	if len(fullPath) == 0 {
@@ -253,7 +263,7 @@ func (sc *walkContext) SetAttribute(path schema.PathSpec, ref []ast.Ident, val a
 		return err
 	}
 
-	field, walkPathErr := parentScope.Field(last.name, val.Position())
+	field, walkPathErr := parentScope.Field(last.name, val.Position(), appendValue)
 	if walkPathErr != nil {
 		sc.Logf("parentScope.Field(%q) failed: %s", last.name, walkPathErr)
 		if last.position != nil {
@@ -265,6 +275,9 @@ func (sc *walkContext) SetAttribute(path schema.PathSpec, ref []ast.Ident, val a
 
 	_, ok := field.AsContainer()
 	if ok {
+		if appendValue {
+			return sc.WrapErr(fmt.Errorf("cannot append to container"), val.Position())
+		}
 		containerScope, err := parentScope.ChildBlock(last.name, val.Position())
 		if err != nil {
 			return sc.WrapErr(err, val.Position())
@@ -276,10 +289,17 @@ func (sc *walkContext) SetAttribute(path schema.PathSpec, ref []ast.Ident, val a
 	}
 
 	vals, isArray := val.AsArray()
+	if !isArray && appendValue {
+		vals = []ast.ASTValue{val}
+		isArray = true
+	}
 	if isArray {
-		sc.Logf("Attribute is Array")
 		fieldArray, ok := field.AsArrayOfScalar()
+
 		if ok { // Field and Value are both arrays.
+			if !appendValue && fieldArray.Length() > 0 {
+				return sc.WrapErr(fmt.Errorf("value already set"), val.Position())
+			}
 			for _, val := range vals {
 				_, err := fieldArray.AppendASTValue(val)
 				if err != nil {
@@ -446,10 +466,10 @@ func (wc *walkContext) run(fn func(Context) error) error {
 	return nil
 }
 
-func (wc *walkContext) WithScope(newScope schema.Scope, fn SpanCallback) error {
+func (wc *walkContext) WithScope(newScope *schema.Scope, fn SpanCallback) error {
 	return wc.withSchema(newScope, fn)
 }
-func (wc *walkContext) withSchema(newScope schema.Scope, fn SpanCallback) error {
+func (wc *walkContext) withSchema(newScope *schema.Scope, fn SpanCallback) error {
 	lastBlock := newScope.CurrentBlock()
 
 	newPath := append(wc.path, lastBlock.Name())
@@ -517,7 +537,7 @@ func (wc *walkContext) Logf(format string, args ...interface{}) {
 
 type scopedError struct {
 	err    *errpos.Err
-	schema schema.Scope
+	schema *schema.Scope
 }
 
 func (se *scopedError) Error() string {

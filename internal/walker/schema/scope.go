@@ -29,41 +29,22 @@ type field struct {
 
 type SourceLocation = errpos.Position
 
-type Scope interface {
-	PrintScope(func(string, ...interface{}))
-	SchemaNames() []string
-
-	ChildBlock(name string, src SourceLocation) (Scope, *WalkPathError)
-	ScalarField(name string, src SourceLocation) (ScalarField, *WalkPathError)
-	Field(name string, src SourceLocation) (Field, *WalkPathError)
-
-	CurrentBlock() Container
-	RootBlock() Container
-
-	ListAttributes() []string
-	ListBlocks() []string
-
-	MergeScope(Scope) Scope
-
-	TailScope() Scope
-}
-
-type schemaWalker struct {
+type Scope struct {
 	blockSet  containerSet
 	leafBlock *containerField
 	rootBlock *containerField
 	schemaSet *SchemaSet
 }
 
-func (sw *schemaWalker) CurrentBlock() Container {
+func (sw *Scope) CurrentBlock() Container {
 	return sw.leafBlock
 }
 
-func (sw *schemaWalker) RootBlock() Container {
+func (sw *Scope) RootBlock() Container {
 	return sw.rootBlock
 }
 
-func NewRootSchemaWalker(ss *SchemaSet, root j5reflect.Object, sourceLoc *bcl_j5pb.SourceLocation) (Scope, error) {
+func NewRootSchemaWalker(ss *SchemaSet, root j5reflect.Object, sourceLoc *bcl_j5pb.SourceLocation) (*Scope, error) {
 	if ss.givenSpecs == nil {
 		ss.givenSpecs = map[string]*BlockSpec{}
 	}
@@ -78,7 +59,7 @@ func NewRootSchemaWalker(ss *SchemaSet, root j5reflect.Object, sourceLoc *bcl_j5
 	}
 
 	rootWrapped.isRoot = true
-	return &schemaWalker{
+	return &Scope{
 		schemaSet: ss,
 
 		blockSet:  containerSet{*rootWrapped},
@@ -87,14 +68,14 @@ func NewRootSchemaWalker(ss *SchemaSet, root j5reflect.Object, sourceLoc *bcl_j5
 	}, nil
 }
 
-func (sw *schemaWalker) newChild(container *containerField, newScope bool) *schemaWalker {
+func (sw *Scope) newChild(container *containerField, newScope bool) *Scope {
 	var newBlockSet containerSet
 	if newScope {
 		newBlockSet = containerSet{*container}
 	} else {
 		newBlockSet = append(sw.blockSet, *container)
 	}
-	return &schemaWalker{
+	return &Scope{
 		blockSet:  newBlockSet,
 		leafBlock: container,
 		rootBlock: container,
@@ -102,19 +83,19 @@ func (sw *schemaWalker) newChild(container *containerField, newScope bool) *sche
 	}
 }
 
-func (sw *schemaWalker) SchemaNames() []string {
+func (sw *Scope) SchemaNames() []string {
 	return sw.blockSet.schemaNames()
 }
 
-func (sw *schemaWalker) ListAttributes() []string {
+func (sw *Scope) ListAttributes() []string {
 	return sw.blockSet.listAttributes()
 }
 
-func (sw *schemaWalker) ListBlocks() []string {
+func (sw *Scope) ListBlocks() []string {
 	return sw.blockSet.listBlocks()
 }
 
-func (sw *schemaWalker) ChildBlock(name string, source SourceLocation) (Scope, *WalkPathError) {
+func (sw *Scope) ChildBlock(name string, source SourceLocation) (*Scope, *WalkPathError) {
 	root, spec, ok := sw.findBlock(name)
 	if !ok {
 		return nil, &WalkPathError{
@@ -137,8 +118,8 @@ func (sw *schemaWalker) ChildBlock(name string, source SourceLocation) (Scope, *
 	return newWalker, nil
 }
 
-func (sw *schemaWalker) ScalarField(name string, source SourceLocation) (ScalarField, *WalkPathError) {
-	finalField, spec, err := sw.field(name, source)
+func (sw *Scope) ScalarField(name string, source SourceLocation) (ScalarField, *WalkPathError) {
+	finalField, spec, err := sw.field(name, source, false)
 	if err != nil {
 		return nil, err
 	}
@@ -163,8 +144,8 @@ func (sw *schemaWalker) ScalarField(name string, source SourceLocation) (ScalarF
 	}
 }
 
-func (sw *schemaWalker) Field(name string, source SourceLocation) (Field, *WalkPathError) {
-	finalField, _, err := sw.field(name, source)
+func (sw *Scope) Field(name string, source SourceLocation, existingIsOk bool) (Field, *WalkPathError) {
+	finalField, _, err := sw.field(name, source, existingIsOk)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +153,7 @@ func (sw *schemaWalker) Field(name string, source SourceLocation) (Field, *WalkP
 	return finalField, nil
 }
 
-func (sw *schemaWalker) field(name string, source SourceLocation) (Field, *ChildSpec, *WalkPathError) {
+func (sw *Scope) field(name string, source SourceLocation, existingIsOk bool) (Field, *ChildSpec, *WalkPathError) {
 	// Root, Parent and Field.
 	// The 'Root' is the container within the current scope which is identified
 	// by the block name.
@@ -217,6 +198,17 @@ func (sw *schemaWalker) field(name string, source SourceLocation) (Field, *Child
 		}
 	}
 
+	if existingIsOk {
+		field, err := parentScope.getOrSetValue(final, source)
+		if err != nil {
+			return nil, nil, &WalkPathError{
+				Type: UnknownPathError,
+				Err:  err,
+			}
+		}
+		return field, nil, nil
+	}
+
 	finalField, newValErr := parentScope.newValue(final, source)
 	if newValErr != nil {
 		return nil, nil, &WalkPathError{
@@ -228,7 +220,7 @@ func (sw *schemaWalker) field(name string, source SourceLocation) (Field, *Child
 	return finalField, spec, nil
 }
 
-func (sw *schemaWalker) walkToChild(blockSchema *containerField, path []string, sourceLocation SourceLocation) (*containerField, *WalkPathError) {
+func (sw *Scope) walkToChild(blockSchema *containerField, path []string, sourceLocation SourceLocation) (*containerField, *WalkPathError) {
 	if len(path) == 0 {
 		return blockSchema, nil
 	}
@@ -252,7 +244,7 @@ func (sw *schemaWalker) walkToChild(blockSchema *containerField, path []string, 
 	return mainField, nil
 }
 
-func (sw *schemaWalker) findBlock(name string) (*containerField, *ChildSpec, bool) {
+func (sw *Scope) findBlock(name string) (*containerField, *ChildSpec, bool) {
 	for _, blockSchema := range sw.blockSet {
 		childSpec, ok := blockSchema.spec.Children[name]
 		if !ok {
@@ -283,30 +275,25 @@ func popLast[T any](list []T) (T, []T) {
 	return list[len(list)-1], list[:len(list)-1]
 }
 
-func (sw *schemaWalker) TailScope() Scope {
-	return &schemaWalker{
+func (sw *Scope) TailScope() *Scope {
+	return &Scope{
 		blockSet:  containerSet{*sw.leafBlock},
 		leafBlock: sw.leafBlock,
 		schemaSet: sw.schemaSet,
 	}
 }
 
-func (sw *schemaWalker) MergeScope(other Scope) Scope {
-	otherWalker, ok := other.(*schemaWalker)
-	if !ok {
-		panic("invalid merge")
-	}
-
-	newBlockSet := append(sw.blockSet, otherWalker.blockSet...)
-	return &schemaWalker{
+func (sw *Scope) MergeScope(other *Scope) *Scope {
+	newBlockSet := append(sw.blockSet, other.blockSet...)
+	return &Scope{
 		blockSet:  newBlockSet,
-		leafBlock: otherWalker.leafBlock,
+		leafBlock: other.leafBlock,
 		rootBlock: sw.rootBlock,
 		schemaSet: sw.schemaSet,
 	}
 }
 
-func (sw *schemaWalker) PrintScope(logf func(string, ...interface{})) {
+func (sw *Scope) PrintScope(logf func(string, ...interface{})) {
 	logf("available blocks:")
 	for _, block := range sw.blockSet {
 		if block.spec.DebugName != "" {

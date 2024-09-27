@@ -36,6 +36,7 @@ const (
 	DOT      // .
 	COMMA    // ,
 	COLON    // :
+	PLUS     // +
 	BANG     // !
 	QUESTION // ?
 	operator_end
@@ -77,6 +78,7 @@ var tokens = [...]string{
 	DOT:          ".",
 	COMMA:        ",",
 	COLON:        ":",
+	PLUS:         "+",
 	BANG:         "!",
 	QUESTION:     "?",
 	operator_end: "",

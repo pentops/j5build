@@ -83,6 +83,9 @@ func doBody(sc Context, body ast.Body) error {
 }
 
 func doAssign(sc Context, a *ast.Assignment) error {
+	if a.Append {
+		return sc.AppendAttribute(nil, a.Key.Idents, a.Value)
+	}
 	return sc.SetAttribute(nil, a.Key.Idents, a.Value)
 }
 
