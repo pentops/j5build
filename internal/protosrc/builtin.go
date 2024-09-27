@@ -14,6 +14,7 @@ import (
 	_ "github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	_ "github.com/pentops/j5/gen/j5/messaging/v1/messaging_j5pb"
 	_ "github.com/pentops/j5/gen/j5/state/v1/psm_j5pb"
+	_ "github.com/pentops/j5/j5types/any_j5t"
 	_ "github.com/pentops/j5/j5types/date_j5t"
 	_ "github.com/pentops/j5/j5types/decimal_j5t"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
