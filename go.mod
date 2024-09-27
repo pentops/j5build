@@ -16,7 +16,7 @@ require (
 	github.com/jhump/protoreflect v1.16.0
 	github.com/pentops/bcl.go v0.0.0-20240927010038-26a1eae0b23c
 	github.com/pentops/flowtest v0.0.0-20240917192406-c387da443c68
-	github.com/pentops/j5 v0.0.0-20240927000210-941d8aef3493
+	github.com/pentops/j5 v0.0.0-20240927164409-03448c03e791
 	github.com/pentops/log.go v0.0.0-20240806161938-2742d05b4c24
 	github.com/pentops/prototools v0.0.0-20240918205158-5a41a1d78d46
 	github.com/pentops/runner v0.0.0-20240920235254-d99051980854

@@ -8,7 +8,6 @@ import (
 
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
 	"github.com/pentops/j5build/gen/j5/config/v1/config_j5pb"
-	"github.com/pentops/log.go/log"
 )
 
 // A repo has:
@@ -217,10 +216,6 @@ func (src *Source) CombinedSourceImage(ctx context.Context, inputs []*config_j5p
 		img, err := src.GetSourceImage(ctx, input)
 		if err != nil {
 			return nil, fmt.Errorf("input %v: %w", input, err)
-		}
-		if len(images) == 1 {
-			log.Info(ctx, "One image, not combining")
-			return img, nil
 		}
 		images = append(images, img)
 
