@@ -3,6 +3,7 @@ package bcl
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
@@ -40,7 +41,13 @@ func NewParser(schemaSpec *bcl_j5pb.Schema) (*Parser, error) {
 		FailFast: true,
 		validate: pv,
 		schema:   ss,
+		Verbose:  isTruthy(os.Getenv("BCL_DEBUG")),
 	}, nil
+}
+
+func isTruthy(s string) bool {
+	lower := strings.ToLower(s)
+	return lower == "true" || lower == "1" || lower == "yes" || lower == "y" || lower == "t"
 }
 
 func (p *Parser) ParseFile(filename string, data string, msg protoreflect.Message) (*bcl_j5pb.SourceLocation, error) {
