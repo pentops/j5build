@@ -190,7 +190,7 @@ func walkTags(sc Context, spec schema.BlockSpec, gotTags popSet, outerCallback S
 			return err
 		}
 
-		sc.Logf("Applying Name tag, %#v %s", tagSpec, gotTag)
+		sc.Logf("Applying Name tag, %#v %#v", tagSpec, gotTag)
 		err := sc.SetAttribute(tagSpec.Path, nil, gotTag)
 		if err != nil {
 			return err

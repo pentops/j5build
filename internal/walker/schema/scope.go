@@ -193,6 +193,8 @@ func (sw *Scope) field(name string, source SourceLocation, existingIsOk bool) (F
 
 	if !parentScope.container.HasProperty(final) {
 		return nil, nil, &WalkPathError{
+			Field:     final,
+			Schema:    parentScope.schemaName,
 			Type:      NodeNotFound,
 			Available: sw.blockSet.listChildren(),
 		}
@@ -265,6 +267,7 @@ func (sw *Scope) findBlock(name string) (*containerField, *ChildSpec, bool) {
 			IsContainer: childSpec.IsContainer,
 			IsScalar:    childSpec.IsScalar,
 			// is certainly not a collection or map.
+			autoCreated: true,
 		}
 		return &blockSchema, &virtualSpec, true
 	}

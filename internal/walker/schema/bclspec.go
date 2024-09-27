@@ -93,10 +93,12 @@ type ChildSpec struct {
 	IsScalar     bool
 	IsCollection bool
 	IsMap        bool
+
+	autoCreated bool
 }
 
 func (cs ChildSpec) TagString() string {
-	prefix := []rune{'-', '-', '-'}
+	prefix := []rune{'-', '-', '-', '-'}
 	if cs.IsContainer {
 		prefix[0] = 'C'
 	}
@@ -105,6 +107,11 @@ func (cs ChildSpec) TagString() string {
 	}
 	if cs.IsCollection {
 		prefix[2] = 'A'
+	}
+	if cs.autoCreated {
+		prefix[3] = 'a'
+	} else {
+		prefix[3] = 's'
 	}
 	return string(prefix)
 }

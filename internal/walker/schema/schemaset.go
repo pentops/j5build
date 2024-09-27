@@ -113,7 +113,8 @@ func (ss *SchemaSet) _buildSpec(node j5PropSet) (*BlockSpec, error) {
 	err := node.RangePropertySchemas(func(name string, required bool, schema *schema_j5pb.Field) error {
 
 		spec := ChildSpec{
-			Path: PathSpec{name},
+			autoCreated: true,
+			Path:        PathSpec{name},
 		}
 
 		switch field := schema.Type.(type) {
