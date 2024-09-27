@@ -20,11 +20,19 @@ type Source struct {
 }
 
 func (w *Source) BundleConfig(name string) (*config_j5pb.BundleConfigFile, error) {
-	return w.src.BundleConfig(name)
+	bundle, err := w.src.BundleSource(name)
+	if err != nil {
+		return nil, err
+	}
+	return bundle.J5Config()
 }
 
 func (w *Source) BundleFS(name string) (fs.FS, error) {
-	return w.src.BundleFS(name)
+	bundle, err := w.src.BundleSource(name)
+	if err != nil {
+		return nil, err
+	}
+	return bundle.FS(), nil
 }
 
 func (w *Source) BundleDependencies(ctx context.Context, name string) (DependencySet, error) {

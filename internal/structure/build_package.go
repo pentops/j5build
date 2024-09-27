@@ -38,7 +38,7 @@ func APIFromImage(image *source_j5pb.SourceImage) (*source_j5pb.API, error) {
 		File: image.File,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("new files: %w", err)
 	}
 
 	if err := bb.addStructure(descFiles); err != nil {

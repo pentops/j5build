@@ -2,20 +2,14 @@ package source
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"path/filepath"
 	"strings"
 
 	"github.com/bufbuild/protocompile"
-	"github.com/bufbuild/protocompile/reporter"
-	"github.com/jhump/protoreflect/desc"
-	"github.com/jhump/protoreflect/desc/protoparse"
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
-	"github.com/pentops/j5build/internal/builtin"
-	"github.com/pentops/log.go/log"
+	"github.com/pentops/j5build/internal/source/reader"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
@@ -30,6 +24,16 @@ func strVal(s *string) string {
 type imageFiles struct {
 	primary      map[string]*descriptorpb.FileDescriptorProto
 	dependencies map[string]*descriptorpb.FileDescriptorProto
+}
+
+func (ii *imageFiles) FindFileByPath(filename string) (protocompile.SearchResult, error) {
+	depFile, err := ii.GetDependencyFile(filename)
+	if err == nil {
+		return protocompile.SearchResult{
+			Proto: depFile,
+		}, nil
+	}
+	return protocompile.SearchResult{}, fmt.Errorf("FindPackageByPath: file %s not found", filename)
 }
 
 func (ii *imageFiles) GetDependencyFile(filename string) (*descriptorpb.FileDescriptorProto, error) {
@@ -122,7 +126,7 @@ type DependencySet interface {
 	AllDependencyFiles() ([]*descriptorpb.FileDescriptorProto, []string)
 }
 
-func readImageFromDir(ctx context.Context, bundleRoot fs.FS, includeFilenames []string, dependencies DependencySet) (*source_j5pb.SourceImage, error) {
+func readImageFromDir(ctx context.Context, bundleRoot fs.FS, includeFilenames []string, dependencies protocompile.Resolver) (*source_j5pb.SourceImage, error) {
 
 	proseFiles := []*source_j5pb.ProseFile{}
 	filenames := includeFilenames
@@ -157,48 +161,18 @@ func readImageFromDir(ctx context.Context, bundleRoot fs.FS, includeFilenames []
 		return nil, err
 	}
 
-	parser := protoparse.Parser{
-		ImportPaths:                     []string{""},
-		IncludeSourceCodeInfo:           true,
-		InterpretOptionsInUnlinkedFiles: true,
-
-		WarningReporter: func(err reporter.ErrorWithPos) {
-			log.WithFields(ctx, map[string]interface{}{
-				"error": err.Error(),
-			}).Warn("protoparse warning")
-		},
-		LookupImport: func(filename string) (*desc.FileDescriptor, error) {
-			if builtin.IsBuiltInProto(filename) {
-				ff, err := desc.LoadFileDescriptor(filename)
-				if err != nil {
-					return nil, fmt.Errorf("loading pre-loaded file %q: %w", filename, err)
-				}
-				return ff, nil
-			}
-			return nil, fmt.Errorf("could not find file %q", filename)
-
-		},
-		LookupImportProto: dependencies.GetDependencyFile,
-
-		Accessor: func(filename string) (io.ReadCloser, error) {
-			return bundleRoot.Open(filename)
-		},
+	resolver := protocompile.CompositeResolver{
+		reader.NewFSResolver(bundleRoot),
+		dependencies,
 	}
-
-	customDesc, err := parser.ParseFiles(filenames...)
+	compiler := reader.NewCompiler(resolver)
+	files, err := compiler.Compile(ctx, filenames)
 	if err != nil {
-		panicErr := protocompile.PanicError{}
-		if errors.As(err, &panicErr) {
-			fmt.Printf("PANIC: %s\n", panicErr.Stack)
-		}
-
 		return nil, err
 	}
 
-	realDesc := desc.ToFileDescriptorSet(customDesc...)
-
 	return &source_j5pb.SourceImage{
-		File:            realDesc.File,
+		File:            files,
 		Prose:           proseFiles,
 		SourceFilenames: filenames,
 	}, nil

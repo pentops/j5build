@@ -14,7 +14,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/jhump/protoreflect v1.16.0
-	github.com/pentops/bcl.go v0.0.0-20240918210554-578839f5feb0
+	github.com/pentops/bcl.go v0.0.0-20240927010038-26a1eae0b23c
 	github.com/pentops/flowtest v0.0.0-20240917192406-c387da443c68
 	github.com/pentops/j5 v0.0.0-20240927000210-941d8aef3493
 	github.com/pentops/log.go v0.0.0-20240806161938-2742d05b4c24
