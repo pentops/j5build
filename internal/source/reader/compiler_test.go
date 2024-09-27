@@ -12,9 +12,6 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-type testResolver struct {
-}
-
 func TestCompile(t *testing.T) {
 
 	mr := protocompile.SourceAccessorFromMap(map[string]string{
