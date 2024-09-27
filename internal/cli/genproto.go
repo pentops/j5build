@@ -90,8 +90,6 @@ func runGenProto(ctx context.Context, cfg struct {
 		return nil
 	})
 
-	return nil
-
 }
 
 type fileReader struct {

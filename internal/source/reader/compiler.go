@@ -64,7 +64,9 @@ func (cc *Compiler) Compile(ctx context.Context, filenames []string) ([]*descrip
 	var files []*descriptorpb.FileDescriptorProto
 	seen := map[string]struct{}{}
 	for _, file := range customDesc {
-		addFile(file, &files, seen)
+		if err := addFile(file, &files, seen); err != nil {
+			return nil, err
+		}
 	}
 
 	return files, nil
@@ -78,9 +80,14 @@ func addFile(fd protoreflect.FileDescriptor, results *[]*descriptorpb.FileDescri
 	seen[name] = struct{}{}
 	imports := fd.Imports()
 	for i := 0; i < imports.Len(); i++ {
-		addFile(imports.Get(i).FileDescriptor, results, seen)
+		err := addFile(imports.Get(i).FileDescriptor, results, seen)
+		if err != nil {
+			return err
+		}
 	}
 	fd1 := protodesc.ToFileDescriptorProto(fd)
+
+	// TODO: Only run this when required.
 
 	// This hack matches an accidental work-around in earlier code.
 	// The act of marshalling and unmarshalling changes the underlying type
