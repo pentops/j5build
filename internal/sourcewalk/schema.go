@@ -50,6 +50,7 @@ type ObjectNode struct {
 	Name        string
 	Description string
 	Entity      *schema_j5pb.EntityObject
+	AnyMember   []string
 
 	rootType
 	propertySet
@@ -64,15 +65,10 @@ func newVirtualObjectNode(
 	virtual ...*schema_j5pb.ObjectProperty,
 ) (*ObjectNode, error) {
 
-	schema := &schema_j5pb.Object{
-		Name: name,
-	}
-	root := newRoot(source, parent, schema.Name)
+	root := newRoot(source, parent, name)
 	return &ObjectNode{
-		Name:        schema.Name,
-		Description: schema.Description,
-		Entity:      schema.Entity,
-		rootType:    root,
+		Name:     name,
+		rootType: root,
 		propertySet: propertySet{
 			properties: mapProperties(source, []string{}, root, properties, virtual),
 		},
@@ -85,6 +81,7 @@ func newObjectSchemaNode(source SourceNode, parent parentNode, schema *schema_j5
 		Name:        schema.Name,
 		Description: schema.Description,
 		Entity:      schema.Entity,
+		AnyMember:   schema.AnyMember,
 		rootType:    root,
 		propertySet: propertySet{
 			properties: mapProperties(source, []string{"properties"}, root, schema.Properties, virtual),

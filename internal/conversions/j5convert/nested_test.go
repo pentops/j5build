@@ -22,7 +22,7 @@ func TestMessageNesting(t *testing.T) {
 		Package:    proto.String("test.v1"),
 		MessageType: []*descriptorpb.DescriptorProto{{
 			Name:    proto.String("Outer"),
-			Options: &descriptorpb.MessageOptions{},
+			Options: emptyObjectOption,
 			Field: []*descriptorpb.FieldDescriptorProto{{
 				Name:     proto.String("field"),
 				JsonName: proto.String("field"),
@@ -34,7 +34,7 @@ func TestMessageNesting(t *testing.T) {
 
 			NestedType: []*descriptorpb.DescriptorProto{{
 				Name:    proto.String("Inner"),
-				Options: &descriptorpb.MessageOptions{},
+				Options: emptyObjectOption,
 				Field: []*descriptorpb.FieldDescriptorProto{{
 					JsonName: proto.String("innerField"),
 					Name:     proto.String("inner_field"),

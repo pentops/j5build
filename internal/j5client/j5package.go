@@ -80,7 +80,8 @@ type Package struct {
 	Label         string
 	Indirect      bool
 	Services      []*Service
-	StateEntities []*StateEntity
+	StateEntities map[string]*StateEntity
+	Exported      []*j5schema.ObjectSchema
 }
 
 func (pkg *Package) ToJ5Proto() (*client_j5pb.Package, error) {
@@ -317,7 +318,6 @@ type schemaRef struct {
 // collectPackageRefs walks the entire API, returning all client schemas which are
 // accessible via a method, event etc.
 func collectPackageRefs(api *API) (map[string]*schemaRef, error) {
-	// map[
 	schemas := make(map[string]*schemaRef)
 
 	var walkRefs func(j5schema.FieldSchema) error
@@ -409,6 +409,20 @@ func collectPackageRefs(api *API) (map[string]*schemaRef, error) {
 		return nil
 	}
 
+	includeRootObject := func(schema *j5schema.ObjectSchema) error {
+		_, ok := schemas[schema.FullName()]
+		if ok {
+			return nil
+		}
+
+		schemas[schema.FullName()] = &schemaRef{
+			schema:    schema.ToJ5ClientRoot(),
+			inPackage: schema.PackageName(),
+			name:      schema.Name(),
+		}
+
+		return walkRootObject(schema)
+	}
 	walkMethod := func(method *Method) error {
 		if method.Request.Body != nil {
 			if err := walkRootObject(method.Request.Body); err != nil {
@@ -467,6 +481,12 @@ func collectPackageRefs(api *API) (map[string]*schemaRef, error) {
 						return nil, err
 					}
 				}
+			}
+		}
+
+		for _, exported := range pkg.Exported {
+			if err := includeRootObject(exported); err != nil {
+				return nil, fmt.Errorf("exported %q: %w", exported.FullName(), err)
 			}
 		}
 

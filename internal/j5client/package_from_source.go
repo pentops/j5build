@@ -41,23 +41,18 @@ func (sb *sourceBuilder) apiBaseFromSource(api *source_j5pb.API) (*API, error) {
 
 	for _, pkgSource := range api.Packages {
 		pkg := &Package{
-			Name:     pkgSource.Name,
-			Label:    pkgSource.Label,
-			Indirect: pkgSource.Indirect,
+			Name:          pkgSource.Name,
+			Label:         pkgSource.Label,
+			Indirect:      pkgSource.Indirect,
+			StateEntities: map[string]*StateEntity{},
 		}
 		apiPkg.Packages = append(apiPkg.Packages, pkg)
 
-		entities := map[string]*StateEntity{}
 		schemaPackage, ok := sb.schemas.Packages[pkg.Name]
 		if ok {
-			var err error
-			entities, err = sb.entitiesFromSource(pkg, schemaPackage)
+			err := sb.walkSourceSchemas(pkg, schemaPackage)
 			if err != nil {
 				return nil, patherr.Wrap(err, pkg.Name)
-			}
-
-			for _, entity := range entities {
-				pkg.StateEntities = append(pkg.StateEntities, entity)
 			}
 		}
 
@@ -75,7 +70,7 @@ func (sb *sourceBuilder) apiBaseFromSource(api *source_j5pb.API) (*API, error) {
 				if serviceSrc.Type != nil {
 					switch st := serviceSrc.Type.Type.(type) {
 					case *source_j5pb.ServiceType_StateEntityCommand_:
-						entity, err := getEntity(sub, entities, st.StateEntityCommand.Entity)
+						entity, err := getEntity(sub, st.StateEntityCommand.Entity)
 						if err != nil {
 							return nil, fmt.Errorf("state entity command: %w", err)
 						}
@@ -83,7 +78,7 @@ func (sb *sourceBuilder) apiBaseFromSource(api *source_j5pb.API) (*API, error) {
 						entity.Commands = append(entity.Commands, service)
 						continue
 					case *source_j5pb.ServiceType_StateEntityQuery_:
-						entity, err := getEntity(sub, entities, st.StateEntityQuery.Entity)
+						entity, err := getEntity(sub, st.StateEntityQuery.Entity)
 						if err != nil {
 							return nil, fmt.Errorf("state entity command: %w", err)
 						}
@@ -106,7 +101,7 @@ func (sb *sourceBuilder) apiBaseFromSource(api *source_j5pb.API) (*API, error) {
 	return apiPkg, nil
 }
 
-func getEntity(inPackage *subPackage, entities map[string]*StateEntity, name string) (*StateEntity, error) {
+func getEntity(inPackage *subPackage, name string) (*StateEntity, error) {
 	parts := strings.Split(name, "/")
 	if len(parts) == 2 {
 		if parts[0] != inPackage.Package.Name {
@@ -117,7 +112,7 @@ func getEntity(inPackage *subPackage, entities map[string]*StateEntity, name str
 		return nil, fmt.Errorf("invalid state entity name %q", name)
 	}
 
-	entity, ok := entities[name]
+	entity, ok := inPackage.Package.StateEntities[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown entity %q", name)
 	}
@@ -133,47 +128,32 @@ func (sp *subPackage) FullName() string {
 	return fmt.Sprintf("%s.%s", sp.Package.Name, sp.Name)
 }
 
-func (sb *sourceBuilder) entitiesFromSource(pkg *Package, schemaPackage *j5schema.Package) (map[string]*StateEntity, error) {
-	found := map[string]*StateEntity{}
+// walkSourceSchemas checks for special-case schemas to include in the client
+// package even when not referenced by any service or topic.
+func (sb *sourceBuilder) walkSourceSchemas(pkg *Package, schemaPackage *j5schema.Package) error {
 
 	for _, schema := range schemaPackage.Schemas {
 		if schema.To == nil {
 			continue
 		}
+
 		obj, ok := schema.To.(*j5schema.ObjectSchema)
 		if !ok {
 			continue
 		}
-		if obj.Entity == nil {
-			continue
-		}
 
-		entity, ok := found[obj.Entity.Entity]
-		if !ok {
-			entity = &StateEntity{
-				Package: pkg,
-				Name:    obj.Entity.Entity,
+		if obj.Entity != nil {
+			if err := includeEntity(pkg, obj); err != nil {
+				return fmt.Errorf("include entity: %w", err)
 			}
-			found[obj.Entity.Entity] = entity
-		}
-
-		switch obj.Entity.Part {
-		case schema_j5pb.EntityPart_KEYS:
-			entity.KeysSchema = obj
-		case schema_j5pb.EntityPart_STATE:
-			entity.StateSchema = obj
-		case schema_j5pb.EntityPart_EVENT:
-			entity.EventSchema = obj
-		case schema_j5pb.EntityPart_DATA:
-			// ignore
-		default:
-			return nil, fmt.Errorf("unknown entity part %q", obj.Entity.Part)
+		} else if obj.AnyMember != nil {
+			pkg.Exported = append(pkg.Exported, obj)
 		}
 	}
 
-	for _, entity := range found {
+	for _, entity := range pkg.StateEntities {
 		if entity.KeysSchema == nil || entity.EventSchema == nil || entity.StateSchema == nil {
-			return nil, fmt.Errorf(
+			return fmt.Errorf(
 				"missing schema for entity %q: Keys: %v Event %v State %v",
 				entity.Name,
 				schemaDescForEntity(entity.KeysSchema),
@@ -183,7 +163,32 @@ func (sb *sourceBuilder) entitiesFromSource(pkg *Package, schemaPackage *j5schem
 		}
 
 	}
-	return found, nil
+	return nil
+}
+
+func includeEntity(pkg *Package, obj *j5schema.ObjectSchema) error {
+	entity, ok := pkg.StateEntities[obj.Entity.Entity]
+	if !ok {
+		entity = &StateEntity{
+			Package: pkg,
+			Name:    obj.Entity.Entity,
+		}
+		pkg.StateEntities[obj.Entity.Entity] = entity
+	}
+
+	switch obj.Entity.Part {
+	case schema_j5pb.EntityPart_KEYS:
+		entity.KeysSchema = obj
+	case schema_j5pb.EntityPart_STATE:
+		entity.StateSchema = obj
+	case schema_j5pb.EntityPart_EVENT:
+		entity.EventSchema = obj
+	case schema_j5pb.EntityPart_DATA:
+		// ignore
+	default:
+		return fmt.Errorf("unknown entity part %q", obj.Entity.Part)
+	}
+	return nil
 }
 
 func schemaDescForEntity(schema *j5schema.ObjectSchema) string {

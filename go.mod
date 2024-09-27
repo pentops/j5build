@@ -6,7 +6,6 @@ require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.34.2-20240717164558-a6c49f84cc0f.2
 	github.com/aws/aws-sdk-go-v2/config v1.27.33
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.32.4
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.61.2
 	github.com/bufbuild/protocompile v0.14.0
 	github.com/bufbuild/protoyaml-go v0.1.12
 	github.com/docker/docker v27.2.0+incompatible
@@ -14,11 +13,11 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/jhump/protoreflect v1.16.0
-	github.com/pentops/bcl.go v0.0.0-20240927010038-26a1eae0b23c
+	github.com/pentops/bcl.go v0.0.0-20240927192253-c80347dffc84
 	github.com/pentops/flowtest v0.0.0-20240917192406-c387da443c68
-	github.com/pentops/j5 v0.0.0-20240927164409-03448c03e791
+	github.com/pentops/j5 v0.0.0-20240927192330-bb068fd19f15
 	github.com/pentops/log.go v0.0.0-20240806161938-2742d05b4c24
-	github.com/pentops/prototools v0.0.0-20240918205158-5a41a1d78d46
+	github.com/pentops/prototools v0.0.0-20240927181938-9e0c0ca99e7b
 	github.com/pentops/runner v0.0.0-20240920235254-d99051980854
 	github.com/ryanuber/go-glob v1.0.0
 	github.com/stretchr/testify v1.9.0
@@ -35,17 +34,13 @@ require (
 	github.com/Microsoft/go-winio v0.4.14 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.30.5 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.4 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.32 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.13 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.17 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.17 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.17 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.4 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.3.19 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.19 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.17 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.22.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.26.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.30.7 // indirect

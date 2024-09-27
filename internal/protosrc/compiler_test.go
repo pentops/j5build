@@ -40,7 +40,10 @@ func TestCompile(t *testing.T) {
 	resolver := &protocompile.SourceResolver{
 		Accessor: mr,
 	}
-	cc := NewCompiler(resolver)
+	cc := NewCompiler(protocompile.CompositeResolver{
+		resolver,
+		BuiltinResolver,
+	})
 	ctx := context.Background()
 	files, err := cc.Compile(ctx, []string{"file1.proto", "file2.proto"})
 	if err != nil {

@@ -439,12 +439,17 @@ func buildField(ww *walkContext, node sourcewalk.FieldNode) (*descriptorpb.Field
 	case *schema_j5pb.Field_Any:
 
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
-		desc.TypeName = ptr(".google.protobuf.Any")
-		ww.file.ensureImport(pbAnyImport)
-		/*
-			proto.SetExtension(field.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
-				Type: &ext_j5pb.FieldOptions_Any{},
-			})*/
+		desc.TypeName = ptr(".j5.types.any.v1.Any")
+		ww.file.ensureImport(j5AnyImport)
+
+		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
+			Type: &ext_j5pb.FieldOptions_Any{
+				Any: &ext_j5pb.AnyField{
+					OnlyDefined: st.Any.OnlyDefined,
+					Types:       st.Any.Types,
+				},
+			},
+		})
 
 		return desc, nil
 	default:

@@ -45,8 +45,21 @@ func convertObject(ww *walkContext, node *sourcewalk.ObjectNode) {
 			EntityName: node.Entity.Entity,
 			EntityPart: node.Entity.Part.Enum(),
 		})
-
 	}
+
+	objectType := &ext_j5pb.ObjectMessageOptions{}
+	if node.AnyMember != nil {
+		objectType.AnyMember = node.AnyMember
+	}
+
+	ww.file.ensureImport(j5ExtImport)
+	ext := &ext_j5pb.MessageOptions{
+		Type: &ext_j5pb.MessageOptions_Object{
+			Object: objectType,
+		},
+	}
+	proto.SetExtension(message.descriptor.Options, ext_j5pb.E_Message, ext)
+
 	message.comment([]int32{}, node.Description)
 
 	err := node.RangeProperties(&sourcewalk.PropertyCallbacks{
@@ -93,6 +106,16 @@ func convertOneof(ww *walkContext, node *sourcewalk.OneofNode) {
 		Name: ptr("type"),
 	}}
 	message.comment([]int32{}, schema.Description)
+
+	oneofType := &ext_j5pb.OneofMessageOptions{}
+
+	ww.file.ensureImport(j5ExtImport)
+	ext := &ext_j5pb.MessageOptions{
+		Type: &ext_j5pb.MessageOptions_Oneof{
+			Oneof: oneofType,
+		},
+	}
+	proto.SetExtension(message.descriptor.Options, ext_j5pb.E_Message, ext)
 
 	err := node.RangeProperties(&sourcewalk.PropertyCallbacks{
 		SchemaVisitor: walkerSchemaVisitor(ww.inMessage(message)),

@@ -56,6 +56,7 @@ func ReadFSImage(ctx context.Context, bundleRoot fs.FS, includeFilenames []strin
 
 	resolver := protocompile.CompositeResolver{
 		NewFSResolver(bundleRoot),
+		BuiltinResolver,
 		dependencies,
 	}
 	compiler := NewCompiler(resolver)

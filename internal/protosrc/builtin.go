@@ -35,6 +35,7 @@ var inbuiltPrefixes = []string{
 	"j5/auth/v1/",
 	"j5/types/decimal/v1/",
 	"j5/types/date/v1/",
+	"j5/types/any/v1/",
 	"j5/schema/v1/",
 	"j5/sourcedef/v1",
 	"j5/bcl/v1/",

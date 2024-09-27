@@ -16,7 +16,7 @@ const (
 	j5DecimalImport            = "j5/types/decimal/v1/decimal.proto"
 	j5ListAnnotationsImport    = "j5/list/v1/annotations.proto"
 	pbTimestamp                = "google/protobuf/timestamp.proto"
-	pbAnyImport                = "google/protobuf/any.proto"
+	j5AnyImport                = "j5/types/any/v1/any.proto"
 	psmStateImport             = "j5/state/v1/metadata.proto"
 	googleApiHttpBodyImport    = "google/api/httpbody.proto"
 	googleApiAnnotationsImport = "google/api/annotations.proto"

@@ -21,10 +21,7 @@ type Compiler struct {
 
 func NewCompiler(resolver protocompile.Resolver) *Compiler {
 	return &Compiler{
-		Resolver: protocompile.CompositeResolver{
-			BuiltinResolver,
-			resolver,
-		},
+		Resolver: resolver,
 	}
 }
 
@@ -46,7 +43,7 @@ func (cc *Compiler) Compile(ctx context.Context, filenames []string) ([]*descrip
 	}
 
 	pcCompiler := protocompile.Compiler{
-		Resolver:       cc.Resolver,
+		Resolver:       protocompile.WithStandardImports(cc.Resolver),
 		SourceInfoMode: protocompile.SourceInfoExtraComments,
 		Reporter:       reporter.NewReporter(errs, warnings),
 	}

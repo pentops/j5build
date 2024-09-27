@@ -112,6 +112,12 @@ func assertIsPackageNotFound(t *testing.T, err error, want *PackageNotFoundError
 	}
 }
 
+var emptyObjectOption = withOption(&descriptorpb.MessageOptions{}, ext_j5pb.E_Message, &ext_j5pb.MessageOptions{
+	Type: &ext_j5pb.MessageOptions_Object{
+		Object: &ext_j5pb.ObjectMessageOptions{},
+	},
+})
+
 func TestSchemaToProto(t *testing.T) {
 
 	deps := &testDeps{
@@ -223,7 +229,7 @@ func TestSchemaToProto(t *testing.T) {
 				}),
 				JsonName: proto.String("enum"),
 			}},
-			Options: &descriptorpb.MessageOptions{},
+			Options: emptyObjectOption,
 		}},
 		EnumType: []*descriptorpb.EnumDescriptorProto{{
 			Name: proto.String("TestEnum"),
