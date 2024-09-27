@@ -13,7 +13,7 @@ import (
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
 	"github.com/pentops/j5build/gen/j5/config/v1/config_j5pb"
 	"github.com/pentops/j5build/internal/j5client"
-	"github.com/pentops/j5build/internal/source"
+	"github.com/pentops/j5build/internal/protosrc"
 	"github.com/pentops/j5build/internal/structure"
 	"github.com/pentops/log.go/log"
 	"golang.org/x/mod/modfile"
@@ -109,7 +109,7 @@ func (b *Builder) runPlugins(ctx context.Context, pc PluginContext, input *sourc
 
 	switch pluginType {
 	case config_j5pb.Plugin_PLUGIN_PROTO:
-		protoBuildRequest, err := source.CodeGeneratorRequestFromImage(input)
+		protoBuildRequest, err := protosrc.CodeGeneratorRequestFromImage(input)
 		if err != nil {
 			return fmt.Errorf("CodeGeneratorRequestFromImage: %w", err)
 		}
@@ -221,6 +221,7 @@ func (b *Builder) runProtocPlugin(ctx context.Context, pc PluginContext, plugin 
 	for _, f := range resp.File {
 		name := f.GetName()
 		reader := bytes.NewReader([]byte(f.GetContent()))
+		log.WithField(ctx, "file", name).Debug("Writing File")
 		if err := pc.Dest.PutFile(ctx, name, reader); err != nil {
 			return err
 		}

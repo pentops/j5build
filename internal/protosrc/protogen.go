@@ -1,4 +1,4 @@
-package source
+package protosrc
 
 import (
 	"fmt"
@@ -15,8 +15,8 @@ func CodeGeneratorRequestFromImage(img *source_j5pb.SourceImage) (*pluginpb.Code
 	}
 
 	includeFiles := map[string]bool{}
-	for _, file := range img.File {
-		includeFiles[*file.Name] = true
+	for _, file := range img.SourceFilenames {
+		includeFiles[file] = true
 	}
 
 	// Prepare the files for the generator.
@@ -24,8 +24,6 @@ func CodeGeneratorRequestFromImage(img *source_j5pb.SourceImage) (*pluginpb.Code
 	// FileDescriptorProtos for all files in files_to_generate and everything
 	// they import.  The files will appear in topological order, so each file
 	// appears before any file that imports it.
-
-	// TODO: For now we are only including files that are in the FileToGenerate list, we should include the dependencies as well
 
 	workingOn := make(map[string]bool)
 	hasFile := make(map[string]bool)

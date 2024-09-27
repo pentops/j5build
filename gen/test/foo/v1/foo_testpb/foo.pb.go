@@ -207,6 +207,7 @@ func (x *FooState) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+// Comment on Bar
 type Bar struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

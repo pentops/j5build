@@ -34,7 +34,7 @@ func CommandSet() *commander.CommandSet {
 	cmdGroup := commander.NewCommandSet()
 
 	cmdGroup.Add("schema", schemaSet())
-	cmdGroup.Add("protoc", protoSet())
+	cmdGroup.Add("protoc", protocSet())
 
 	cmdGroup.Add("version", commander.NewCommand(runVersion))
 	cmdGroup.Add("generate", commander.NewCommand(runGenerate))

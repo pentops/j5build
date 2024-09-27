@@ -24,7 +24,6 @@ import (
 func schemaSet() *commander.CommandSet {
 	genGroup := commander.NewCommandSet()
 	genGroup.Add("image", commander.NewCommand(RunImage))
-	genGroup.Add("jdef", commander.NewCommand(RunJDef))
 	genGroup.Add("source", commander.NewCommand(RunSource))
 	genGroup.Add("client", commander.NewCommand(RunClient))
 	genGroup.Add("swagger", commander.NewCommand(RunSwagger))
@@ -142,25 +141,6 @@ func RunSwagger(ctx context.Context, cfg BuildConfig) error {
 	}
 
 	return writeBytes(ctx, cfg.Output, asJson)
-}
-
-func RunJDef(ctx context.Context, cfg BuildConfig) error {
-	descriptorAPI, err := cfg.descriptorAPI(ctx)
-	if err != nil {
-		return err
-	}
-
-	jDefJSON, err := export.FromProto(descriptorAPI)
-	if err != nil {
-		return err
-	}
-
-	jDefJSONBytes, err := json.Marshal(jDefJSON)
-	if err != nil {
-		return err
-	}
-
-	return writeBytes(ctx, cfg.Output, jDefJSONBytes)
 }
 
 func writeBytes(ctx context.Context, to string, data []byte) error {

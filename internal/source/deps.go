@@ -1,18 +1,20 @@
 package source
 
 import (
-	"context"
 	"fmt"
-	"io/fs"
-	"path/filepath"
 	"strings"
 
 	"github.com/bufbuild/protocompile"
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
-	"github.com/pentops/j5build/internal/protosrc"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
+
+type DependencySet interface {
+	GetDependencyFile(filename string) (*descriptorpb.FileDescriptorProto, error)
+	ListDependencyFiles(prefix string) []string
+	AllDependencyFiles() ([]*descriptorpb.FileDescriptorProto, []string)
+}
 
 func strVal(s *string) string {
 	if s == nil {
@@ -64,15 +66,15 @@ func (ii *imageFiles) AllDependencyFiles() ([]*descriptorpb.FileDescriptorProto,
 	files := make([]*descriptorpb.FileDescriptorProto, 0, len(ii.primary)+len(ii.dependencies))
 	filenames := make([]string, 0, len(ii.primary))
 
-	for _, file := range ii.primary {
-		files = append(files, file)
-		filenames = append(filenames, file.GetName())
-	}
 	for filename, file := range ii.dependencies {
 		if _, ok := ii.primary[filename]; ok {
 			continue
 		}
 		files = append(files, file)
+	}
+	for _, file := range ii.primary {
+		files = append(files, file)
+		filenames = append(filenames, file.GetName())
 	}
 	return files, filenames
 }
@@ -118,62 +120,4 @@ func combineSourceImages(images []*source_j5pb.SourceImage) (*imageFiles, error)
 	}
 
 	return combined, nil
-}
-
-type DependencySet interface {
-	GetDependencyFile(filename string) (*descriptorpb.FileDescriptorProto, error)
-	ListDependencyFiles(prefix string) []string
-	AllDependencyFiles() ([]*descriptorpb.FileDescriptorProto, []string)
-}
-
-func readImageFromDir(ctx context.Context, bundleRoot fs.FS, includeFilenames []string, dependencies protocompile.Resolver) (*source_j5pb.SourceImage, error) {
-
-	proseFiles := []*source_j5pb.ProseFile{}
-	filenames := includeFilenames
-	err := fs.WalkDir(bundleRoot, ".", func(path string, info fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		ext := strings.ToLower(filepath.Ext(path))
-
-		switch ext {
-		case ".proto":
-			filenames = append(filenames, path)
-			return nil
-
-		case ".md":
-			data, err := fs.ReadFile(bundleRoot, path)
-			if err != nil {
-				return err
-			}
-			proseFiles = append(proseFiles, &source_j5pb.ProseFile{
-				Path:    path,
-				Content: data,
-			})
-			return nil
-
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	resolver := protocompile.CompositeResolver{
-		protosrc.NewFSResolver(bundleRoot),
-		dependencies,
-	}
-	compiler := protosrc.NewCompiler(resolver)
-	files, err := compiler.Compile(ctx, filenames)
-	if err != nil {
-		return nil, err
-	}
-
-	return &source_j5pb.SourceImage{
-		File:            files,
-		Prose:           proseFiles,
-		SourceFilenames: filenames,
-	}, nil
 }

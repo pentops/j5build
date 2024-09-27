@@ -8,13 +8,13 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/pentops/j5build/internal/source"
+	"github.com/pentops/j5build/internal/protosrc"
 	"github.com/pentops/runner/commander"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
-func protoSet() *commander.CommandSet {
+func protocSet() *commander.CommandSet {
 	protoGroup := commander.NewCommandSet()
 	protoGroup.Add("request", commander.NewCommand(runProtoRequest))
 	return protoGroup
@@ -30,7 +30,7 @@ func runProtoRequest(ctx context.Context, cfg struct {
 		return err
 	}
 
-	protoBuildRequest, err := source.CodeGeneratorRequestFromImage(img)
+	protoBuildRequest, err := protosrc.CodeGeneratorRequestFromImage(img)
 	if err != nil {
 		return err
 	}
