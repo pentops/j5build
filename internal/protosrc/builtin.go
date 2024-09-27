@@ -1,4 +1,4 @@
-package reader
+package protosrc
 
 import (
 	// Pre Loaded Protos

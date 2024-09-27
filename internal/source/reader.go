@@ -9,7 +9,7 @@ import (
 
 	"github.com/bufbuild/protocompile"
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
-	"github.com/pentops/j5build/internal/source/reader"
+	"github.com/pentops/j5build/internal/protosrc"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
@@ -162,10 +162,10 @@ func readImageFromDir(ctx context.Context, bundleRoot fs.FS, includeFilenames []
 	}
 
 	resolver := protocompile.CompositeResolver{
-		reader.NewFSResolver(bundleRoot),
+		protosrc.NewFSResolver(bundleRoot),
 		dependencies,
 	}
-	compiler := reader.NewCompiler(resolver)
+	compiler := protosrc.NewCompiler(resolver)
 	files, err := compiler.Compile(ctx, filenames)
 	if err != nil {
 		return nil, err

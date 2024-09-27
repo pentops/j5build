@@ -52,6 +52,7 @@ enum FooStatus {
   FOO_STATUS_INACTIVE = 2;
 }
 
+// Comment on Bar
 message Bar {
   string id = 1 [(j5.list.v1.field).string.foreign_key.uuid.filtering.filterable = true];
   string field = 2 [(j5.list.v1.field).string.open_text.searching = {searchable: true}];

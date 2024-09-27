@@ -1,4 +1,4 @@
-package reader
+package protosrc
 
 import (
 	"context"
@@ -47,7 +47,7 @@ func (cc *Compiler) Compile(ctx context.Context, filenames []string) ([]*descrip
 
 	pcCompiler := protocompile.Compiler{
 		Resolver:       cc.Resolver,
-		SourceInfoMode: protocompile.SourceInfoStandard,
+		SourceInfoMode: protocompile.SourceInfoExtraComments,
 		Reporter:       reporter.NewReporter(errs, warnings),
 	}
 

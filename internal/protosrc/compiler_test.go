@@ -1,4 +1,4 @@
-package reader
+package protosrc
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 
 	"buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"github.com/bufbuild/protocompile"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -19,6 +20,8 @@ func TestCompile(t *testing.T) {
 		syntax = "proto3";
 		import "buf/validate/validate.proto";
 		package foo; 
+
+		// Comment on Bar
 		message Bar {
 			string name = 1 [(buf.validate.field).string.min_len = 1];
 		}
@@ -55,11 +58,17 @@ func TestCompile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	field := bar.(protoreflect.MessageDescriptor).Fields().ByName("name")
+
+	barMsg := bar.(protoreflect.MessageDescriptor)
+
+	field := barMsg.Fields().ByName("name")
 	if field == nil {
 		t.Fatal("field not found")
 	}
 
 	proto.GetExtension(field.Options(), validate.E_Field)
+
+	barSrc := barMsg.ParentFile().SourceLocations().ByDescriptor(barMsg)
+	assert.Equal(t, " Comment on Bar\n", barSrc.LeadingComments)
 
 }

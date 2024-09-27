@@ -12,7 +12,7 @@ import (
 	"github.com/bufbuild/protocompile/linker"
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/j5build/internal/conversions/j5convert"
-	"github.com/pentops/j5build/internal/source/reader"
+	"github.com/pentops/j5build/internal/protosrc"
 )
 
 type Package struct {
@@ -72,7 +72,7 @@ func (c *Compiler) FindFileByPath(filename string) (protocompile.SearchResult, e
 		return protocompile.SearchResult{}, errors.New("FindFileByPath: empty filename")
 	}
 
-	if reader.IsBuiltInProto(filename) {
+	if protosrc.IsBuiltInProto(filename) {
 		return c.Resolver.GetInbuilt(filename)
 	}
 
