@@ -43,6 +43,13 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 			Path: bclPath(),
 		},
 	}, {
+		SchemaName: "j5.schema.v1.AnyField",
+		Children: []*bcl_j5pb.Child{{
+			Name:         "type",
+			Path:         bclPath("types"),
+			IsCollection: true,
+		}},
+	}, {
 		SchemaName: "j5.schema.v1.ArrayField",
 		Qualifier: &bcl_j5pb.Tag{
 			Path:    bclPath("items"),

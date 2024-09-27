@@ -14,9 +14,9 @@ import (
 	"github.com/jhump/protoreflect/desc/sourceinfo"
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
-	"github.com/pentops/j5build/internal/builtin"
 	"github.com/pentops/j5build/internal/conversions/j5convert"
 	"github.com/pentops/j5build/internal/conversions/j5parse"
+	"github.com/pentops/j5build/internal/source/reader"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
@@ -163,7 +163,7 @@ func (rr *Resolver) GetInbuilt(filename string) (protocompile.SearchResult, erro
 }
 
 func (rr *Resolver) findFileByPath(filename string) (*SourceFile, error) {
-	if builtin.IsBuiltInProto(filename) {
+	if reader.IsBuiltInProto(filename) {
 		result, err := rr.GetInbuilt(filename)
 		if err != nil {
 			return nil, err
@@ -225,7 +225,7 @@ func (rr *Resolver) PackageFiles(ctx context.Context, pkgName string) ([]*Source
 func (rr *Resolver) listPackageFiles(ctx context.Context, pkgName string) ([]string, error) {
 	root := strings.ReplaceAll(pkgName, ".", "/")
 
-	if builtin.IsBuiltInProto(root + "/") {
+	if reader.IsBuiltInProto(root + "/") {
 		return []string{}, nil
 
 	} else if hasAPrefix(root+"/", rr.localPrefixes) {
