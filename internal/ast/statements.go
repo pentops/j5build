@@ -35,6 +35,7 @@ const (
 
 type Statement interface {
 	StatementType() StatementType
+	Source() SourceNode
 }
 
 type EOF struct {

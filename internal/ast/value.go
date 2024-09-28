@@ -89,6 +89,20 @@ type Value struct {
 
 var _ ASTValue = Value{}
 
+func (v Value) sourceString() string {
+	switch v.token.Type {
+	case lexer.STRING:
+		return fmt.Sprintf("%q", v.token.Lit)
+	case lexer.DECIMAL, lexer.INT:
+		return v.token.Lit
+	case lexer.BOOL:
+		return v.token.Lit
+	default:
+		panic(fmt.Sprintf("unknown token type %T", v.token.Type))
+	}
+
+}
+
 func (v Value) GoString() string {
 	if v.IsArray() {
 		return fmt.Sprintf("[%#v]", v.array)

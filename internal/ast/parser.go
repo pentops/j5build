@@ -216,13 +216,23 @@ func (ww *Walker) nextFragment() (Fragment, *unexpectedTokenError) {
 		return nil, nil
 
 	case lexer.RBRACE:
-		ww.popToken()
-		return CloseBlock{}, nil
+		tok := ww.popToken()
+		return CloseBlock{
+			SourceNode: SourceNode{
+				Start: tok.Start,
+				End:   tok.End,
+			},
+		}, nil
 
 	case lexer.COMMENT:
-		// skip comments for now
-		ww.popToken()
-		return nil, nil
+		tok := ww.popToken()
+		return Comment{
+			Value: tok.Lit,
+			SourceNode: SourceNode{
+				Start: tok.Start,
+				End:   tok.End,
+			},
+		}, nil
 
 	case lexer.DESCRIPTION:
 		desc := ww.popToken()
@@ -491,6 +501,7 @@ func (ww *Walker) walkStatement(ref Reference) (Fragment, *unexpectedTokenError)
 	case lexer.LBRACE:
 		hdr.Open = true
 		ww.popToken()
+		hdr.End = ww.currentPos()
 		// <reference> { ...
 		// This is a block statement
 		// <reference> { <body> }

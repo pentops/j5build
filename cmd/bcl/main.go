@@ -3,12 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
+	"path"
 
 	"github.com/pentops/bcl.go/bcl"
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
+	"github.com/pentops/bcl.go/internal/ast"
 	"github.com/pentops/runner/commander"
 	"google.golang.org/protobuf/encoding/prototext"
 )
@@ -18,7 +21,7 @@ var Version = "dev"
 func main() {
 	cmdGroup := commander.NewCommandSet()
 	cmdGroup.Add("lint", commander.NewCommand(runLint))
-	//cmdGroup.Add("fmt", commander.NewCommand(runFmt))
+	cmdGroup.Add("fmt", commander.NewCommand(runFmt))
 	//cmdGroup.Add("lsp", commander.NewCommand(runLSP))
 	cmdGroup.RunMain("bcl", Version)
 }
@@ -27,10 +30,6 @@ type RootConfig struct {
 	ProjectRoot string `flag:"project-root" default:"" desc:"Project root directory"`
 	Verbose     bool   `flag:"verbose" env:"BCL_VERBOSE" default:"false" desc:"Verbose output"`
 }
-
-//func (rc *RootConfig) SchemaConfig() *bcl_j5pb.Schema {
-
-//}
 
 func runLint(ctx context.Context, cfg struct {
 	RootConfig
@@ -118,22 +117,16 @@ func runLint(ctx context.Context, cfg struct {
 	return nil
 }
 
-/*
 func runFmt(ctx context.Context, cfg struct {
-	Dir   string `flag:"dir" default:"." desc:"Root schema directory"`
+	Dir   string `flag:"dir" default:"." desc:"Root schema directory, or single file"`
 	Write bool   `flag:"write" default:"false" desc:"Write fixes to files"`
 }) error {
 
-	doFile := func(pathname string, data []byte) (string, error) {
-		tree, err := ast.ParseFile(string(data), true)
+	doFile := func(data []byte) (string, error) {
+		fixed, err := ast.Fmt(string(data))
 		if err != nil {
-			if err == ast.HadErrors {
-				return "", errpos.AddSource(tree.Errors, string(data))
-			}
-			return "", fmt.Errorf("parse file not HadErrors: %w", err)
+			return "", err
 		}
-
-		fixed := ast.Print(tree)
 		return fixed, nil
 	}
 
@@ -146,7 +139,7 @@ func runFmt(ctx context.Context, cfg struct {
 		if err != nil {
 			return err
 		}
-		out, err := doFile(cfg.Dir, data)
+		out, err := doFile(data)
 		if err != nil {
 			return err
 		}
@@ -178,7 +171,7 @@ func runFmt(ctx context.Context, cfg struct {
 			return err
 		}
 
-		out, err := doFile(pathname, data)
+		out, err := doFile(data)
 		if err != nil {
 			return err
 		}
@@ -187,7 +180,7 @@ func runFmt(ctx context.Context, cfg struct {
 			fmt.Println(out)
 			return nil
 		} else {
-			return outWriter.PutFile(ctx, pathname+".fied", []byte(out))
+			return outWriter.PutFile(ctx, pathname, []byte(out))
 		}
 	})
 	if err != nil {
@@ -208,6 +201,7 @@ func (f *fileWriter) PutFile(ctx context.Context, filename string, data []byte) 
 	return os.WriteFile(path.Join(f.dir, filename), data, 0644)
 }
 
+/*
 type fileReader struct {
 	fs       fs.FS
 	packages []string
