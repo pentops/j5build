@@ -9,6 +9,7 @@ import (
 	"path"
 
 	"github.com/pentops/bcl.go/bcl"
+	"github.com/pentops/bcl.go/bcl/bclsp"
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/bcl.go/internal/ast"
@@ -22,7 +23,7 @@ func main() {
 	cmdGroup := commander.NewCommandSet()
 	cmdGroup.Add("lint", commander.NewCommand(runLint))
 	cmdGroup.Add("fmt", commander.NewCommand(runFmt))
-	//cmdGroup.Add("lsp", commander.NewCommand(runLSP))
+	cmdGroup.Add("lsp", commander.NewCommand(runLSP))
 	cmdGroup.RunMain("bcl", Version)
 }
 
@@ -201,65 +202,23 @@ func (f *fileWriter) PutFile(ctx context.Context, filename string, data []byte) 
 	return os.WriteFile(path.Join(f.dir, filename), data, 0644)
 }
 
-/*
-type fileReader struct {
-	fs       fs.FS
-	packages []string
-}
+func runLSP(ctx context.Context, cfg struct {
+	Dir string `flag:"project-root" default:"" desc:"Root schema directory"`
+}) error {
 
-func (rr *fileReader) GetLocalFile(ctx context.Context, filename string) ([]byte, error) {
-	return fs.ReadFile(rr.fs, filename)
-}
-
-func (rr *fileReader) ListPackages() []string {
-	return rr.packages
-}
-
-func (rr *fileReader) ListSourceFiles(ctx context.Context, pkgName string) ([]string, error) {
-	pkgRoot := strings.ReplaceAll(pkgName, ".", "/")
-
-	files := make([]string, 0)
-	err := fs.WalkDir(rr.fs, pkgRoot, func(path string, dirEntry fs.DirEntry, err error) error {
+	if cfg.Dir == "" {
+		pwd, err := os.Getwd()
 		if err != nil {
 			return err
 		}
-		if dirEntry.IsDir() {
-			return nil
-		}
-		if strings.HasSuffix(path, ".j5gen.proto") {
-			return nil
-		}
-		if strings.HasSuffix(path, ".proto") {
-			files = append(files, path)
-		}
-		if strings.HasSuffix(path, ".j5s") {
-			files = append(files, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
+		cfg.Dir = pwd
 	}
-	return files, nil
+
+	log.Printf("ARGS: %+v", os.Args)
+
+	return bclsp.RunLSP(ctx, bclsp.Config{
+		ProjectRoot: cfg.Dir,
+		Schema:      nil,
+		FileFactory: nil,
+	})
 }
-
-func (rr *fileReader) ListJ5Files(ctx context.Context) ([]string, error) {
-	files := make([]string, 0)
-	err := fs.WalkDir(rr.fs, ".", func(path string, dirEntry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if dirEntry.IsDir() {
-			return nil
-		}
-		if strings.HasSuffix(path, ".j5s") {
-			files = append(files, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return files, nil
-
-}*/

@@ -59,28 +59,6 @@ func (uv unknownValue) AsArray() ([]ASTValue, bool) {
 	return nil, false
 }
 
-/*
-
-type IntValue struct {
-	unknownValue
-	val int64
-}
-
-func NewIntValue(val int64) ASTValue {
-	return IntValue{
-		unknownValue: unknownValue{typeName: "int"},
-		val:          val,
-	}
-}
-func (iv IntValue) AsInt(size int) (int64, error) {
-	if size == 32 {
-		if iv.val > math.MaxInt32 || iv.val < math.MinInt32 {
-			return 0, fmt.Errorf("int32 overflow")
-		}
-	}
-	return iv.val, nil
-}*/
-
 type Value struct {
 	token lexer.Token
 	array []Value
@@ -88,20 +66,6 @@ type Value struct {
 }
 
 var _ ASTValue = Value{}
-
-func (v Value) sourceString() string {
-	switch v.token.Type {
-	case lexer.STRING:
-		return fmt.Sprintf("%q", v.token.Lit)
-	case lexer.DECIMAL, lexer.INT:
-		return v.token.Lit
-	case lexer.BOOL:
-		return v.token.Lit
-	default:
-		panic(fmt.Sprintf("unknown token type %T", v.token.Type))
-	}
-
-}
 
 func (v Value) GoString() string {
 	if v.IsArray() {
@@ -253,6 +217,7 @@ const (
 
 type TagValue struct {
 	Mark      TagMark
+	MarkToken lexer.Token
 	Reference *Reference
 	Value     *Value
 	unknownValue

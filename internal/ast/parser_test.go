@@ -48,6 +48,9 @@ func TestErrors(t *testing.T) {
 	t.Run("unexpected close", func(t *testing.T) {
 		assertErr(t, `block Foo }`, errSet(errPos(1, 11)))
 	})
+	t.Run("unexpected standalone close", func(t *testing.T) {
+		assertErr(t, `}`, errSet(errPos(1, 1)))
+	})
 
 	t.Run("multiple errors", func(t *testing.T) {
 		assertErr(t, strings.Join([]string{
@@ -229,6 +232,32 @@ func TestDirectives(t *testing.T) {
 				tBlock(tBlockType("include"), tBlockTags("bar.a")),
 				tBlock(tBlockType("include"), tBlockTags("baz.b")),
 				tAssign("k", tString("v")),
+			),
+		),
+	)
+}
+
+func TestMultilineDescription(t *testing.T) {
+	input := strings.Join([]string{
+		`block Foo {`,
+		`  | This is a multiline`,
+		`  |description`,
+		`  |   `,
+		`  | With an empty line`,
+		``,
+		`  | Second Description`,
+		`}`,
+	}, "\n")
+
+	file := tParseFile(t, input)
+
+	assertStatements(t, file.Body.Statements,
+		tBlock(
+			tBlockType("block"),
+			tBlockTags("Foo"),
+			tBlockBody(
+				tDescription("This is a multiline\ndescription\n\nWith an empty line"),
+				tDescription("Second Description"),
 			),
 		),
 	)
@@ -416,7 +445,7 @@ func tBlockDescription(desc string) blockAssertion {
 		if block.Description == nil {
 			t.Fatalf("expected description %q, got none", desc)
 		}
-		str := *block.Description
+		str := block.Description.Value
 		if str != desc {
 			t.Fatalf("expected description %q, got %q", desc, str)
 		}
@@ -458,10 +487,7 @@ func tDescription(desc string) tAssertion {
 			t.Fatalf("expected Description, got %T", s)
 		}
 
-		str, err := block.Value.AsString()
-		if err != nil {
-			t.Fatalf("expected description to be a string, got %T %s", block.Value, err)
-		}
+		str := block.Value
 		if str != desc {
 			t.Fatalf("expected description %q, got %q", desc, str)
 		}

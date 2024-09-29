@@ -2,7 +2,6 @@ package lexer
 
 import (
 	"fmt"
-	"strings"
 	"unicode"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
@@ -56,12 +55,6 @@ func (l *Lexer) next() {
 	}
 
 	l.ch = r
-
-	/*
-		fmt.Printf("%02d %q  ", l.column, l.ch)
-		if l.ch == '\n' {
-			fmt.Println()
-		}*/
 }
 
 func (l *Lexer) getPosition() Position {
@@ -79,23 +72,25 @@ func (l *Lexer) peek() rune {
 }
 
 func (l *Lexer) skipWhitespace() {
-	for unicode.IsSpace(l.peek()) {
+	for {
+		v := l.peek()
+		if !unicode.IsSpace(v) {
+			break
+		}
+		if v == '\n' {
+			break
+		}
 		l.next()
 	}
 }
 
-func (l *Lexer) peekPastWhitespace() rune {
-	for n := l.offset; n < len(l.data); n++ {
-		r := rune(l.data[n])
-		if !unicode.IsSpace(r) {
-			return r
-		}
-	}
-	return eof
-}
-
 func (l *Lexer) tokenOf(ty TokenType) Token {
+	lit := string(l.ch)
+	if l.ch == eof {
+		lit = ""
+	}
 	return Token{
+		Lit:   lit,
 		Type:  ty,
 		Start: l.getPosition(),
 		End:   l.getPosition(),
@@ -181,7 +176,7 @@ func (l *Lexer) NextToken() (Token, error) {
 			case '*':
 				lit = l.lexBlockComment()
 				return Token{
-					Type:  COMMENT,
+					Type:  BLOCK_COMMENT,
 					Start: startPos,
 					End:   l.getPosition(),
 					Lit:   lit,
@@ -212,7 +207,7 @@ func (l *Lexer) NextToken() (Token, error) {
 			}, nil
 
 		case '|':
-			lit := l.lexDescription()
+			lit := l.lexDescriptionLine()
 			return Token{
 				Type:  DESCRIPTION,
 				Start: startPos,
@@ -378,30 +373,9 @@ func (l *Lexer) lexEscape(quote rune) error {
 	return err
 }
 
-// lexDescription scans the input lines the next line is not a description
-func (l *Lexer) lexDescription() string {
-	var lit []string
-	for {
-		line := l.lexDescriptionLine()
-		lit = append(lit, line)
-
-		if l.peekPastWhitespace() != '|' {
-			return strings.Join(lit, "\n")
-		}
-		l.skipWhitespace() // leading whitespace on newline
-		l.next()           // consume the |
-
-	}
-}
-
 func (l *Lexer) lexDescriptionLine() string {
 	var lit string
-	l.next()
 	l.skipWhitespace()
-	if l.peek() == '|' {
-		return ""
-	}
-
 	for {
 		next := l.peek()
 		if next == eof {

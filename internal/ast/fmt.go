@@ -8,25 +8,88 @@ import (
 	"github.com/pentops/bcl.go/internal/lexer"
 )
 
-/*
-func Print(tree *File) string {
-	printer := &printer{
-		buf: strings.Builder{},
-	}
-	printer.printFile(tree)
-	return printer.buf.String()
+type FmtDiff struct {
+	FromLine int // 0 based
+	ToLine   int // 0 based, Exclusive
+	NewText  string
 }
-*/
 
 func Fmt(input string) (string, error) {
+	diffs, err := collectFmtFragments(input)
+	if err != nil {
+		return "", err
+	}
+
+	out := make([]string, 0, len(diffs))
+	lastEnd := -1
+	for idx, diff := range diffs {
+		if idx > 0 && (diff.FromLine > lastEnd) {
+			out = append(out, "\n")
+		}
+		out = append(out, diff.NewText)
+		lastEnd = diff.ToLine
+	}
+	return strings.Join(out, ""), nil
+}
+
+func FmtDiffs(input string) ([]FmtDiff, error) {
+	all, err := collectFmtFragments(input)
+	if err != nil {
+		return nil, err
+	}
+
+	lines := &lineSet{
+		lines: strings.Split(input, "\n"),
+	}
+
+	out := make([]FmtDiff, 0, len(all))
+	lastEnd := -1
+	for idx, diff := range all {
+		if idx == 0 {
+			// Remove any leading empty lines
+			if diff.FromLine > 0 {
+				out = append(out, FmtDiff{
+					FromLine: 0,
+					ToLine:   diff.FromLine,
+					NewText:  "",
+				})
+			}
+		} else if diff.FromLine > lastEnd+1 {
+			// FromLine == LastEnd  means no gap
+			// FromLine == LastEnd + 1  is one line gap, OK
+			// FromLine > LastEnd + 1 should be one line
+			out = append(out, FmtDiff{
+				FromLine: lastEnd,
+				ToLine:   diff.FromLine,
+				NewText:  "\n",
+			})
+		}
+		existing := lines.rangeLines(diff.FromLine, diff.ToLine)
+		if existing != diff.NewText {
+			out = append(out, diff)
+		}
+		lastEnd = diff.ToLine
+	}
+	return out, nil
+}
+
+type lineSet struct {
+	lines []string
+}
+
+func (ls *lineSet) rangeLines(from, to int) string {
+	return strings.Join(ls.lines[from:to], "\n") + "\n"
+}
+
+func collectFmtFragments(input string) ([]FmtDiff, error) {
 	l := lexer.NewLexer(input)
 
 	tokens, ok, err := l.AllTokens(true)
 	if err != nil {
-		return "", fmt.Errorf("unexpected lexer error: %w", err)
+		return nil, fmt.Errorf("unexpected lexer error: %w", err)
 	}
 	if !ok {
-		return "", errpos.AddSource(l.Errors, input)
+		return nil, errpos.AddSource(l.Errors, input)
 	}
 	ww := &Walker{
 		tokens:   tokens,
@@ -34,66 +97,39 @@ func Fmt(input string) (string, error) {
 	}
 	fragments, err := ww.walkFragments()
 	if err != nil {
-		return "", err
-	}
-	printer := &printer{
-		buf: strings.Builder{},
-	}
-	printer.printFile(fragments)
-	return printer.buf.String(), nil
-}
-
-type printer struct {
-	buf      strings.Builder
-	indent   int
-	needsGap bool
-}
-
-func (p *printer) gap() {
-	p.needsGap = true
-}
-
-func (p *printer) line(s ...string) {
-	if p.needsGap {
-		p.buf.WriteString("\n")
-		p.needsGap = false
-	}
-
-	p.buf.WriteString(strings.Repeat("\t", p.indent))
-	for _, str := range s {
-		p.buf.WriteString(str)
-	}
-	p.buf.WriteString("\n")
-}
-
-func (p *printer) printFile(ff []Fragment) {
-	p.printBody(ff)
-}
-
-func (p *printer) printBody(ff []Fragment) {
-
-	lastEnd := int(-1)
-
-	for _, stmt := range ff {
-		src := stmt.Source()
-		if lastEnd >= 0 && src.Start.Line > lastEnd+1 {
-			p.gap()
+		if err == HadErrors {
+			return nil, errpos.AddSource(ww.errors, input)
 		}
+
+		return nil, err
+	}
+	fmter := &fmter{}
+	fmter.diffFile(fragments)
+
+	return fmter.fragments, nil
+}
+
+type fmter struct {
+	fragments []FmtDiff
+	indent    int
+}
+
+func (p *fmter) diffFile(ff []Fragment) {
+
+	for idx := 0; idx < len(ff); idx++ {
+		stmt := ff[idx]
 		switch stmt := stmt.(type) {
 		case BlockHeader:
-			p.printBlock(stmt)
+			p.doBlockHeader(stmt)
 
 		case CloseBlock:
-			p.indent--
-			p.needsGap = false
-			p.line("}")
-			p.gap()
+			p.closeBlock(stmt)
 
 		case Assignment:
-			p.printAssign(stmt)
+			p.doAssignment(stmt)
 
 		case Description:
-			p.printDescription(stmt)
+			p.doDescription(stmt)
 
 		case Comment:
 			p.printComment(stmt)
@@ -104,91 +140,151 @@ func (p *printer) printBody(ff []Fragment) {
 		default:
 			panic(fmt.Sprintf("FMT unknown statement %T", stmt))
 		}
-		lastEnd = src.End.Line
 	}
 }
 
-func referencesToStrings(refs []Reference) []string {
-	strs := make([]string, len(refs))
-	for idx, ref := range refs {
-		strs[idx] = ref.String()
+func tokenSource(tok lexer.Token) string {
+	switch tok.Type {
+	case lexer.STRING:
+		return fmt.Sprintf("%q", tok.Lit)
+	case lexer.REGEX:
+		return fmt.Sprintf("/%s/", tok.Lit)
+	case lexer.DESCRIPTION:
+		return fmt.Sprintf("| %s", tok.Lit)
+	case lexer.COMMENT:
+		return fmt.Sprintf("//%s", tok.Lit)
+	case lexer.BLOCK_COMMENT:
+		return fmt.Sprintf("/*%s*/", tok.Lit)
 	}
-	return strs
+	return tok.Lit
 }
 
-func (p *printer) printBlock(block BlockHeader) {
+func (p *fmter) singleLineTokens(src SourceNode, parts ...lexer.Token) {
+	line := ""
+	for _, part := range parts {
+		line += tokenSource(part)
+	}
+	if src.Comment != nil {
+		line += inlineComment(src.Comment)
+	}
+	line = strings.Repeat("\t", p.indent) + line + "\n"
 
-	nameParts := []string{}
-	nameParts = append(nameParts, block.Type.String())
+	p.fragments = append(p.fragments, FmtDiff{
+		FromLine: src.Start.Line,
+		ToLine:   src.End.Line + 1, // exclusive
+		NewText:  line,
+	})
+}
+
+func (p *fmter) multiLineToken(src SourceNode, prefix string, lines []string) {
+
+	fullPrefix := strings.Repeat("\t", p.indent) + prefix
+	for idx, part := range lines {
+		// remove trailing space INCLUDING anything after the prefix,
+		// for descriptions "| " becomes "\t|"
+		lines[idx] = strings.TrimRight(fullPrefix+part, " ")
+	}
+
+	p.fragments = append(p.fragments, FmtDiff{
+		FromLine: src.Start.Line,
+		ToLine:   src.End.Line + 1, // exclusive
+		NewText:  strings.Join(lines, "\n") + "\n",
+	})
+}
+
+func (p *fmter) closeBlock(block CloseBlock) {
+	p.indent--
+	if p.indent < 0 {
+		p.indent = 0
+		// This is kind of OK for a fmt
+	}
+	p.singleLineTokens(block.SourceNode, block.Token)
+}
+
+func newToken(ty lexer.TokenType, value string) lexer.Token {
+	return lexer.Token{
+		Type: ty,
+		Lit:  value,
+	}
+}
+
+func (p *fmter) doBlockHeader(block BlockHeader) {
+
+	nameParts := referenceTokens(block.Type)
 	for _, val := range block.Tags {
-		str := tagString(val)
-		nameParts = append(nameParts, str)
+		nameParts = append(nameParts, newToken(lexer.SPACE, " "))
+		nameParts = append(nameParts, tagString(val)...)
 	}
 
-	baseName := strings.Join(nameParts, " ")
-	if len(block.Qualifiers) > 0 {
-		qualParts := []string{baseName}
-		for _, val := range block.Qualifiers {
-			str := tagString(val)
-			qualParts = append(qualParts, str)
-		}
-		baseName = strings.Join(qualParts, " : ")
+	for _, val := range block.Qualifiers {
+		// no spaces between qualifiers
+		nameParts = append(nameParts, newToken(lexer.COLON, ":"))
+		nameParts = append(nameParts, tagString(val)...)
 	}
 
-	if !block.Open {
-		if block.Description == nil {
-			p.line(baseName)
-			return
-		}
-		desc := *block.Description
-
-		if len(desc)+len(baseName) < 80 {
-			p.line(baseName, " | ", desc)
-			return
-		}
+	if block.Open {
+		nameParts = append(nameParts, newToken(lexer.SPACE, " "), newToken(lexer.LBRACE, "{"))
 	}
-	p.line(baseName, " {")
-	p.indent++
+	if block.Description != nil {
+		nameParts = append(nameParts, newToken(lexer.SPACE, " "))
+		nameParts = append(nameParts, block.Description.Tokens...)
+	}
+
+	p.singleLineTokens(block.SourceNode, nameParts...)
+
+	if block.Open {
+		p.indent++
+	}
+
 }
 
-func (p *printer) printComment(comment Comment) {
-	val := comment.Value
-	p.line("//", val)
+func (p *fmter) printComment(comment Comment) {
+	p.singleLineTokens(comment.SourceNode, comment.Token)
 }
 
-func (p *printer) printDescription(desc Description) {
-	descStr := desc.Value.token.Lit
-	lines := strings.Split(descStr, "\n")
-	for idx, line := range lines {
-		if idx > 0 {
-			p.line("|")
-		}
-		pend := ""
-		words := strings.Split(line, " ")
-		for _, word := range words {
-			if len(pend)+len(word)+(p.indent*4) > 80 {
-				p.line("| ", pend)
-				pend = ""
-			}
-			if pend != "" {
-				pend += " "
-			}
-			pend += word
-		}
-		if pend != "" {
-			p.line("| ", pend)
-		}
-
-	}
+func (p *fmter) doDescription(desc Description) {
+	linesOut := reformatDescription(desc.Value, 80-p.indent*4)
+	p.multiLineToken(desc.SourceNode, "| ", linesOut)
 }
 
-func (p *printer) printAssign(assign Assignment) {
-	joiner := "="
+func (p *fmter) doAssignment(assign Assignment) {
+	tokens := referenceTokens(assign.Key)
+
 	if assign.Append {
-		joiner = "+="
+		tokens = append(tokens,
+			newToken(lexer.SPACE, " "),
+			newToken(lexer.PLUS, "+"),
+			newToken(lexer.ASSIGN, "="),
+			newToken(lexer.SPACE, " "),
+		)
+	} else {
+		tokens = append(tokens,
+			newToken(lexer.SPACE, " "),
+			newToken(lexer.ASSIGN, "="),
+			newToken(lexer.SPACE, " "),
+		)
 	}
-	comment := inlineComment(assign.Comment)
-	p.line(assign.Key.String(), " ", joiner, " ", assign.Value.sourceString(), comment)
+	tokens = append(tokens, valueTokens(assign.Value)...)
+	p.singleLineTokens(assign.SourceNode, tokens...)
+}
+
+func valueTokens(v Value) []lexer.Token {
+	if v.array == nil {
+		return []lexer.Token{v.token}
+	}
+
+	toks := []lexer.Token{}
+	toks = append(toks, newToken(lexer.LBRACK, "["))
+	for idx, val := range v.array {
+		if idx > 0 {
+			toks = append(toks,
+				newToken(lexer.COMMA, ","),
+				newToken(lexer.SPACE, " "))
+		}
+		toks = append(toks, valueTokens(val)...)
+	}
+	toks = append(toks, newToken(lexer.RBRACK, "]"))
+	return toks
 }
 
 func inlineComment(comment *Comment) string {
@@ -198,21 +294,30 @@ func inlineComment(comment *Comment) string {
 	return " //" + comment.Value
 }
 
-func tagString(v TagValue) string {
-	pre := ""
+func tagString(v TagValue) []lexer.Token {
+	toks := []lexer.Token{}
 
-	switch v.Mark {
-	case TagMarkQuestion:
-		pre = "? "
-	case TagMarkBang:
-		pre = "! "
+	if v.Mark != TagMarkNone {
+		toks = append(toks, v.MarkToken, newToken(lexer.SPACE, " "))
 	}
 
 	if v.Value != nil {
-		return pre + v.Value.sourceString()
+		toks = append(toks, v.Value.token)
 	}
 	if v.Reference != nil {
-		return pre + v.Reference.String()
+		toks = append(toks, referenceTokens(*v.Reference)...)
 	}
-	return pre + "<INVALID>"
+	return toks
+}
+
+func referenceTokens(r Reference) []lexer.Token {
+	toks := []lexer.Token{}
+	for idx, part := range r.Idents {
+		if idx == 0 {
+			toks = append(toks, part.Token)
+		} else {
+			toks = append(toks, newToken(lexer.DOT, "."), part.Token)
+		}
+	}
+	return toks
 }

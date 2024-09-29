@@ -2,11 +2,13 @@ package linter
 
 import (
 	"context"
-	"log"
+	"fmt"
 
 	"github.com/pentops/bcl.go/bcl"
 	"github.com/pentops/bcl.go/bcl/errpos"
+	"github.com/pentops/bcl.go/internal/ast"
 	"github.com/pentops/bcl.go/internal/lsp"
+	"github.com/pentops/log.go/log"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -24,12 +26,32 @@ func New(parser *bcl.Parser, fileFactory FileFactory) *Linter {
 	}
 }
 
-func (l *Linter) LintFile(ctx context.Context, req lsp.LintFileRequest) ([]lsp.Diagnostic, error) {
+func NewGeneric() *Linter {
+	return &Linter{}
+}
 
-	msg := l.fileFactory(req.Filename)
-	_, mainError := l.parser.ParseFile(req.Filename, req.Content, msg)
-	if mainError == nil {
-		return nil, nil
+func (l *Linter) LintFile(ctx context.Context, req *lsp.FileRequest) ([]lsp.Diagnostic, error) {
+
+	var mainError error
+
+	tree, err := ast.ParseFile(req.Content, false)
+	if err != nil {
+		if err == ast.HadErrors {
+			mainError = errpos.AddSourceFile(tree.Errors, req.Filename, req.Content)
+		} else if ews, ok := errpos.AsErrorsWithSource(err); ok {
+			mainError = ews
+		} else {
+			return nil, fmt.Errorf("parse file not HadErrors - : %w", err)
+		}
+	}
+
+	if mainError == nil && l.fileFactory != nil && l.parser != nil {
+		msg := l.fileFactory(req.Filename)
+		_, err = l.parser.ParseAST(tree, msg)
+		if err == nil {
+			return nil, nil
+		}
+		mainError = err
 	}
 
 	locErr, ok := errpos.AsErrorsWithSource(mainError)
@@ -37,7 +59,12 @@ func (l *Linter) LintFile(ctx context.Context, req lsp.LintFileRequest) ([]lsp.D
 		return nil, mainError
 	}
 
-	log.Println(locErr.HumanString(2))
+	for _, err := range locErr.Errors {
+		log.WithFields(ctx, map[string]interface{}{
+			"pos":   err.Pos.String(),
+			"error": err.Err.Error(),
+		}).Debug("Lint Diagnostic")
+	}
 
 	diagnostics := make([]lsp.Diagnostic, 0, len(locErr.Errors))
 

@@ -10,6 +10,7 @@ import (
 // Ident is a simple name used when declaring a type, or as parts of a
 // reference.
 type Ident struct {
+	Token lexer.Token
 	Value string
 	SourceNode
 }

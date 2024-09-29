@@ -2,6 +2,8 @@ package ast
 
 import (
 	"fmt"
+
+	"github.com/pentops/bcl.go/internal/lexer"
 )
 
 type FragmentKind int
@@ -40,6 +42,7 @@ type Statement interface {
 
 type EOF struct {
 	SourceNode
+	Token lexer.Token
 }
 
 var _ Fragment = EOF{}
@@ -54,6 +57,7 @@ func (e EOF) GoString() string {
 
 type CloseBlock struct {
 	SourceNode
+	Token lexer.Token
 }
 
 var _ Fragment = CloseBlock{}
@@ -69,6 +73,7 @@ func (cb CloseBlock) GoString() string {
 type Comment struct {
 	Value string
 	SourceNode
+	Token lexer.Token
 }
 
 var _ Fragment = Comment{}
@@ -87,15 +92,16 @@ func (c Comment) Kind() FragmentKind {
 }
 
 type Description struct {
-	Value Value
+	Value string
 	SourceNode
+	Tokens []lexer.Token
 }
 
 var _ Fragment = Description{}
 var _ Statement = &Description{}
 
 func (d Description) GoString() string {
-	return fmt.Sprintf("description(%s)", d.Value.token.Lit)
+	return fmt.Sprintf("description(%s)", d.Value)
 }
 
 func (d *Description) StatementType() StatementType {
@@ -134,9 +140,9 @@ func (a Assignment) GoString() string {
 type BlockHeader struct {
 	Type        Reference // all of the name tags, including the first 'type' tag
 	Tags        []TagValue
-	Qualifiers  []TagValue // Any of the `:qualifier` tags at the end
-	Description *string    // A single | description block
-	Open        bool       // 'block' is opened with a {
+	Qualifiers  []TagValue   // Any of the `:qualifier` tags at the end
+	Description *Description // A single | description block
+	Open        bool         // 'block' is opened with a {
 
 	SourceNode
 }
@@ -152,7 +158,7 @@ func (bh BlockHeader) DescriptionString() string {
 		return ""
 	}
 
-	return *bh.Description
+	return bh.Description.Value
 
 }
 

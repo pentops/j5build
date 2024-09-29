@@ -52,17 +52,26 @@ func isTruthy(s string) bool {
 
 func (p *Parser) ParseFile(filename string, data string, msg protoreflect.Message) (*bcl_j5pb.SourceLocation, error) {
 
-	obj, err := p.refl.NewObject(msg)
-	if err != nil {
-		return nil, err
-	}
-
 	tree, err := ast.ParseFile(data, p.FailFast)
 	if err != nil {
 		if err == ast.HadErrors {
 			return nil, errpos.AddSourceFile(tree.Errors, filename, data)
 		}
 		return nil, fmt.Errorf("parse file not HadErrors - : %w", err)
+	}
+
+	loc, err := p.ParseAST(tree, msg)
+	if err != nil {
+		err = errpos.AddSourceFile(err, filename, data)
+		return loc, err
+	}
+	return loc, nil
+}
+
+func (p *Parser) ParseAST(tree *ast.File, msg protoreflect.Message) (*bcl_j5pb.SourceLocation, error) {
+	obj, err := p.refl.NewObject(msg)
+	if err != nil {
+		return nil, err
 	}
 
 	source := &bcl_j5pb.SourceLocation{}
@@ -73,13 +82,11 @@ func (p *Parser) ParseFile(filename string, data string, msg protoreflect.Messag
 
 	err = walker.WalkSchema(scope, tree.Body, p.Verbose)
 	if err != nil {
-		err = errpos.AddSourceFile(err, filename, data)
 		return source, fmt.Errorf("walkSchema: %w", err)
 	}
 
 	err = validateFile(p.validate, msg.Interface(), source)
 	if err != nil {
-		err = errpos.AddSourceFile(err, filename, data)
 		return source, err
 	}
 

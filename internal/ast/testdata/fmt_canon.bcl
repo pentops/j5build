@@ -20,6 +20,9 @@ block foo "bar" : q1 : q2 {
 	key1 = "value"
 
 	| Later description
+	| Multiple Lines
+	|
+	| Including Empty
 }
 
 // standalone
@@ -32,3 +35,7 @@ key1 = "value" // inline comment
 
 // before block
 block foo "bar" : q1 : q2
+
+// other type
+		of multiline
+   comment 

@@ -3,6 +3,7 @@ package ast
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/bcl.go/internal/lexer"
@@ -83,6 +84,11 @@ func fragmentsToFile(fragments []Fragment) (*File, error) {
 		body:   &ff.Body,
 	}
 
+	if len(fragments) == 0 {
+		// empty, but fine
+		return ff, nil
+	}
+
 	for _, stmt := range fragments {
 		switch s := stmt.(type) {
 		case BlockHeader:
@@ -107,6 +113,9 @@ func fragmentsToFile(fragments []Fragment) (*File, error) {
 		case Description:
 			currentBlock.body.Statements = append(currentBlock.body.Statements, &s)
 
+		case Comment:
+			continue
+
 		case CloseBlock:
 			if currentBlock.parent == nil {
 				pos := s.SourceNode.Position()
@@ -119,11 +128,24 @@ func fragmentsToFile(fragments []Fragment) (*File, error) {
 			currentBlock = currentBlock.parent
 
 		case EOF:
-			return ff, nil
+			break
 
 		default:
 			return nil, fmt.Errorf("unexpected fragment type %T", s)
 		}
+	}
+
+	if currentBlock.parent != nil {
+		lastFragment := fragments[len(fragments)-1]
+		pos := lastFragment.Source().Position()
+		ff.Errors = append(ff.Errors, &errpos.Err{
+			Pos: &pos,
+			Err: errors.New("unclosed block at EOF"),
+		})
+	}
+
+	if len(ff.Errors) > 0 {
+		return ff, HadErrors
 	}
 
 	return ff, nil
@@ -156,10 +178,13 @@ func (ww *Walker) popToken() lexer.Token {
 }
 
 func (ww *Walker) nextType() lexer.TokenType {
-	if ww.offset >= len(ww.tokens) {
+	return ww.peekType(0)
+}
+func (ww *Walker) peekType(offset int) lexer.TokenType {
+	if ww.offset+offset >= len(ww.tokens) {
 		return lexer.EOF
 	}
-	return ww.tokens[ww.offset].Type
+	return ww.tokens[ww.offset+offset].Type
 }
 
 func (ww *Walker) walkFragments() ([]Fragment, error) {
@@ -193,7 +218,6 @@ func (ww *Walker) recoverError(err *unexpectedTokenError) error {
 
 	// Skip to the next EOL
 	for {
-		fmt.Printf("skip %s\n", ww.nextType())
 		if ww.nextType() == lexer.EOL || ww.nextType() == lexer.EOF {
 			ww.popToken()
 			break
@@ -208,7 +232,13 @@ func (ww *Walker) nextFragment() (Fragment, *unexpectedTokenError) {
 	switch ww.nextType() {
 
 	case lexer.EOF:
-		return EOF{}, nil
+		return EOF{
+			SourceNode: SourceNode{
+				Start: ww.currentPos(),
+				End:   ww.currentPos(),
+			},
+			Token: ww.popToken(),
+		}, nil
 
 	case lexer.EOL:
 		// Empty line
@@ -218,15 +248,17 @@ func (ww *Walker) nextFragment() (Fragment, *unexpectedTokenError) {
 	case lexer.RBRACE:
 		tok := ww.popToken()
 		return CloseBlock{
+			Token: tok,
 			SourceNode: SourceNode{
 				Start: tok.Start,
 				End:   tok.End,
 			},
 		}, nil
 
-	case lexer.COMMENT:
+	case lexer.COMMENT, lexer.BLOCK_COMMENT:
 		tok := ww.popToken()
 		return Comment{
+			Token: tok,
 			Value: tok.Lit,
 			SourceNode: SourceNode{
 				Start: tok.Start,
@@ -235,35 +267,15 @@ func (ww *Walker) nextFragment() (Fragment, *unexpectedTokenError) {
 		}, nil
 
 	case lexer.DESCRIPTION:
-		desc := ww.popToken()
-		return Description{
-			Value: Value{
-				token: desc,
-				SourceNode: SourceNode{
-					Start: desc.Start,
-					End:   desc.End,
-				},
-			},
-			SourceNode: SourceNode{
-				Start: desc.Start,
-				End:   desc.End,
-			},
-		}, nil
-		// Description tokens consume the EOL
-
-	case lexer.IDENT:
-
-		// Read all dot separated idents continuing from the first token
-		// a.b.c.d
-		ref, err := ww.popReference()
+		stmt, err := ww.popDescription()
 		if err != nil {
-			err.context = fmt.Sprintf("after \"%s\"", ref.String())
 			return nil, err
 		}
+		return stmt, nil
 
-		stmt, err := ww.walkStatement(ref)
+	case lexer.IDENT, lexer.BOOL: // bool looks like an ident.
+		stmt, err := ww.walkStatement()
 		if err != nil {
-			err.context = fmt.Sprintf("after \"%s\"", ref.String())
 			return nil, err
 		}
 		return stmt, nil
@@ -300,7 +312,6 @@ func (ww *Walker) popValue() (Value, *unexpectedTokenError) {
 				End:   ref.SourceNode.End,
 			},
 		}, nil
-
 	}
 	if ww.nextType().IsLiteral() {
 		token := ww.popToken()
@@ -360,11 +371,13 @@ func (ww *Walker) popValue() (Value, *unexpectedTokenError) {
 }
 
 func (ww *Walker) popIdent() (Ident, *unexpectedTokenError) {
-	tok, err := ww.popType(lexer.IDENT)
-	if err != nil {
-		return Ident{}, err
+	tok, ok := ww.popToken().AsIdent()
+	if !ok {
+		return Ident{}, unexpectedToken(tok, lexer.IDENT)
 	}
+
 	return Ident{
+		Token: tok,
 		Value: tok.Lit,
 		SourceNode: SourceNode{
 			Start: tok.Start,
@@ -392,20 +405,51 @@ func (ww *Walker) popReference() (Reference, *unexpectedTokenError) {
 
 }
 
+func (ww *Walker) popDescription() (Description, *unexpectedTokenError) {
+	tokens := make([]lexer.Token, 0)
+	lines := make([]string, 0)
+
+	for {
+		tok := ww.popToken()
+		tokens = append(tokens, tok)
+		lines = append(lines, tok.Lit)
+
+		// one EOL, next is Description,
+		//	i.e. the next token is a joined description line.
+		if ww.peekType(0) != lexer.EOL || ww.peekType(1) != lexer.DESCRIPTION {
+			break
+		}
+		ww.popToken() // pop EOL.
+		// Next is Description, back to the loop.
+	}
+	return Description{
+		Tokens: tokens,
+		Value:  strings.Join(lines, "\n"),
+		SourceNode: SourceNode{
+			Start: tokens[0].Start,
+			End:   tokens[len(tokens)-1].End,
+		},
+	}, nil
+
+}
+
 func (ww *Walker) popTag() (TagValue, *unexpectedTokenError) {
 
 	var mark = TagMarkNone
+	var markToken lexer.Token
 	switch ww.nextType() {
 	case lexer.BANG:
-		ww.popToken()
+		tok := ww.popToken()
 		mark = TagMarkBang
+		markToken = tok
 	case lexer.QUESTION:
-		ww.popToken()
+		tok := ww.popToken()
 		mark = TagMarkQuestion
+		markToken = tok
 	}
 
 	switch ww.nextType() {
-	case lexer.IDENT:
+	case lexer.IDENT, lexer.BOOL:
 
 		// Build the name parts
 		// <reference> <ident>
@@ -415,6 +459,7 @@ func (ww *Walker) popTag() (TagValue, *unexpectedTokenError) {
 		}
 		return TagValue{
 			Mark:      mark,
+			MarkToken: markToken,
 			Reference: &ref,
 			SourceNode: SourceNode{
 				Start: ref.SourceNode.Start,
@@ -428,8 +473,9 @@ func (ww *Walker) popTag() (TagValue, *unexpectedTokenError) {
 			return TagValue{}, err
 		}
 		return TagValue{
-			Mark:  mark,
-			Value: &refStr,
+			Mark:      mark,
+			MarkToken: markToken,
+			Value:     &refStr,
 			SourceNode: SourceNode{
 				Start: refStr.SourceNode.Start,
 				End:   refStr.SourceNode.End,
@@ -437,12 +483,22 @@ func (ww *Walker) popTag() (TagValue, *unexpectedTokenError) {
 		}, nil
 
 	default:
-		return TagValue{}, unexpectedToken(ww.popToken(), lexer.IDENT, lexer.STRING)
+
+		return TagValue{}, unexpectedToken(ww.popToken(), lexer.IDENT, lexer.BOOL, lexer.STRING)
 	}
 
 }
 
-func (ww *Walker) walkStatement(ref Reference) (Fragment, *unexpectedTokenError) {
+func (ww *Walker) walkStatement() (Fragment, *unexpectedTokenError) {
+
+	// Read all dot separated idents continuing from the first token
+	// a.b.c.d
+	ref, err := ww.popReference()
+	if err != nil {
+		err.context = fmt.Sprintf("after \"%s\"", ref.String())
+		return nil, err
+	}
+
 	start := ref.SourceNode.Start
 
 	// Assignments can only take one LHS argument
@@ -477,7 +533,7 @@ func (ww *Walker) walkStatement(ref Reference) (Fragment, *unexpectedTokenError)
 		},
 	}
 
-	for ww.nextType().IsTag() {
+	for ww.nextType().CanStartTag() {
 		tag, err := ww.popTag()
 		if err != nil {
 			return nil, err
@@ -505,14 +561,40 @@ func (ww *Walker) walkStatement(ref Reference) (Fragment, *unexpectedTokenError)
 		// <reference> { ...
 		// This is a block statement
 		// <reference> { <body> }
+
+		comment, err := ww.endStatement()
+		if err != nil {
+			return hdr, err
+		}
+		if comment != nil {
+			hdr.Comment = comment
+		}
 		return hdr, nil
 
 	case lexer.DESCRIPTION:
 		// <reference> | description
 		// This is a block statement without a body.
 		tok := ww.popToken()
-		hdr.Description = &tok.Lit
+		desc := Description{
+			Tokens: []lexer.Token{tok},
+			Value:  tok.Lit,
+			SourceNode: SourceNode{
+				Start: tok.Start,
+				End:   tok.End,
+			},
+		}
+		hdr.Description = &desc
 		hdr.End = ww.currentPos()
+		return hdr, nil
+
+	case lexer.COMMENT:
+		comment, err := ww.endStatement()
+		if err != nil {
+			return hdr, err
+		}
+		if comment != nil {
+			hdr.Comment = comment
+		}
 		return hdr, nil
 
 	case lexer.EOL, lexer.EOF:

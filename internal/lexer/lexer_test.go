@@ -41,6 +41,12 @@ func tComment(lit string) Token {
 		Lit:  lit,
 	}
 }
+func tBlockComment(lit string) Token {
+	return Token{
+		Type: BLOCK_COMMENT,
+		Lit:  lit,
+	}
+}
 
 func tDescription(lit string) Token {
 	return Token{
@@ -66,6 +72,7 @@ func tBool(lit string) Token {
 var (
 	tAssign = Token{
 		Type: ASSIGN,
+		Lit:  "=",
 	}
 	tEOF = Token{
 		Type: EOF,
@@ -73,25 +80,32 @@ var (
 
 	tLBrace = Token{
 		Type: LBRACE,
+		Lit:  "{",
 	}
 
 	tRBrace = Token{
 		Type: RBRACE,
+		Lit:  "}",
 	}
 	tDot = Token{
 		Type: DOT,
+		Lit:  ".",
 	}
 	tEOL = Token{
 		Type: EOL,
+		Lit:  "\n",
 	}
 	tLBracket = Token{
 		Type: LBRACK,
+		Lit:  "[",
 	}
 	tRBracket = Token{
 		Type: RBRACK,
+		Lit:  "]",
 	}
 	tComma = Token{
 		Type: COMMA,
+		Lit:  ",",
 	}
 )
 
@@ -353,7 +367,7 @@ func TestSimple(t *testing.T) {
 			"/**/ vv",
 		},
 		expected: []Token{
-			tComment(""),
+			tBlockComment(""),
 			tIdent("vv"),
 			tEOF,
 		},
@@ -365,7 +379,7 @@ func TestSimple(t *testing.T) {
 			"vv",
 		},
 		expected: []Token{
-			tComment(" line1\nline2 "),
+			tBlockComment(" line1\nline2 "),
 			tEOL,
 			tIdent("vv"),
 			tEOF,
@@ -374,12 +388,12 @@ func TestSimple(t *testing.T) {
 		name: "description",
 		input: []string{
 			`  | line1 of description`,
-			`  | line2 of description`,
+			`  |line2 of description`,
 			"vv = 123",
 		},
 		expected: []Token{
-			tDescription("line1 of description\nline2 of description"),
-			tEOL,
+			tDescription("line1 of description"), tEOL,
+			tDescription("line2 of description"), tEOL,
 			tIdent("vv"), tAssign, tInt("123"),
 			tEOF,
 		},
@@ -394,7 +408,27 @@ func TestSimple(t *testing.T) {
 			`  | line6`,
 		},
 		expected: []Token{
-			tDescription("line1\n\nline3\nline4\n\nline6"),
+			tDescription("line1"), tEOL,
+			tDescription(""), tEOL,
+			tDescription("line3"), tEOL,
+			tDescription("line4"), tEOL,
+			tDescription(""), tEOL,
+			tDescription("line6"),
+			tEOF,
+		},
+	}, {
+		name: "multi description",
+		input: []string{
+			`  | description 1`,
+			``,
+			`  | description 2`,
+			"vv = 123",
+		},
+		expected: []Token{
+			tDescription("description 1"), tEOL,
+			tEOL,
+			tDescription("description 2"), tEOL,
+			tIdent("vv"), tAssign, tInt("123"),
 			tEOF,
 		},
 	}, {
@@ -477,8 +511,6 @@ func assertTokensEqual(t *testing.T, tokens, expected []Token) {
 		want := expected[idx]
 		if tok.Type != expected[idx].Type || tok.Lit != want.Lit {
 			t.Errorf("BAD % 3d: %s want %s", idx, tok, want)
-			t.Logf("Full  Got: %q", tok.Lit)
-			t.Logf("Full Want: %q", want.Lit)
 			continue
 		}
 		if want.Start.Line > 0 {
@@ -553,7 +585,9 @@ With Lines
 		tEOL,
 		tComment(" Comment Line"), tEOL,
 		tIdent("object"), tIdent("Foo"), tLBrace, tEOL,
-		tDescription("Foo is an example object\nfrom ... Python I guess?\nUnsure."), tEOL,
+		tDescription("Foo is an example object"), tEOL,
+		tDescription("from ... Python I guess?"), tEOL,
+		tDescription("Unsure."), tEOL,
 		tEOL,
 		tIdent("field"), tIdent("id"), tIdent("uuid"), tLBrace, tRBrace, tEOL,
 		tEOL,
@@ -562,7 +596,7 @@ With Lines
 		tRBrace, tEOL,
 		tRBrace, tEOL,
 		tEOL,
-		tComment(" Comment Block\n\nWith Lines\n"),
+		tBlockComment(" Comment Block\n\nWith Lines\n"),
 		tEOF,
 	})
 

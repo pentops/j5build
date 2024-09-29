@@ -15,16 +15,18 @@ const (
 	INVALID TokenType = iota
 	EOF
 	EOL
+	SPACE
 
 	literal_beg
 	IDENT
-	STRING  // "abc"
-	REGEX   // /abc/
-	INT     // 123
-	DECIMAL // 123.45
-	BOOL    // true or false
-	COMMENT
-	DESCRIPTION
+	STRING        // "abc"
+	REGEX         // /abc/
+	INT           // 123
+	DECIMAL       // 123.45
+	BOOL          // true or false
+	COMMENT       // // ...
+	BLOCK_COMMENT // /* ... */
+	DESCRIPTION   // | ...
 	literal_end
 
 	operator_beg
@@ -55,18 +57,20 @@ var tokens = [...]string{
 	INVALID: "INVALID",
 	EOF:     "EOF",
 	EOL:     "EOL",
+	SPACE:   "SPACE",
 
 	// Literal
-	literal_beg: "",
-	IDENT:       "IDENT",
-	STRING:      "STRING",
-	REGEX:       "REGEX",
-	INT:         "INT",
-	DECIMAL:     "DECIMAL",
-	BOOL:        "BOOL",
-	COMMENT:     "COMMENT",
-	DESCRIPTION: "DESCRIPTION",
-	literal_end: "",
+	literal_beg:   "",
+	IDENT:         "IDENT",
+	STRING:        "STRING",
+	REGEX:         "REGEX",
+	INT:           "INT",
+	DECIMAL:       "DECIMAL",
+	BOOL:          "BOOL",
+	COMMENT:       "COMMENT",
+	BLOCK_COMMENT: "BLOCK_COMMENT",
+	DESCRIPTION:   "DESCRIPTION",
+	literal_end:   "",
 
 	// Operators
 	operator_beg: "",
@@ -102,11 +106,32 @@ type Token struct {
 	Start, End Position
 }
 
+func (tok Token) AsIdent() (Token, bool) {
+	switch tok.Type {
+	case IDENT:
+		return tok, true
+	case BOOL:
+		nt := tok.Clone()
+		nt.Type = IDENT
+		return nt, true
+	}
+	return tok, false
+}
+
+func (tok Token) Clone() Token {
+	return Token{
+		Type:  tok.Type,
+		Lit:   tok.Lit,
+		Start: tok.Start,
+		End:   tok.End,
+	}
+}
+
 func (tok Token) String() string {
 	if tok.Type.IsLiteral() {
 		short := tok.Lit
-		if len(short) > 8 {
-			short = short[:5] + "..."
+		if len(short) > 20 {
+			short = short[:17] + "..."
 		}
 		return fmt.Sprintf("%s(%s)", tok.Type.String(), short)
 	}
@@ -170,8 +195,8 @@ func (tok TokenType) IsLiteral() bool { return literal_beg < tok && tok < litera
 // it returns false otherwise.
 func (tok TokenType) IsOperator() bool { return operator_beg < tok && tok < operator_end }
 
-func (tok TokenType) IsTag() bool {
-	return tok == IDENT || tok == STRING || tok == REGEX || tok == BANG || tok == QUESTION
+func (tok TokenType) CanStartTag() bool {
+	return tok == IDENT || tok == STRING || tok == REGEX || tok == BANG || tok == QUESTION || tok == BOOL
 }
 
 // IsKeyword reports whether name is a Go keyword, such as "func" or "return".

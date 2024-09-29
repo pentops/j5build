@@ -2,13 +2,14 @@ package bclsp
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"os"
 
 	"github.com/pentops/bcl.go/bcl"
 	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/bcl.go/internal/linter"
 	"github.com/pentops/bcl.go/internal/lsp"
+	"github.com/pentops/log.go/log"
 	"github.com/sourcegraph/jsonrpc2"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -17,6 +18,16 @@ type Config struct {
 	ProjectRoot string
 	Schema      *bcl_j5pb.Schema
 	FileFactory func(filename string) protoreflect.Message
+}
+
+type logWrapper struct {
+	log.Logger
+	ctx context.Context
+}
+
+func (l logWrapper) Printf(format string, v ...interface{}) {
+	logStr := fmt.Sprintf(format, v...)
+	l.Logger.Debug(l.ctx, logStr)
 }
 
 func RunLSP(ctx context.Context, config Config) error {
@@ -32,38 +43,41 @@ func RunLSP(ctx context.Context, config Config) error {
 		}
 		config.ProjectRoot = pwd
 	}
-	log.Printf("ProjectRoot: %v", config.ProjectRoot)
+	ctx = log.WithField(ctx, "ProjectRoot", config.ProjectRoot)
 
-	parser, err := bcl.NewParser(config.Schema)
-	if err != nil {
-		return err
+	handlers := lsp.LSPHandlers{}
+
+	if config.Schema != nil && config.FileFactory != nil {
+		parser, err := bcl.NewParser(config.Schema)
+		if err != nil {
+			return err
+		}
+		handlers.Linter = linter.New(parser, config.FileFactory)
+	} else {
+		handlers.Linter = linter.NewGeneric()
 	}
-	bclLinter := linter.New(parser, config.FileFactory)
 
-	handlers := lsp.LSPHandlers{
-		Linter: bclLinter,
-	}
+	handlers.Fmter = lsp.ASTFormatter{}
 
-	log.Printf("BEGIN")
+	log.Info(ctx, "Starting LSP server")
+
 	conn := jsonrpc2.NewConn(
 		ctx,
 		jsonrpc2.NewBufferedStream(stdrwc{}, jsonrpc2.VSCodeObjectCodec{}),
 		lsp.NewHandler(lspc, handlers),
-		jsonrpc2.LogMessages(log.Default()),
+		jsonrpc2.LogMessages(logWrapper{Logger: log.DefaultLogger, ctx: ctx}),
 	)
 
 	select {
 	case <-ctx.Done():
-		log.Printf("DONE")
-
+		log.Info(ctx, "Context Done")
 		conn.Close()
 
 		return ctx.Err()
 	case <-conn.DisconnectNotify():
-		log.Printf("DISCONNECT")
+		log.Info(ctx, "Disconnect Notify")
 	}
 
-	log.Printf("END")
 	return nil
 }
 

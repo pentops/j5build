@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/url"
-	"path/filepath"
 	"time"
 )
 
@@ -85,39 +83,10 @@ func (h *langHandler) linter() {
 		}()
 	}
 }
-
-func fromURI(uri DocumentURI) (string, error) {
-	u, err := url.ParseRequestURI(string(uri))
-	if err != nil {
-		return "", err
-	}
-	if u.Scheme != "file" {
-		return "", fmt.Errorf("only file URIs are supported, got %v", u.Scheme)
-	}
-	return u.Path, nil
-}
-
 func (h *langHandler) lint(ctx context.Context, uri DocumentURI) (map[DocumentURI][]Diagnostic, error) {
-
-	file, ok := h.files[uri]
-	if !ok {
-		return nil, fmt.Errorf("document not found: %v", uri)
-	}
-
-	fname, err := fromURI(uri)
+	req, err := h.buildRequest(uri)
 	if err != nil {
-		return nil, fmt.Errorf("invalid uri: %v: %v", err, uri)
-	}
-	fname = filepath.ToSlash(fname)
-
-	relFile, err := filepath.Rel(h.Config.ProjectRoot, fname)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get relative path: %v", err)
-	}
-
-	req := LintFileRequest{
-		Filename: relFile,
-		Content:  file.Text,
+		return nil, fmt.Errorf("failed to build request: %v", err)
 	}
 
 	results, err := h.Handlers.Linter.LintFile(ctx, req)

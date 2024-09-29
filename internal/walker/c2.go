@@ -43,7 +43,7 @@ func doBody(sc Context, body ast.Body) error {
 
 		case *ast.Description:
 			sc.Logf("Description Statement %#v", decl)
-			if err := sc.SetDescription(decl.Value); err != nil {
+			if err := sc.SetDescription(ast.NewStringValue(decl.Value, decl.SourceNode)); err != nil {
 				err = sc.WrapErr(err, decl)
 				return err
 			}
@@ -130,7 +130,7 @@ func doBlock(sc Context, spec schema.BlockSpec, bs *ast.Block) error {
 				if len(spec.Description) == 0 {
 					spec.Description = []string{"description"}
 				}
-				if err := sc.SetAttribute(spec.Description, nil, ast.NewStringValue(*bs.Description, bs.SourceNode)); err != nil {
+				if err := sc.SetAttribute(spec.Description, nil, ast.NewStringValue(bs.Description.Value, bs.SourceNode)); err != nil {
 					return err
 				}
 			}

@@ -4,23 +4,29 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"net/url"
+	"path/filepath"
 	"time"
 
 	"github.com/sourcegraph/jsonrpc2"
 )
 
-type LintFileRequest struct {
+type FileRequest struct {
 	Filename string
 	Content  string
 }
 
 type Linter interface {
-	LintFile(context.Context, LintFileRequest) ([]Diagnostic, error)
+	LintFile(context.Context, *FileRequest) ([]Diagnostic, error)
+}
+
+type Fmter interface {
+	FormatFile(context.Context, *FileRequest) ([]TextEdit, error)
 }
 
 type LSPHandlers struct {
 	Linter Linter
+	Fmter  Fmter
 }
 
 type LSPConfig struct {
@@ -61,8 +67,6 @@ type langHandler struct {
 
 func (h *langHandler) handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) (result any, err error) {
 
-	log.Printf("request: %v", req)
-
 	switch req.Method {
 	case "initialize":
 		return h.handleInitialize(ctx, conn, req)
@@ -78,17 +82,18 @@ func (h *langHandler) handle(ctx context.Context, conn *jsonrpc2.Conn, req *json
 		return h.handleTextDocumentDidSave(ctx, conn, req)
 	case "textDocument/didClose":
 		return h.handleTextDocumentDidClose(ctx, conn, req)
-		//case "textDocument/formatting":
-		//	return h.handleTextDocumentFormatting(ctx, conn, req)
+	case "textDocument/formatting":
+		return h.handleTextDocumentFormatting(ctx, conn, req)
 	}
 
 	return nil, &jsonrpc2.Error{Code: jsonrpc2.CodeMethodNotFound, Message: fmt.Sprintf("method not supported: %s", req.Method)}
 }
 
-func (h *langHandler) handleInitialize(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) (result any, err error) {
+func (h *langHandler) handleInitialize(_ context.Context, conn *jsonrpc2.Conn, _ *jsonrpc2.Request) (result any, err error) {
 	h.conn = conn
 	return &InitializeResult{
 		Capabilities: ServerCapabilities{
+			DocumentFormattingProvider: true,
 			TextDocumentSync: TextDocumentSyncOptions{
 				OpenClose: true,
 				Change:    TDSKFull,
@@ -100,8 +105,43 @@ func (h *langHandler) handleInitialize(ctx context.Context, conn *jsonrpc2.Conn,
 	}, nil
 }
 
-func (h *langHandler) handleShutdown(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) (result any, err error) {
+func (h *langHandler) handleShutdown(_ context.Context, conn *jsonrpc2.Conn, _ *jsonrpc2.Request) (result any, err error) {
 	return nil, conn.Close()
+}
+
+func fromURI(uri DocumentURI) (string, error) {
+	u, err := url.ParseRequestURI(string(uri))
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme != "file" {
+		return "", fmt.Errorf("only file URIs are supported, got %v", u.Scheme)
+	}
+	return u.Path, nil
+}
+
+func (h *langHandler) buildRequest(uri DocumentURI) (*FileRequest, error) {
+	file, ok := h.files[uri]
+	if !ok {
+		return nil, fmt.Errorf("document not found: %v", uri)
+	}
+
+	fname, err := fromURI(uri)
+	if err != nil {
+		return nil, fmt.Errorf("invalid uri: %v: %v", err, uri)
+	}
+	fname = filepath.ToSlash(fname)
+
+	relFile, err := filepath.Rel(h.Config.ProjectRoot, fname)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get relative path: %v", err)
+	}
+
+	req := &FileRequest{
+		Filename: relFile,
+		Content:  file.Text,
+	}
+	return req, nil
 }
 
 func (h *langHandler) handleTextDocumentDidOpen(_ context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (result any, err error) {
@@ -144,7 +184,7 @@ func (h *langHandler) handleTextDocumentDidSave(_ context.Context, _ *jsonrpc2.C
 	return nil, nil
 }
 
-func (h *langHandler) handleTextDocumentDidClose(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2.Request) (result any, err error) {
+func (h *langHandler) handleTextDocumentDidClose(_ context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (result any, err error) {
 	if req.Params == nil {
 		return nil, &jsonrpc2.Error{Code: jsonrpc2.CodeInvalidParams}
 	}
