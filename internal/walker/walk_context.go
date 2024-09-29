@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/bcl.go/internal/ast"
+	"github.com/pentops/bcl.go/internal/parser"
 	"github.com/pentops/bcl.go/internal/walker/schema"
 )
 
@@ -33,17 +33,17 @@ func (sf ScopeFlag) String() string {
 }
 
 type Context interface {
-	BuildScope(schemaPath schema.PathSpec, userPath []ast.Ident, flag ScopeFlag) (*schema.Scope, error)
+	BuildScope(schemaPath schema.PathSpec, userPath []parser.Ident, flag ScopeFlag) (*schema.Scope, error)
 	WithScope(newScope *schema.Scope, fn SpanCallback) error
 
-	SetDescription(desc ast.ASTValue) error
-	SetAttribute(path schema.PathSpec, ref []ast.Ident, value ast.ASTValue) error
-	AppendAttribute(path schema.PathSpec, ref []ast.Ident, value ast.ASTValue) error
-	WithContainer(loc *schema.SourceLocation, path schema.PathSpec, ref []ast.Ident, resetScope ScopeFlag, fn SpanCallback) error
+	SetDescription(desc parser.ASTValue) error
+	SetAttribute(path schema.PathSpec, ref []parser.Ident, value parser.ASTValue) error
+	AppendAttribute(path schema.PathSpec, ref []parser.Ident, value parser.ASTValue) error
+	WithContainer(loc *schema.SourceLocation, path schema.PathSpec, ref []parser.Ident, resetScope ScopeFlag, fn SpanCallback) error
 	SetLocation(loc schema.SourceLocation)
 	SetName(name string)
 
-	setContainerFromScalar(bs schema.BlockSpec, vals ast.ASTValue) error
+	setContainerFromScalar(bs schema.BlockSpec, vals parser.ASTValue) error
 
 	Logf(format string, args ...interface{})
 	WrapErr(err error, pos HasPosition) error
@@ -67,7 +67,7 @@ type walkContext struct {
 	verbose bool
 }
 
-func WalkSchema(scope *schema.Scope, body ast.Body, verbose bool) error {
+func WalkSchema(scope *schema.Scope, body parser.Body, verbose bool) error {
 
 	rootContext := &walkContext{
 		scope:   scope,
@@ -97,7 +97,7 @@ type pathElement struct {
 	position *schema.SourceLocation
 }
 
-func combinePath(path schema.PathSpec, ref []ast.Ident) []pathElement {
+func combinePath(path schema.PathSpec, ref []parser.Ident) []pathElement {
 	pathToBlock := make([]pathElement, len(path)+len(ref))
 	for i, ident := range path {
 		pathToBlock[i] = pathElement{
@@ -177,7 +177,7 @@ func (sc *walkContext) SetName(name string) {
 	sc.path[len(sc.path)-1] = fmt.Sprintf("%s(%s)", sc.path[len(sc.path)-1], name)
 }
 
-func (sc *walkContext) BuildScope(schemaPath schema.PathSpec, userPath []ast.Ident, flag ScopeFlag) (*schema.Scope, error) {
+func (sc *walkContext) BuildScope(schemaPath schema.PathSpec, userPath []parser.Ident, flag ScopeFlag) (*schema.Scope, error) {
 	fullPath := combinePath(schemaPath, userPath)
 	if len(fullPath) == 0 {
 		if flag == KeepScope {
@@ -201,7 +201,7 @@ func (sc *walkContext) BuildScope(schemaPath schema.PathSpec, userPath []ast.Ide
 	}
 }
 
-func (sc *walkContext) WithContainer(newLoc *schema.SourceLocation, path schema.PathSpec, ref []ast.Ident, scopeFlag ScopeFlag, fn SpanCallback) error {
+func (sc *walkContext) WithContainer(newLoc *schema.SourceLocation, path schema.PathSpec, ref []parser.Ident, scopeFlag ScopeFlag, fn SpanCallback) error {
 	sc.Logf("WithContainer(%#v, %#v)", path, ref)
 	newScope, err := sc.BuildScope(path, ref, scopeFlag)
 	if err != nil {
@@ -229,7 +229,7 @@ func (bte BadTypeError) Error() string {
 	return fmt.Sprintf("bad type: want %s, got %s", bte.WantType, bte.GotType)
 }
 
-func (sc *walkContext) SetDescription(description ast.ASTValue) error {
+func (sc *walkContext) SetDescription(description parser.ASTValue) error {
 	root := sc.scope.RootBlock()
 	descSpec := root.Spec().Description
 	if descSpec == nil {
@@ -239,17 +239,17 @@ func (sc *walkContext) SetDescription(description ast.ASTValue) error {
 	return sc.SetAttribute(descSpec, nil, description)
 }
 
-func (sc *walkContext) AppendAttribute(path schema.PathSpec, ref []ast.Ident, val ast.ASTValue) error {
+func (sc *walkContext) AppendAttribute(path schema.PathSpec, ref []parser.Ident, val parser.ASTValue) error {
 	sc.Logf("AppendAttribute(%#v, %#v, %#v, %s)", path, ref, val, val.Position())
 	return sc.setAttribute(path, ref, val, true)
 }
 
-func (sc *walkContext) SetAttribute(path schema.PathSpec, ref []ast.Ident, val ast.ASTValue) error {
+func (sc *walkContext) SetAttribute(path schema.PathSpec, ref []parser.Ident, val parser.ASTValue) error {
 	sc.Logf("SetAttribute(%#v, %#v, %#v, %s)", path, ref, val, val.Position())
 	return sc.setAttribute(path, ref, val, false)
 }
 
-func (sc *walkContext) setAttribute(path schema.PathSpec, ref []ast.Ident, val ast.ASTValue, appendValue bool) error {
+func (sc *walkContext) setAttribute(path schema.PathSpec, ref []parser.Ident, val parser.ASTValue, appendValue bool) error {
 
 	fullPath := combinePath(path, ref)
 	if len(fullPath) == 0 {
@@ -290,7 +290,7 @@ func (sc *walkContext) setAttribute(path schema.PathSpec, ref []ast.Ident, val a
 
 	vals, isArray := val.AsArray()
 	if !isArray && appendValue {
-		vals = []ast.ASTValue{val}
+		vals = []parser.ASTValue{val}
 		isArray = true
 	}
 	if isArray {
@@ -334,13 +334,13 @@ func (sc *walkContext) setAttribute(path schema.PathSpec, ref []ast.Ident, val a
 	return nil
 }
 
-func (sc *walkContext) setContainerFromScalar(bs schema.BlockSpec, val ast.ASTValue) error {
+func (sc *walkContext) setContainerFromScalar(bs schema.BlockSpec, val parser.ASTValue) error {
 	ss := bs.ScalarSplit
 	if ss == nil {
 		return fmt.Errorf("container %s has no method to set from array", bs.ErrName())
 	}
 
-	var setVals []ast.ASTValue
+	var setVals []parser.ASTValue
 
 	if ss.Delimiter != nil {
 		strVal, err := val.AsString()
@@ -349,9 +349,9 @@ func (sc *walkContext) setContainerFromScalar(bs schema.BlockSpec, val ast.ASTVa
 		}
 		sc.Logf("Splitting scalar %#v -> %q", val, strVal)
 		valStrings := strings.Split(strVal, *bs.ScalarSplit.Delimiter)
-		vals := make([]ast.ASTValue, len(valStrings))
+		vals := make([]parser.ASTValue, len(valStrings))
 		for idx, str := range valStrings {
-			vals[idx] = ast.NewStringValue(str, ast.SourceNode{
+			vals[idx] = parser.NewStringValue(str, parser.SourceNode{
 				Start: val.Position().Start,
 				End:   val.Position().End,
 			})
@@ -387,7 +387,7 @@ func (sc *walkContext) setContainerFromScalar(bs schema.BlockSpec, val ast.ASTVa
 		return nil
 	}
 
-	var optional []ast.ASTValue
+	var optional []parser.ASTValue
 	if len(remaining) > len(ss.Optional) {
 		optional, remaining = remaining[:len(ss.Optional)], remaining[len(ss.Optional):]
 	} else {
@@ -432,7 +432,7 @@ func (sc *walkContext) setContainerFromScalar(bs schema.BlockSpec, val ast.ASTVa
 	}
 	singleString := strings.Join(remainingStr, delim)
 
-	return sc.SetAttribute(*ss.Remainder, nil, ast.NewStringValue(singleString, ast.SourceNode{
+	return sc.SetAttribute(*ss.Remainder, nil, parser.NewStringValue(singleString, parser.SourceNode{
 		Start: remaining[0].Position().Start,
 		End:   remaining[len(remaining)-1].Position().End,
 	}))

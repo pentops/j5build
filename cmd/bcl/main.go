@@ -12,7 +12,7 @@ import (
 	"github.com/pentops/bcl.go/bcl/bclsp"
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
-	"github.com/pentops/bcl.go/internal/ast"
+	"github.com/pentops/bcl.go/internal/parser"
 	"github.com/pentops/runner/commander"
 	"google.golang.org/protobuf/encoding/prototext"
 )
@@ -124,7 +124,7 @@ func runFmt(ctx context.Context, cfg struct {
 }) error {
 
 	doFile := func(data []byte) (string, error) {
-		fixed, err := ast.Fmt(string(data))
+		fixed, err := parser.Fmt(string(data))
 		if err != nil {
 			return "", err
 		}

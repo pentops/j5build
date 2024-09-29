@@ -1,4 +1,4 @@
-package ast
+package parser
 
 import (
 	"errors"
@@ -32,8 +32,6 @@ func ParseFile(input string, failFast bool) (*File, error) {
 
 	return tree, nil
 }
-
-var HadErrors = fmt.Errorf("had errors, see Walker.Errors")
 
 type Walker struct {
 	tokens   []lexer.Token

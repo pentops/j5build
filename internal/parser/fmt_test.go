@@ -1,11 +1,11 @@
-package ast
+package parser
 
 import (
 	"fmt"
 	"strings"
 	"testing"
 
-	"github.com/pentops/bcl.go/internal/ast/testdata"
+	"github.com/pentops/bcl.go/internal/parser/testdata"
 )
 
 func TestFmtDiff(t *testing.T) {

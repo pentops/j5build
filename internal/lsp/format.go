@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/pentops/bcl.go/internal/ast"
+	"github.com/pentops/bcl.go/internal/parser"
 	"github.com/sourcegraph/jsonrpc2"
 )
 
@@ -35,7 +35,7 @@ func (h *langHandler) handleTextDocumentFormatting(ctx context.Context, _ *jsonr
 type ASTFormatter struct{}
 
 func (f ASTFormatter) FormatFile(ctx context.Context, doc *FileRequest) ([]TextEdit, error) {
-	diffs, err := ast.FmtDiffs(doc.Content)
+	diffs, err := parser.FmtDiffs(doc.Content)
 	if err != nil {
 		return nil, err
 	}

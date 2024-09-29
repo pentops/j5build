@@ -10,7 +10,7 @@ import (
 	"github.com/bufbuild/protovalidate-go"
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
-	"github.com/pentops/bcl.go/internal/ast"
+	"github.com/pentops/bcl.go/internal/parser"
 	"github.com/pentops/bcl.go/internal/walker"
 	"github.com/pentops/bcl.go/internal/walker/schema"
 	"github.com/pentops/j5/lib/j5reflect"
@@ -52,9 +52,9 @@ func isTruthy(s string) bool {
 
 func (p *Parser) ParseFile(filename string, data string, msg protoreflect.Message) (*bcl_j5pb.SourceLocation, error) {
 
-	tree, err := ast.ParseFile(data, p.FailFast)
+	tree, err := parser.ParseFile(data, p.FailFast)
 	if err != nil {
-		if err == ast.HadErrors {
+		if err == parser.HadErrors {
 			return nil, errpos.AddSourceFile(tree.Errors, filename, data)
 		}
 		return nil, fmt.Errorf("parse file not HadErrors - : %w", err)
@@ -68,7 +68,7 @@ func (p *Parser) ParseFile(filename string, data string, msg protoreflect.Messag
 	return loc, nil
 }
 
-func (p *Parser) ParseAST(tree *ast.File, msg protoreflect.Message) (*bcl_j5pb.SourceLocation, error) {
+func (p *Parser) ParseAST(tree *parser.File, msg protoreflect.Message) (*bcl_j5pb.SourceLocation, error) {
 	obj, err := p.refl.NewObject(msg)
 	if err != nil {
 		return nil, err

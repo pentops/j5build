@@ -1,4 +1,4 @@
-package ast
+package parser
 
 import (
 	"errors"
@@ -8,6 +8,8 @@ import (
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/bcl.go/internal/lexer"
 )
+
+var HadErrors = fmt.Errorf("had errors, see Walker.Errors")
 
 func unexpectedToken(tok lexer.Token, expected ...lexer.TokenType) *unexpectedTokenError {
 	return &unexpectedTokenError{

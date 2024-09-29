@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/bcl.go/internal/ast"
+	"github.com/pentops/bcl.go/internal/parser"
 	"github.com/pentops/bcl.go/internal/walker/schema"
 )
 
@@ -20,14 +20,14 @@ func (e *ErrExpectedTag) Error() string {
 	return fmt.Sprintf("expected %s tag", e.Label)
 }
 
-func pointPosition(point ast.Position) errpos.Position {
+func pointPosition(point parser.Position) errpos.Position {
 	return errpos.Position{
 		Start: point,
 		End:   point,
 	}
 }
 
-func spanPosition(start, end ast.Position) errpos.Position {
+func spanPosition(start, end parser.Position) errpos.Position {
 	return errpos.Position{
 		Start: start,
 		End:   end,
@@ -37,18 +37,18 @@ func spanPosition(start, end ast.Position) errpos.Position {
 var ErrUnexpectedTag = fmt.Errorf("unexpected tag")
 var ErrUnexpectedQualifier = fmt.Errorf("unexpected qualifier")
 
-func doBody(sc Context, body ast.Body) error {
+func doBody(sc Context, body parser.Body) error {
 	for _, decl := range body.Statements {
 		switch decl := decl.(type) {
 
-		case *ast.Description:
+		case *parser.Description:
 			sc.Logf("Description Statement %#v", decl)
-			if err := sc.SetDescription(ast.NewStringValue(decl.Value, decl.SourceNode)); err != nil {
+			if err := sc.SetDescription(parser.NewStringValue(decl.Value, decl.SourceNode)); err != nil {
 				err = sc.WrapErr(err, decl)
 				return err
 			}
 
-		case *ast.Assignment:
+		case *parser.Assignment:
 			sc.Logf("Assign Statement %#v <- %#v (%s)", decl.Key, decl.Value, decl.SourceNode.Start)
 			err := doAssign(sc, decl)
 			if err != nil {
@@ -58,7 +58,7 @@ func doBody(sc Context, body ast.Body) error {
 			}
 			sc.Logf("Assign OK")
 
-		case *ast.Block:
+		case *parser.Block:
 			sc.Logf("Block Statement %#v", decl.BlockHeader)
 			blockLocation := schema.SourceLocation{
 				Start: decl.BlockHeader.Start,
@@ -82,7 +82,7 @@ func doBody(sc Context, body ast.Body) error {
 	return nil
 }
 
-func doAssign(sc Context, a *ast.Assignment) error {
+func doAssign(sc Context, a *parser.Assignment) error {
 	if a.Append {
 		return sc.AppendAttribute(nil, a.Key.Idents, a.Value)
 	}
@@ -90,19 +90,19 @@ func doAssign(sc Context, a *ast.Assignment) error {
 }
 
 type popSet struct {
-	items        []ast.TagValue
-	lastItem     ast.TagValue
-	lastPosition ast.Position
+	items        []parser.TagValue
+	lastItem     parser.TagValue
+	lastPosition parser.Position
 }
 
-func newPopSet(items []ast.TagValue, startPos ast.Position) popSet {
+func newPopSet(items []parser.TagValue, startPos parser.Position) popSet {
 	return popSet{
 		lastPosition: startPos,
 		items:        items,
 	}
 }
 
-func (ps *popSet) popFirst() (ast.TagValue, bool) {
+func (ps *popSet) popFirst() (parser.TagValue, bool) {
 	if len(ps.items) == 0 {
 		return ps.lastItem, false
 	}
@@ -117,7 +117,7 @@ func (ps *popSet) hasMore() bool {
 	return len(ps.items) > 0
 }
 
-func doBlock(sc Context, spec schema.BlockSpec, bs *ast.Block) error {
+func doBlock(sc Context, spec schema.BlockSpec, bs *parser.Block) error {
 
 	gotTags := newPopSet(bs.BlockHeader.Tags, bs.BlockHeader.Type.End)
 
@@ -130,7 +130,7 @@ func doBlock(sc Context, spec schema.BlockSpec, bs *ast.Block) error {
 				if len(spec.Description) == 0 {
 					spec.Description = []string{"description"}
 				}
-				if err := sc.SetAttribute(spec.Description, nil, ast.NewStringValue(bs.Description.Value, bs.SourceNode)); err != nil {
+				if err := sc.SetAttribute(spec.Description, nil, parser.NewStringValue(bs.Description.Value, bs.SourceNode)); err != nil {
 					return err
 				}
 			}
@@ -144,17 +144,17 @@ func doBlock(sc Context, spec schema.BlockSpec, bs *ast.Block) error {
 	})
 }
 
-func checkBang(sc Context, tagSpec schema.Tag, gotTag ast.TagValue) error {
-	if gotTag.Mark == ast.TagMarkNone {
+func checkBang(sc Context, tagSpec schema.Tag, gotTag parser.TagValue) error {
+	if gotTag.Mark == parser.TagMarkNone {
 		return nil
 	}
 	var path schema.PathSpec
-	if gotTag.Mark == ast.TagMarkBang {
+	if gotTag.Mark == parser.TagMarkBang {
 		if tagSpec.BangPath == nil {
 			return sc.WrapErr(fmt.Errorf("tag %s does not support bang", tagSpec.Path), gotTag)
 		}
 		path = tagSpec.BangPath
-	} else if gotTag.Mark == ast.TagMarkQuestion {
+	} else if gotTag.Mark == parser.TagMarkQuestion {
 		if tagSpec.QuestionPath == nil {
 			return sc.WrapErr(fmt.Errorf("tag %s does not support question", tagSpec.Path), gotTag)
 		}
@@ -162,7 +162,7 @@ func checkBang(sc Context, tagSpec schema.Tag, gotTag ast.TagValue) error {
 	}
 
 	sc.Logf("Applying Tag Mark, %#v %s", tagSpec, gotTag)
-	err := sc.SetAttribute(path, nil, ast.NewBoolValue(true, gotTag.Start))
+	err := sc.SetAttribute(path, nil, parser.NewBoolValue(true, gotTag.Start))
 	if err != nil {
 		return err
 	}
@@ -229,7 +229,7 @@ func walkTags(sc Context, spec schema.BlockSpec, gotTags popSet, outerCallback S
 
 	if gotTags.hasMore() {
 		for _, tag := range gotTags.items {
-			if tag.Mark != ast.TagMarkNone {
+			if tag.Mark != parser.TagMarkNone {
 				return sc.WrapErr(fmt.Errorf("unexpected tag mark"), tag)
 			}
 		}

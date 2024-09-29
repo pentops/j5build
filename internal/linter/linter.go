@@ -6,8 +6,8 @@ import (
 
 	"github.com/pentops/bcl.go/bcl"
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/bcl.go/internal/ast"
 	"github.com/pentops/bcl.go/internal/lsp"
+	"github.com/pentops/bcl.go/internal/parser"
 	"github.com/pentops/log.go/log"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -34,9 +34,9 @@ func (l *Linter) LintFile(ctx context.Context, req *lsp.FileRequest) ([]lsp.Diag
 
 	var mainError error
 
-	tree, err := ast.ParseFile(req.Content, false)
+	tree, err := parser.ParseFile(req.Content, false)
 	if err != nil {
-		if err == ast.HadErrors {
+		if err == parser.HadErrors {
 			mainError = errpos.AddSourceFile(tree.Errors, req.Filename, req.Content)
 		} else if ews, ok := errpos.AsErrorsWithSource(err); ok {
 			mainError = ews
