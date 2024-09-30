@@ -6,6 +6,7 @@ import (
 
 	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
+	"github.com/pentops/j5/lib/j5schema"
 )
 
 // containerField is a spec linked to a reflection container field.
@@ -27,7 +28,9 @@ type j5PropSet interface {
 	RangePropertySchemas(j5reflect.RangePropertySchemasCallback) error
 	NewValue(name string) (j5reflect.Field, error)
 	HasProperty(name string) bool
+	GetProperty(name string) (j5reflect.Property, error)
 	GetOrCreateValue(name string) (j5reflect.Field, error)
+	ContainerSchema() j5schema.Container
 	ListPropertyNames() []string
 }
 
@@ -53,6 +56,37 @@ func (mc mapContainer) GetOrCreateValue(name string) (j5reflect.Field, error) {
 
 func (mc mapContainer) HasProperty(name string) bool {
 	return true
+}
+
+type mapSchema struct {
+	itemSchema j5schema.FieldSchema
+}
+
+func (ms mapSchema) PropertyField(name string) j5schema.FieldSchema {
+	return ms.itemSchema
+}
+
+func (ms mapSchema) WalkToProperty(name ...string) (j5schema.FieldSchema, error) {
+	if len(name) == 0 {
+		return nil, fmt.Errorf("empty path")
+	}
+	// name becomes the key, the rest is in the item
+	if len(name) == 1 {
+		return ms.itemSchema, nil
+	}
+	itemAsContainer, ok := ms.itemSchema.AsContainer()
+	if !ok {
+		return nil, fmt.Errorf("map item is not a container")
+	}
+	return itemAsContainer.WalkToProperty(name[1:]...)
+}
+
+func (mc mapContainer) ContainerSchema() j5schema.Container {
+	return mapSchema{itemSchema: mc.mapNode.ItemSchema()}
+}
+
+func (mc mapContainer) GetProperty(name string) (j5reflect.Property, error) {
+	return nil, fmt.Errorf("maps have no property")
 }
 
 func (mc mapContainer) ListPropertyNames() []string {

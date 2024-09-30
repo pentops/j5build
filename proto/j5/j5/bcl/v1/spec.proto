@@ -16,7 +16,7 @@ message Path {
 
 // A Tag defines the behavior of the block header components for the type.
 message Tag {
-  Path path = 1;
+  string field_name = 1; // can use aliases.
   bool is_block = 2;
 
   bool optional = 3;
@@ -24,18 +24,15 @@ message Tag {
   // When set, a leading '!' on the tag sets a boolean to true at the given
   // path. (e.g. setting required=true). When not set, bang is illegal. You
   // shouldn't bang where it's illegal.
-  Path bang_bool = 4;
+  optional string bang_bool = 4;
 
   // Same as bang_bool, but for a ?. Still 'true', e.g. 'optional=true)
-  Path question_bool = 5;
+  optional string question_bool = 5;
 }
 
-message Child {
+message Alias {
   string name = 1;
   Path path = 2;
-  bool is_container = 3;
-  bool is_scalar = 4;
-  bool is_collection = 5;
 }
 
 message Block {
@@ -47,9 +44,9 @@ message Block {
   optional Tag type_select = 4;
   optional Tag qualifier = 5;
 
-  optional Path description = 6;
+  optional string description_field = 6;
 
-  repeated Child children = 7;
+  repeated Alias alias = 10;
 
   ScalarSplit scalar_split = 8;
 

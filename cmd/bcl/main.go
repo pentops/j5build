@@ -41,25 +41,11 @@ func runLint(ctx context.Context, cfg struct {
 		Blocks: []*bcl_j5pb.Block{{
 			SchemaName: "j5.bcl.v1.Block",
 			Name: &bcl_j5pb.Tag{
-				Path: &bcl_j5pb.Path{
-					Path: []string{"schemaName"},
-				},
+				FieldName: "schemaName",
 			},
-			Children: []*bcl_j5pb.Child{{
-				Name: "schemaName",
-				Path: &bcl_j5pb.Path{
-					Path: []string{"schemaName"},
-				},
-				IsScalar: true,
-			}, {
-				Name: "name",
-				Path: &bcl_j5pb.Path{
-					Path: []string{"name"},
-				},
-			}},
 		}, {
 			SchemaName: "j5.bcl.v1.ScalarSplit",
-			Children: []*bcl_j5pb.Child{{
+			Alias: []*bcl_j5pb.Alias{{
 				Name: "required",
 				Path: &bcl_j5pb.Path{Path: []string{"requiredFields", "path"}},
 			}, {
@@ -71,13 +57,11 @@ func runLint(ctx context.Context, cfg struct {
 			}},
 		}, {
 			SchemaName: "j5.bcl.v1.Tag",
-			Children: []*bcl_j5pb.Child{{
+			Alias: []*bcl_j5pb.Alias{{
 				Name: "path",
 				Path: &bcl_j5pb.Path{
 					Path: []string{"path", "path"},
 				},
-				IsScalar:     true,
-				IsCollection: true,
 			}},
 		}},
 	}

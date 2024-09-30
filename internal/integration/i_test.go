@@ -15,7 +15,7 @@ func TestEndToEnd(t *testing.T) {
 	schema := &bcl_j5pb.Schema{
 		Blocks: []*bcl_j5pb.Block{{
 			SchemaName: "test.v1.File",
-			Children: []*bcl_j5pb.Child{{
+			Alias: []*bcl_j5pb.Alias{{
 				Name: "foo",
 				Path: &bcl_j5pb.Path{Path: []string{"elements", "foo"}},
 			}, {

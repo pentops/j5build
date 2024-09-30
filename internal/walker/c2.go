@@ -8,6 +8,27 @@ import (
 	"github.com/pentops/bcl.go/internal/walker/schema"
 )
 
+func WalkSchema(scope *schema.Scope, body parser.Body, verbose bool) error {
+
+	rootContext := &walkContext{
+		scope:   scope,
+		path:    []string{""},
+		verbose: verbose,
+	}
+
+	rootErr := rootContext.run(func(sc Context) error {
+		return doBody(sc, body)
+	})
+	if rootErr == nil {
+		return nil
+	}
+	if rootContext.verbose {
+		logError(rootErr)
+	}
+	return rootErr
+
+}
+
 type ErrExpectedTag struct {
 	Label  string
 	Schema string
@@ -43,8 +64,9 @@ func doBody(sc Context, body parser.Body) error {
 
 		case *parser.Description:
 			sc.Logf("Description Statement %#v", decl)
-			if err := sc.SetDescription(parser.NewStringValue(decl.Value, decl.SourceNode)); err != nil {
-				err = sc.WrapErr(err, decl)
+			err := doDescription(sc, decl)
+			if err != nil {
+				err = errpos.AddPosition(err, decl.Position())
 				return err
 			}
 
@@ -52,25 +74,16 @@ func doBody(sc Context, body parser.Body) error {
 			sc.Logf("Assign Statement %#v <- %#v (%s)", decl.Key, decl.Value, decl.SourceNode.Start)
 			err := doAssign(sc, decl)
 			if err != nil {
-				err = fmt.Errorf("doAssign: %w", err)
-				err = sc.WrapErr(err, decl)
+				err = errpos.AddPosition(err, decl.Position())
 				return err
 			}
 			sc.Logf("Assign OK")
 
 		case *parser.Block:
 			sc.Logf("Block Statement %#v", decl.BlockHeader)
-			blockLocation := schema.SourceLocation{
-				Start: decl.BlockHeader.Start,
-				End:   decl.BlockHeader.End,
-			}
-
-			typeTag := decl.BlockHeader.Type
-
-			err := sc.WithContainer(&blockLocation, nil, typeTag.Idents, ResetScope, func(sc Context, blockSpec schema.BlockSpec) error {
-				return doBlock(sc, blockSpec, decl)
-			})
+			err := doFullBlock(sc, decl)
 			if err != nil {
+				err = errpos.AddPosition(err, decl.Position())
 				return err
 			}
 			sc.Logf("Block OK")
@@ -87,6 +100,33 @@ func doAssign(sc Context, a *parser.Assignment) error {
 		return sc.AppendAttribute(nil, a.Key.Idents, a.Value)
 	}
 	return sc.SetAttribute(nil, a.Key.Idents, a.Value)
+}
+
+func doDescription(sc Context, decl *parser.Description) error {
+	if err := sc.SetDescription(parser.NewStringValue(decl.Value, decl.SourceNode)); err != nil {
+		err = errpos.AddPosition(err, decl.Position())
+		return err
+	}
+	return nil
+}
+
+func doFullBlock(sc Context, decl *parser.Block) error {
+
+	typeTag := decl.BlockHeader.Type
+
+	newScope, err := sc.BuildScope(nil, typeTag.Idents, ResetScope)
+	if err != nil {
+		return fmt.Errorf("WithContainer, building scope: %w", err)
+	}
+
+	err = sc.WithScope(newScope, func(sc Context, blockSpec schema.BlockSpec) error {
+		return doBlock(sc, blockSpec, decl)
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type popSet struct {
@@ -119,6 +159,8 @@ func (ps *popSet) hasMore() bool {
 
 func doBlock(sc Context, spec schema.BlockSpec, bs *parser.Block) error {
 
+	rootBlockSpec := spec
+
 	gotTags := newPopSet(bs.BlockHeader.Tags, bs.BlockHeader.Type.End)
 
 	return walkTags(sc, spec, gotTags, func(sc Context, spec schema.BlockSpec) error {
@@ -127,10 +169,11 @@ func doBlock(sc Context, spec schema.BlockSpec, bs *parser.Block) error {
 
 		return walkQualifiers(sc, spec, gotQualifiers, func(sc Context, spec schema.BlockSpec) error {
 			if bs.BlockHeader.Description != nil {
-				if len(spec.Description) == 0 {
-					spec.Description = []string{"description"}
+
+				if rootBlockSpec.Description == nil {
+					return sc.WrapErr(fmt.Errorf("block %q has no description field", spec.ErrName()), bs.BlockHeader.Description)
 				}
-				if err := sc.SetAttribute(spec.Description, nil, parser.NewStringValue(bs.Description.Value, bs.SourceNode)); err != nil {
+				if err := sc.SetAttribute(schema.PathSpec{*rootBlockSpec.Description}, nil, parser.NewStringValue(bs.Description.Value, bs.SourceNode)); err != nil {
 					return err
 				}
 			}
@@ -150,15 +193,15 @@ func checkBang(sc Context, tagSpec schema.Tag, gotTag parser.TagValue) error {
 	}
 	var path schema.PathSpec
 	if gotTag.Mark == parser.TagMarkBang {
-		if tagSpec.BangPath == nil {
-			return sc.WrapErr(fmt.Errorf("tag %s does not support bang", tagSpec.Path), gotTag)
+		if tagSpec.BangFieldName == nil {
+			return sc.WrapErr(fmt.Errorf("tag %s does not support bang", tagSpec.FieldName), gotTag)
 		}
-		path = tagSpec.BangPath
+		path = schema.PathSpec{*tagSpec.BangFieldName}
 	} else if gotTag.Mark == parser.TagMarkQuestion {
-		if tagSpec.QuestionPath == nil {
-			return sc.WrapErr(fmt.Errorf("tag %s does not support question", tagSpec.Path), gotTag)
+		if tagSpec.QuestionFieldName == nil {
+			return sc.WrapErr(fmt.Errorf("tag %s does not support question", tagSpec.FieldName), gotTag)
 		}
-		path = tagSpec.QuestionPath
+		path = schema.PathSpec{*tagSpec.QuestionFieldName}
 	}
 
 	sc.Logf("Applying Tag Mark, %#v %s", tagSpec, gotTag)
@@ -191,7 +234,7 @@ func walkTags(sc Context, spec schema.BlockSpec, gotTags popSet, outerCallback S
 		}
 
 		sc.Logf("Applying Name tag, %#v %#v", tagSpec, gotTag)
-		err := sc.SetAttribute(tagSpec.Path, nil, gotTag)
+		err := sc.SetAttribute(schema.PathSpec{tagSpec.FieldName}, nil, gotTag)
 		if err != nil {
 			return err
 		}
@@ -212,9 +255,9 @@ func walkTags(sc Context, spec schema.BlockSpec, gotTags popSet, outerCallback S
 
 		sc.Logf("TypeSelect %#v %s", tagSpec, gotTag)
 		if gotTag.Reference == nil {
-			return fmt.Errorf("type-select %s needs to be a reference", tagSpec.Path)
+			return fmt.Errorf("type-select %s needs to be a reference", tagSpec.FieldName)
 		}
-		typeScope, err := sc.BuildScope(tagSpec.Path, gotTag.Reference.Idents, KeepScope)
+		typeScope, err := sc.BuildScope(schema.PathSpec{tagSpec.FieldName}, gotTag.Reference.Idents, KeepScope)
 		if err != nil {
 			return err
 		}
@@ -276,7 +319,7 @@ func walkQualifiers(sc Context, spec schema.BlockSpec, gotQualifiers popSet, out
 			return err
 		}
 
-		if err := sc.SetAttribute(tagSpec.Path, nil, qualifier); err != nil {
+		if err := sc.SetAttribute(schema.PathSpec{tagSpec.FieldName}, nil, qualifier); err != nil {
 			return err
 		}
 
@@ -289,7 +332,7 @@ func walkQualifiers(sc Context, spec schema.BlockSpec, gotQualifiers popSet, out
 	}
 
 	if qualifier.Reference == nil {
-		return fmt.Errorf("qualifier %s needs to be a reference to specify a block", tagSpec.Path)
+		return fmt.Errorf("qualifier %s needs to be a reference to specify a block", tagSpec.FieldName)
 	}
 
 	// WithTypeSelect selects a child container from a wrapper container at path.
@@ -297,7 +340,13 @@ func walkQualifiers(sc Context, spec schema.BlockSpec, gotQualifiers popSet, out
 	// set, so the wrapper is not included in the callback scope.
 	// The node it finds at givenName should must be a block, which is appended to
 	// the scope and becomes the new leaf for the callback.
-	return sc.WithContainer(nil, tagSpec.Path, qualifier.Reference.Idents, KeepScope, func(sc Context, spec schema.BlockSpec) error {
+
+	newScope, err := sc.BuildScope(schema.PathSpec{tagSpec.FieldName}, qualifier.Reference.Idents, KeepScope)
+	if err != nil {
+		return fmt.Errorf("building scope: %w", err)
+	}
+
+	return sc.WithScope(newScope, func(sc Context, spec schema.BlockSpec) error {
 		if err := checkBang(sc, *tagSpec, qualifier); err != nil {
 			return err
 		}

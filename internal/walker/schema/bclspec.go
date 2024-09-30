@@ -34,9 +34,9 @@ const (
 )
 
 type Tag struct {
-	Path         []string
-	BangPath     []string
-	QuestionPath []string
+	FieldName         string
+	BangFieldName     *string
+	QuestionFieldName *string
 
 	IsOptional bool
 	IsBlock    bool
@@ -47,14 +47,14 @@ func convertTag(tag *bcl_j5pb.Tag) *Tag {
 		return nil
 	}
 	tt := &Tag{
-		Path:    tag.Path.Path,
-		IsBlock: tag.IsBlock,
+		FieldName: tag.FieldName,
+		IsBlock:   tag.IsBlock,
 	}
 	if tag.BangBool != nil {
-		tt.BangPath = tag.BangBool.Path
+		tt.BangFieldName = tag.BangBool
 	}
 	if tag.QuestionBool != nil {
-		tt.QuestionPath = tag.QuestionBool.Path
+		tt.QuestionFieldName = tag.QuestionBool
 	}
 	tt.IsOptional = tag.Optional
 	return tt
@@ -74,40 +74,28 @@ func (t *Tag) Validate(tagType TagType) error {
 	return nil
 }
 
-func (t Tag) GoString() string {
-	sb := &strings.Builder{}
-	sb.WriteString("Tag(")
-	if len(t.Path) > 0 {
-		sb.WriteString("Path: ")
-		sb.WriteString(strings.Join(t.Path, "."))
-	}
-
-	sb.WriteString(")")
-
-	return sb.String()
-}
-
 type ChildSpec struct {
-	Path         PathSpec
-	IsContainer  bool
-	IsScalar     bool
-	IsCollection bool
-	IsMap        bool
+	Path PathSpec
+	//IsContainer  bool
+	//IsScalar     bool
+	//	IsCollection bool
+	//IsMap        bool
 
 	autoCreated bool
 }
 
 func (cs ChildSpec) TagString() string {
 	prefix := []rune{'-', '-', '-', '-'}
-	if cs.IsContainer {
-		prefix[0] = 'C'
-	}
-	if cs.IsScalar {
-		prefix[1] = 'S'
-	}
-	if cs.IsCollection {
-		prefix[2] = 'A'
-	}
+	/*
+		if cs.IsContainer {
+			prefix[0] = 'C'
+		}
+		if cs.IsScalar {
+			prefix[1] = 'S'
+		}
+		if cs.IsCollection {
+			prefix[2] = 'A'
+		}*/
 	if cs.autoCreated {
 		prefix[3] = 'a'
 	} else {
@@ -128,9 +116,9 @@ type BlockSpec struct {
 
 	source      specSource // Set by the parser, notes on how the spec came to be
 	schema      string     // Set by the parser
-	Description PathSpec   // Field to place the description in
+	Description *string    // Field to place the description in
 
-	Children map[string]ChildSpec
+	Aliases map[string]PathSpec
 
 	Name       *Tag
 	TypeSelect *Tag

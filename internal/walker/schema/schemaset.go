@@ -7,6 +7,7 @@ import (
 	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
+	"google.golang.org/protobuf/proto"
 )
 
 type specSource string
@@ -31,14 +32,9 @@ type SchemaSet struct {
 func convertBlocks(given []*bcl_j5pb.Block) (map[string]*BlockSpec, error) {
 	givenBlocks := map[string]*BlockSpec{}
 	for _, src := range given {
-		children := map[string]ChildSpec{}
-		for _, child := range src.Children {
-			children[child.Name] = ChildSpec{
-				Path:         PathSpec(child.Path.Path),
-				IsContainer:  child.IsContainer,
-				IsScalar:     child.IsScalar,
-				IsCollection: child.IsCollection,
-			}
+		aliases := map[string]PathSpec{}
+		for _, alias := range src.Alias {
+			aliases[alias.Name] = PathSpec(alias.Path.Path)
 		}
 
 		block := &BlockSpec{
@@ -46,10 +42,10 @@ func convertBlocks(given []*bcl_j5pb.Block) (map[string]*BlockSpec, error) {
 			TypeSelect:  convertTag(src.TypeSelect),
 			Qualifier:   convertTag(src.Qualifier),
 			OnlyDefined: src.OnlyExplicit,
-			Children:    children,
+			Aliases:     aliases,
 		}
-		if src.Description != nil {
-			block.Description = src.Description.Path
+		if src.DescriptionField != nil {
+			block.Description = src.DescriptionField
 		}
 
 		if src.ScalarSplit != nil {
@@ -106,36 +102,29 @@ func (ss *SchemaSet) _buildSpec(node j5PropSet) (*BlockSpec, error) {
 		return blockSpec, nil
 	}
 
-	if blockSpec.Children == nil {
-		blockSpec.Children = map[string]ChildSpec{}
+	if blockSpec.Aliases == nil {
+		blockSpec.Aliases = map[string]PathSpec{}
 	}
+
+	newAliases := map[string]PathSpec{}
 
 	err := node.RangePropertySchemas(func(name string, required bool, schema *schema_j5pb.Field) error {
 
-		spec := ChildSpec{
-			autoCreated: true,
-			Path:        PathSpec{name},
-		}
-
 		switch field := schema.Type.(type) {
 		case *schema_j5pb.Field_Object:
-			spec.IsContainer = true
 
 		case *schema_j5pb.Field_Oneof:
-			spec.IsContainer = true
 
 		case *schema_j5pb.Field_String_:
 			if name == "name" && blockSpec.Name == nil {
 				blockSpec.Name = &Tag{
-					Path: []string{"name"},
+					FieldName: "name",
 				}
 				blockSpec.Name.IsOptional = !required
 			}
-			if name == "description" && len(blockSpec.Description) == 0 {
-				blockSpec.Description = []string{"description"}
+			if name == "description" && blockSpec.Description == nil {
+				blockSpec.Description = proto.String("description")
 			}
-
-			spec.IsScalar = true
 
 		case *schema_j5pb.Field_Bool,
 			*schema_j5pb.Field_Integer,
@@ -147,45 +136,37 @@ func (ss *SchemaSet) _buildSpec(node j5PropSet) (*BlockSpec, error) {
 			*schema_j5pb.Field_Timestamp,
 			*schema_j5pb.Field_Decimal:
 
-			spec.IsScalar = true
-
 		case *schema_j5pb.Field_Array:
 			if field.Array != nil && field.Array.Ext != nil && field.Array.Ext.SingleForm != nil {
-				spec.IsScalar = true
-				name = *field.Array.Ext.SingleForm
-			}
-			spec.IsCollection = true
-
-			items := field.Array.Items
-			switch itemSchema := items.Type.(type) {
-			case *schema_j5pb.Field_Object:
-				spec.IsContainer = true
-				if name == "" {
-					name = arrayName(itemSchema.Object)
+				singleForm := *field.Array.Ext.SingleForm
+				newAliases[singleForm] = PathSpec{name}
+			} else {
+				items := field.Array.Items
+				switch itemSchema := items.Type.(type) {
+				case *schema_j5pb.Field_Object:
+					newAliases[arrayName(itemSchema.Object)] = PathSpec{name}
 				}
 			}
-
 		case *schema_j5pb.Field_Map:
-			spec.IsMap = true
-
 			if field.Map != nil && field.Map.Ext != nil && field.Map.Ext.SingleForm != nil {
-				spec.IsScalar = true
-				name = *field.Map.Ext.SingleForm
+				singleForm := *field.Map.Ext.SingleForm
+				newAliases[singleForm] = PathSpec{name}
 			}
 
 		default:
 			return fmt.Errorf("unimplemented schema type: %T", field)
 		}
 
-		if _, ok := blockSpec.Children[name]; !ok {
-			blockSpec.Children[name] = spec
-		}
-
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
+	}
+
+	for alias, path := range newAliases {
+		if _, ok := blockSpec.Aliases[alias]; !ok {
+			blockSpec.Aliases[alias] = path
+		}
 	}
 
 	return blockSpec, nil

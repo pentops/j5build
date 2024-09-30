@@ -32,8 +32,8 @@ github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWE
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/pentops/flowtest v0.0.0-20240909065422-e4f7f68d5fb0 h1:kuYCj1r2e8aVbavjgZtpOBCgL/3Oblw84AnoT36xX0Q=
 github.com/pentops/flowtest v0.0.0-20240909065422-e4f7f68d5fb0/go.mod h1:klQLA1IXCIN8mQoQ9uq6TSxHyamObeIlJ51YT165KeE=
-github.com/pentops/j5 v0.0.0-20240918205947-5d6a48315046 h1:Q0fm/ZkMUFz3jOrZT3UhSX2BNmxFlvDCtbcddSnu5iE=
-github.com/pentops/j5 v0.0.0-20240918205947-5d6a48315046/go.mod h1:vrc+pX4lwysUtTN9dJ1bZCkM+Vs6p88hmRyeUaBo/8M=
+github.com/pentops/j5 v0.0.0-20240930180705-ffdad52aa4ce h1:9K10xL+pMgcgwqHtsV0j71+itLMwIbG+XjUmR6JTWLs=
+github.com/pentops/j5 v0.0.0-20240930180705-ffdad52aa4ce/go.mod h1:+DXEHJ1pFc/ddS+YDZEGVmntTStKp+jHqEbd26S5/jk=
 github.com/pentops/log.go v0.0.0-20240806161938-2742d05b4c24 h1:PzCwWkSWY7GO8fS7RQ9F0ZOE6PuaY27mh6ApaXLBMJI=
 github.com/pentops/log.go v0.0.0-20240806161938-2742d05b4c24/go.mod h1:Rx5b9QWbqb3gOMBILxQYMberRKvarMa8R5PxF/ejJeU=
 github.com/pentops/runner v0.0.0-20240806162317-0eb1ced9ab3d h1:ZKnjzU/tXEIH3lmcEhOcpRzUjE8l6/KQ3QhFLjD8Yk4=

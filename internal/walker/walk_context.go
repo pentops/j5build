@@ -39,9 +39,6 @@ type Context interface {
 	SetDescription(desc parser.ASTValue) error
 	SetAttribute(path schema.PathSpec, ref []parser.Ident, value parser.ASTValue) error
 	AppendAttribute(path schema.PathSpec, ref []parser.Ident, value parser.ASTValue) error
-	WithContainer(loc *schema.SourceLocation, path schema.PathSpec, ref []parser.Ident, resetScope ScopeFlag, fn SpanCallback) error
-	SetLocation(loc schema.SourceLocation)
-	SetName(name string)
 
 	setContainerFromScalar(bs schema.BlockSpec, vals parser.ASTValue) error
 
@@ -57,35 +54,12 @@ type walkContext struct {
 	// path is the full path from the root to this context, as field names
 	path []string
 
-	name string
-
 	// depth is the nested level of walk context. It may not equal len(name)
 	// as depth skips blocks
 	depth         int
 	blockLocation schema.SourceLocation
 
 	verbose bool
-}
-
-func WalkSchema(scope *schema.Scope, body parser.Body, verbose bool) error {
-
-	rootContext := &walkContext{
-		scope:   scope,
-		path:    []string{""},
-		verbose: verbose,
-	}
-
-	rootErr := rootContext.run(func(sc Context) error {
-		return doBody(sc, body)
-	})
-	if rootErr == nil {
-		return nil
-	}
-	if rootContext.verbose {
-		logError(rootErr)
-	}
-	return rootErr
-
 }
 
 func newSchemaError(err error) error {
@@ -172,11 +146,6 @@ func walkScope(scope *schema.Scope, path []pathElement, loc schema.SourceLocatio
 	return scope, nil
 }
 
-func (sc *walkContext) SetName(name string) {
-	sc.name = name
-	sc.path[len(sc.path)-1] = fmt.Sprintf("%s(%s)", sc.path[len(sc.path)-1], name)
-}
-
 func (sc *walkContext) BuildScope(schemaPath schema.PathSpec, userPath []parser.Ident, flag ScopeFlag) (*schema.Scope, error) {
 	fullPath := combinePath(schemaPath, userPath)
 	if len(fullPath) == 0 {
@@ -201,25 +170,6 @@ func (sc *walkContext) BuildScope(schemaPath schema.PathSpec, userPath []parser.
 	}
 }
 
-func (sc *walkContext) WithContainer(newLoc *schema.SourceLocation, path schema.PathSpec, ref []parser.Ident, scopeFlag ScopeFlag, fn SpanCallback) error {
-	sc.Logf("WithContainer(%#v, %#v)", path, ref)
-	newScope, err := sc.BuildScope(path, ref, scopeFlag)
-	if err != nil {
-		return fmt.Errorf("WithContainer, building scope: %w", err)
-	}
-
-	if newLoc != nil {
-		sc.SetLocation(*newLoc)
-		sc.Logf("New Location %v", newLoc)
-	} else {
-		sc.Logf("Keep Location %v", sc.blockLocation)
-	}
-
-	// Then call back with the schema of the end node in scope. Scope does not
-	// get modified until the end
-	return sc.withSchema(newScope, fn)
-}
-
 type BadTypeError struct {
 	WantType string
 	GotType  string
@@ -236,7 +186,7 @@ func (sc *walkContext) SetDescription(description parser.ASTValue) error {
 		return newSchemaError(fmt.Errorf("no description field"))
 	}
 
-	return sc.SetAttribute(descSpec, nil, description)
+	return sc.SetAttribute(schema.PathSpec{*descSpec}, nil, description)
 }
 
 func (sc *walkContext) AppendAttribute(path schema.PathSpec, ref []parser.Ident, val parser.ASTValue) error {

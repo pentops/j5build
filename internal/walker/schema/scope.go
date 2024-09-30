@@ -101,7 +101,7 @@ func (sw *Scope) ChildBlock(name string, source SourceLocation) (*Scope, *WalkPa
 		return nil, &WalkPathError{
 			Field:     name,
 			Type:      RootNotFound,
-			Available: sw.blockSet.listChildren(),
+			Available: sw.blockSet.listBlocks(),
 		}
 	}
 
@@ -119,17 +119,9 @@ func (sw *Scope) ChildBlock(name string, source SourceLocation) (*Scope, *WalkPa
 }
 
 func (sw *Scope) ScalarField(name string, source SourceLocation) (ScalarField, *WalkPathError) {
-	finalField, spec, err := sw.field(name, source, false)
+	finalField, _, err := sw.field(name, source, false)
 	if err != nil {
 		return nil, err
-	}
-
-	if !spec.IsScalar {
-		return nil, &WalkPathError{
-			Path:   []string{name},
-			Type:   NodeNotScalar,
-			Schema: finalField.TypeName(),
-		}
 	}
 
 	asScalar, ok := finalField.AsScalar()
@@ -248,29 +240,20 @@ func (sw *Scope) walkToChild(blockSchema *containerField, path []string, sourceL
 
 func (sw *Scope) findBlock(name string) (*containerField, *ChildSpec, bool) {
 	for _, blockSchema := range sw.blockSet {
-		childSpec, ok := blockSchema.spec.Children[name]
-		if !ok {
-			continue
+		pathToChild, ok := blockSchema.spec.Aliases[name]
+		if ok {
+			return &blockSchema, &ChildSpec{
+				Path: pathToChild,
+			}, true
 		}
 
-		return &blockSchema, &childSpec, true
+		if blockSchema.container.HasProperty(name) {
+			return &blockSchema, &ChildSpec{
+				Path: []string{name},
+			}, true
+		}
 	}
 
-	for _, blockSchema := range sw.blockSet {
-		childSpec, ok := blockSchema.spec.Children["*"]
-		if !ok {
-			continue
-		}
-
-		virtualSpec := ChildSpec{
-			Path:        []string{name},
-			IsContainer: childSpec.IsContainer,
-			IsScalar:    childSpec.IsScalar,
-			// is certainly not a collection or map.
-			autoCreated: true,
-		}
-		return &blockSchema, &virtualSpec, true
-	}
 	return nil, nil, false
 }
 
@@ -304,8 +287,8 @@ func (sw *Scope) PrintScope(logf func(string, ...interface{})) {
 		} else {
 			logf("from %s : %s", block.schemaName, block.spec.source)
 		}
-		for name, block := range block.spec.Children {
-			logf(" - [%s] %q %#v", block.TagString(), name, block.Path)
+		for name, block := range sw.blockSet.allChildFields() {
+			logf(" - [%s] %q %#v", name, schemaCan(block.GetType()))
 		}
 	}
 
