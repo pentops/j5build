@@ -32,15 +32,16 @@ var Commit = func() string {
 func CommandSet() *commander.CommandSet {
 
 	cmdGroup := commander.NewCommandSet()
+	cmdGroup.Add("version", commander.NewCommand(runVersion))
+
+	cmdGroup.Add("generate", commander.NewCommand(runGenerate))
+	cmdGroup.Add("verify", commander.NewCommand(runVerify))
+	cmdGroup.Add("publish", commander.NewCommand(runPublish))
 
 	cmdGroup.Add("schema", schemaSet())
 	cmdGroup.Add("protoc", protocSet())
+	cmdGroup.Add("j5s", j5sSet())
 
-	cmdGroup.Add("version", commander.NewCommand(runVersion))
-	cmdGroup.Add("generate", commander.NewCommand(runGenerate))
-	cmdGroup.Add("genproto", commander.NewCommand(runGenProto))
-	cmdGroup.Add("publish", commander.NewCommand(runPublish))
-	cmdGroup.Add("verify", commander.NewCommand(runVerify))
 	cmdGroup.Add("latest-deps", commander.NewCommand(runLatestDeps))
 
 	cmdGroup.Add("lsp", commander.NewCommand(runLSP))

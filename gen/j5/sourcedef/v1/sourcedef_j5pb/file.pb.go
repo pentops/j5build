@@ -352,7 +352,7 @@ type Entity struct {
 
 	Name        string                        `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	Description string                        `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
-	BaseUrlPath string                        `protobuf:"bytes,9,opt,name=base_url_path,json=baseUrlPath,proto3" json:"base_url_path,omitempty"`
+	BaseUrlPath string                        `protobuf:"bytes,9,opt,name=base_url_path,json=baseUrlPath,proto3" json:"base_url_path,omitempty"` // The entire path from the root to the beginning of the entity.
 	Status      []*schema_j5pb.Enum_Option    `protobuf:"bytes,4,rep,name=status,proto3" json:"status,omitempty"`
 	Keys        []*schema_j5pb.ObjectProperty `protobuf:"bytes,3,rep,name=keys,proto3" json:"keys,omitempty"`
 	Data        []*schema_j5pb.ObjectProperty `protobuf:"bytes,5,rep,name=data,proto3" json:"data,omitempty"`
@@ -461,14 +461,16 @@ type APIMethod struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name        string                    `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	HttpPath    string                    `protobuf:"bytes,2,opt,name=http_path,json=httpPath,proto3" json:"http_path,omitempty"`
-	Description string                    `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	HttpMethod  client_j5pb.HTTPMethod    `protobuf:"varint,4,opt,name=http_method,json=httpMethod,proto3,enum=j5.client.v1.HTTPMethod" json:"http_method,omitempty"`
-	Request     *AnonymousObject          `protobuf:"bytes,5,opt,name=request,proto3" json:"request,omitempty"`
-	Response    *AnonymousObject          `protobuf:"bytes,6,opt,name=response,proto3" json:"response,omitempty"`
-	Auth        *auth_j5pb.MethodAuthType `protobuf:"bytes,7,opt,name=auth,proto3" json:"auth,omitempty"`
-	Options     *ext_j5pb.MethodOptions   `protobuf:"bytes,8,opt,name=options,proto3" json:"options,omitempty"`
+	Name        string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	HttpPath    string                 `protobuf:"bytes,2,opt,name=http_path,json=httpPath,proto3" json:"http_path,omitempty"`
+	Description string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	HttpMethod  client_j5pb.HTTPMethod `protobuf:"varint,4,opt,name=http_method,json=httpMethod,proto3,enum=j5.client.v1.HTTPMethod" json:"http_method,omitempty"`
+	Request     *AnonymousObject       `protobuf:"bytes,5,opt,name=request,proto3" json:"request,omitempty"`
+	// The response object for the endpoint, when empty indicates a raw http
+	// response.
+	Response *AnonymousObject          `protobuf:"bytes,6,opt,name=response,proto3" json:"response,omitempty"`
+	Auth     *auth_j5pb.MethodAuthType `protobuf:"bytes,7,opt,name=auth,proto3" json:"auth,omitempty"`
+	Options  *ext_j5pb.MethodOptions   `protobuf:"bytes,8,opt,name=options,proto3" json:"options,omitempty"`
 }
 
 func (x *APIMethod) Reset() {
@@ -611,8 +613,8 @@ type Service struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Name        *string                  `protobuf:"bytes,1,opt,name=name,proto3,oneof" json:"name,omitempty"`
-	BasePath    *string                  `protobuf:"bytes,2,opt,name=base_path,json=basePath,proto3,oneof" json:"base_path,omitempty"`
+	Name        *string                  `protobuf:"bytes,1,opt,name=name,proto3,oneof" json:"name,omitempty"`                         // Defaults to FooCommand
+	BasePath    *string                  `protobuf:"bytes,2,opt,name=base_path,json=basePath,proto3,oneof" json:"base_path,omitempty"` // appended to the entity's base_url_path, defaults to `/c`
 	Description string                   `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
 	Methods     []*APIMethod             `protobuf:"bytes,4,rep,name=methods,proto3" json:"methods,omitempty"`
 	Options     *ext_j5pb.ServiceOptions `protobuf:"bytes,5,opt,name=options,proto3" json:"options,omitempty"`

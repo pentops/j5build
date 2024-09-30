@@ -13,11 +13,11 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/jhump/protoreflect v1.16.0
-	github.com/pentops/bcl.go v0.0.0-20240927192253-c80347dffc84
+	github.com/pentops/bcl.go v0.0.0-20240930182212-fb0be64822f7
 	github.com/pentops/flowtest v0.0.0-20240917192406-c387da443c68
-	github.com/pentops/j5 v0.0.0-20240927192330-bb068fd19f15
+	github.com/pentops/j5 v0.0.0-20240930180705-ffdad52aa4ce
 	github.com/pentops/log.go v0.0.0-20240806161938-2742d05b4c24
-	github.com/pentops/prototools v0.0.0-20240927181938-9e0c0ca99e7b
+	github.com/pentops/prototools v0.0.0-20240930012619-3e24c48fd079
 	github.com/pentops/runner v0.0.0-20240920235254-d99051980854
 	github.com/ryanuber/go-glob v1.0.0
 	github.com/stretchr/testify v1.9.0
