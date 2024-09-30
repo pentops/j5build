@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/bcl.go/internal/lexer"
 )
 
 type File struct {
@@ -30,8 +29,8 @@ func (te *TypeError) Error() string {
 }
 
 type SourceNode struct {
-	Start   lexer.Position
-	End     lexer.Position
+	Start   Position
+	End     Position
 	Comment *Comment
 }
 

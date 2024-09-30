@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/bcl.go/internal/lexer"
 )
 
 type FmtDiff struct {
@@ -82,7 +81,7 @@ func (ls *lineSet) rangeLines(from, to int) string {
 }
 
 func collectFmtFragments(input string) ([]FmtDiff, error) {
-	l := lexer.NewLexer(input)
+	l := NewLexer(input)
 
 	tokens, ok, err := l.AllTokens(true)
 	if err != nil {
@@ -134,32 +133,29 @@ func (p *fmter) diffFile(ff []Fragment) {
 		case Comment:
 			p.printComment(stmt)
 
-		case EOF:
-			// nothing to do
-
 		default:
 			panic(fmt.Sprintf("FMT unknown statement %T", stmt))
 		}
 	}
 }
 
-func tokenSource(tok lexer.Token) string {
+func tokenSource(tok Token) string {
 	switch tok.Type {
-	case lexer.STRING:
+	case STRING:
 		return fmt.Sprintf("%q", tok.Lit)
-	case lexer.REGEX:
+	case REGEX:
 		return fmt.Sprintf("/%s/", tok.Lit)
-	case lexer.DESCRIPTION:
+	case DESCRIPTION:
 		return fmt.Sprintf("| %s", tok.Lit)
-	case lexer.COMMENT:
+	case COMMENT:
 		return fmt.Sprintf("//%s", tok.Lit)
-	case lexer.BLOCK_COMMENT:
+	case BLOCK_COMMENT:
 		return fmt.Sprintf("/*%s*/", tok.Lit)
 	}
 	return tok.Lit
 }
 
-func (p *fmter) singleLineTokens(src SourceNode, parts ...lexer.Token) {
+func (p *fmter) singleLineTokens(src SourceNode, parts ...Token) {
 	line := ""
 	for _, part := range parts {
 		line += tokenSource(part)
@@ -201,8 +197,8 @@ func (p *fmter) closeBlock(block CloseBlock) {
 	p.singleLineTokens(block.SourceNode, block.Token)
 }
 
-func newToken(ty lexer.TokenType, value string) lexer.Token {
-	return lexer.Token{
+func newToken(ty TokenType, value string) Token {
+	return Token{
 		Type: ty,
 		Lit:  value,
 	}
@@ -212,21 +208,21 @@ func (p *fmter) doBlockHeader(block BlockHeader) {
 
 	nameParts := referenceTokens(block.Type)
 	for _, val := range block.Tags {
-		nameParts = append(nameParts, newToken(lexer.SPACE, " "))
+		nameParts = append(nameParts, newToken(SPACE, " "))
 		nameParts = append(nameParts, tagString(val)...)
 	}
 
 	for _, val := range block.Qualifiers {
 		// no spaces between qualifiers
-		nameParts = append(nameParts, newToken(lexer.COLON, ":"))
+		nameParts = append(nameParts, newToken(COLON, ":"))
 		nameParts = append(nameParts, tagString(val)...)
 	}
 
 	if block.Open {
-		nameParts = append(nameParts, newToken(lexer.SPACE, " "), newToken(lexer.LBRACE, "{"))
+		nameParts = append(nameParts, newToken(SPACE, " "), newToken(LBRACE, "{"))
 	}
 	if block.Description != nil {
-		nameParts = append(nameParts, newToken(lexer.SPACE, " "))
+		nameParts = append(nameParts, newToken(SPACE, " "))
 		nameParts = append(nameParts, block.Description.Tokens...)
 	}
 
@@ -252,38 +248,38 @@ func (p *fmter) doAssignment(assign Assignment) {
 
 	if assign.Append {
 		tokens = append(tokens,
-			newToken(lexer.SPACE, " "),
-			newToken(lexer.PLUS, "+"),
-			newToken(lexer.ASSIGN, "="),
-			newToken(lexer.SPACE, " "),
+			newToken(SPACE, " "),
+			newToken(PLUS, "+"),
+			newToken(ASSIGN, "="),
+			newToken(SPACE, " "),
 		)
 	} else {
 		tokens = append(tokens,
-			newToken(lexer.SPACE, " "),
-			newToken(lexer.ASSIGN, "="),
-			newToken(lexer.SPACE, " "),
+			newToken(SPACE, " "),
+			newToken(ASSIGN, "="),
+			newToken(SPACE, " "),
 		)
 	}
 	tokens = append(tokens, valueTokens(assign.Value)...)
 	p.singleLineTokens(assign.SourceNode, tokens...)
 }
 
-func valueTokens(v Value) []lexer.Token {
+func valueTokens(v Value) []Token {
 	if v.array == nil {
-		return []lexer.Token{v.token}
+		return []Token{v.token}
 	}
 
-	toks := []lexer.Token{}
-	toks = append(toks, newToken(lexer.LBRACK, "["))
+	toks := []Token{}
+	toks = append(toks, newToken(LBRACK, "["))
 	for idx, val := range v.array {
 		if idx > 0 {
 			toks = append(toks,
-				newToken(lexer.COMMA, ","),
-				newToken(lexer.SPACE, " "))
+				newToken(COMMA, ","),
+				newToken(SPACE, " "))
 		}
 		toks = append(toks, valueTokens(val)...)
 	}
-	toks = append(toks, newToken(lexer.RBRACK, "]"))
+	toks = append(toks, newToken(RBRACK, "]"))
 	return toks
 }
 
@@ -294,11 +290,11 @@ func inlineComment(comment *Comment) string {
 	return " //" + comment.Value
 }
 
-func tagString(v TagValue) []lexer.Token {
-	toks := []lexer.Token{}
+func tagString(v TagValue) []Token {
+	toks := []Token{}
 
 	if v.Mark != TagMarkNone {
-		toks = append(toks, v.MarkToken, newToken(lexer.SPACE, " "))
+		toks = append(toks, v.MarkToken, newToken(SPACE, " "))
 	}
 
 	if v.Value != nil {
@@ -310,13 +306,13 @@ func tagString(v TagValue) []lexer.Token {
 	return toks
 }
 
-func referenceTokens(r Reference) []lexer.Token {
-	toks := []lexer.Token{}
+func referenceTokens(r Reference) []Token {
+	toks := []Token{}
 	for idx, part := range r.Idents {
 		if idx == 0 {
 			toks = append(toks, part.Token)
 		} else {
-			toks = append(toks, newToken(lexer.DOT, "."), part.Token)
+			toks = append(toks, newToken(DOT, "."), part.Token)
 		}
 	}
 	return toks

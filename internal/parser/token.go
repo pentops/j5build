@@ -1,5 +1,4 @@
-// package token is adapted from the Go standard library's token package.
-package lexer
+package parser
 
 import (
 	"fmt"

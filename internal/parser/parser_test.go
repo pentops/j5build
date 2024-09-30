@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/bcl.go/internal/lexer"
 )
 
 func tParseFile(t testing.TB, input string) *File {
@@ -319,15 +318,15 @@ func TestBlockDescriptions(t *testing.T) {
 }
 
 func tString(s string) Value {
-	return Value{token: lexer.Token{Type: lexer.STRING, Lit: s}}
+	return Value{token: Token{Type: STRING, Lit: s}}
 }
 
 func tDecimal(s string) Value {
-	return Value{token: lexer.Token{Type: lexer.DECIMAL, Lit: s}}
+	return Value{token: Token{Type: DECIMAL, Lit: s}}
 }
 
-var tTrue = Value{token: lexer.Token{Type: lexer.BOOL, Lit: "true"}}
-var tFalse = Value{token: lexer.Token{Type: lexer.BOOL, Lit: "false"}}
+var tTrue = Value{token: Token{Type: BOOL, Lit: "true"}}
+var tFalse = Value{token: Token{Type: BOOL, Lit: "false"}}
 
 func tArray(values ...Value) Value {
 	return Value{array: values}

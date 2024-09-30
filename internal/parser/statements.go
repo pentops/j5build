@@ -2,15 +2,12 @@ package parser
 
 import (
 	"fmt"
-
-	"github.com/pentops/bcl.go/internal/lexer"
 )
 
 type FragmentKind int
 
 const (
-	EOFFragment FragmentKind = iota
-	AssignmentFragment
+	AssignmentFragment FragmentKind = iota
 	BlockHeaderFragment
 	BlockCloseFragment
 	DescriptionFragment
@@ -40,24 +37,9 @@ type Statement interface {
 	Source() SourceNode
 }
 
-type EOF struct {
-	SourceNode
-	Token lexer.Token
-}
-
-var _ Fragment = EOF{}
-
-func (e EOF) Kind() FragmentKind {
-	return EOFFragment
-}
-
-func (e EOF) GoString() string {
-	return "<EOF>"
-}
-
 type CloseBlock struct {
 	SourceNode
-	Token lexer.Token
+	Token Token
 }
 
 var _ Fragment = CloseBlock{}
@@ -73,7 +55,7 @@ func (cb CloseBlock) GoString() string {
 type Comment struct {
 	Value string
 	SourceNode
-	Token lexer.Token
+	Token Token
 }
 
 var _ Fragment = Comment{}
@@ -94,7 +76,7 @@ func (c Comment) Kind() FragmentKind {
 type Description struct {
 	Value string
 	SourceNode
-	Tokens []lexer.Token
+	Tokens []Token
 }
 
 var _ Fragment = Description{}

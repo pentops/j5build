@@ -3,14 +3,12 @@ package parser
 import (
 	"fmt"
 	"strings"
-
-	"github.com/pentops/bcl.go/internal/lexer"
 )
 
 // Ident is a simple name used when declaring a type, or as parts of a
 // reference.
 type Ident struct {
-	Token lexer.Token
+	Token Token
 	Value string
 	SourceNode
 }
@@ -26,10 +24,10 @@ func (i Ident) GoString() string {
 func (i Ident) AsStringValue() Value {
 	return Value{
 		SourceNode: i.SourceNode,
-		token: lexer.Token{
+		token: Token{
 			Start: i.Start,
 			End:   i.End,
-			Type:  lexer.STRING,
+			Type:  STRING,
 			Lit:   i.Value,
 		},
 	}

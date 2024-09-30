@@ -1,4 +1,4 @@
-package lexer
+package parser
 
 import (
 	"fmt"
@@ -6,8 +6,6 @@ import (
 
 	"github.com/pentops/bcl.go/bcl/errpos"
 )
-
-var HadErrors = fmt.Errorf("had errors, see Lexer.Errors")
 
 type Lexer struct {
 	line   int // 0 based
@@ -29,7 +27,7 @@ func NewLexer(data string) *Lexer {
 	}
 }
 
-const eof = -1
+const lexerEofChr = -1
 
 func (l *Lexer) next() {
 
@@ -42,7 +40,7 @@ func (l *Lexer) next() {
 	}
 
 	if l.offset >= len(l.data) {
-		l.ch = eof
+		l.ch = lexerEofChr
 		return
 	}
 	r := rune(l.data[l.offset])
@@ -66,7 +64,7 @@ func (l *Lexer) getPosition() Position {
 
 func (l *Lexer) peek() rune {
 	if l.offset >= len(l.data) {
-		return eof
+		return lexerEofChr
 	}
 	return rune(l.data[l.offset])
 }
@@ -86,7 +84,7 @@ func (l *Lexer) skipWhitespace() {
 
 func (l *Lexer) tokenOf(ty TokenType) Token {
 	lit := string(l.ch)
-	if l.ch == eof {
+	if l.ch == lexerEofChr {
 		lit = ""
 	}
 	return Token{
@@ -150,7 +148,7 @@ func (l *Lexer) NextToken() (Token, error) {
 	// keep looping until we return a token
 	for {
 		l.next()
-		if l.ch == eof {
+		if l.ch == lexerEofChr {
 			return l.tokenOf(EOF), nil
 		}
 
@@ -309,7 +307,7 @@ func (l *Lexer) lexString() (string, error) {
 	for {
 		l.next()
 
-		if l.ch == eof {
+		if l.ch == lexerEofChr {
 			return "", l.unexpectedEOF()
 		}
 		if l.ch == quote {
@@ -341,7 +339,7 @@ func (l *Lexer) lexRegex() (string, error) {
 	for {
 		l.next()
 
-		if l.ch == eof {
+		if l.ch == lexerEofChr {
 			return "", l.unexpectedEOF()
 		}
 		if l.ch == '\n' {
@@ -378,7 +376,7 @@ func (l *Lexer) lexDescriptionLine() string {
 	l.skipWhitespace()
 	for {
 		next := l.peek()
-		if next == eof {
+		if next == lexerEofChr {
 			return lit
 		}
 		if next == '\n' {
@@ -398,7 +396,7 @@ func (l *Lexer) lexBlockComment() string {
 			l.next()
 			return commentText
 		}
-		if l.ch == eof {
+		if l.ch == lexerEofChr {
 			return commentText
 		}
 		commentText = commentText + string(l.ch)
@@ -410,7 +408,7 @@ func (l *Lexer) lexLineComment() string {
 	var lit string
 	for {
 		next := l.peek()
-		if next == eof || next == '\n' {
+		if next == lexerEofChr || next == '\n' {
 			return lit
 		}
 		l.next()

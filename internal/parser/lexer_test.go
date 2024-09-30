@@ -1,4 +1,4 @@
-package lexer
+package parser
 
 import (
 	"strings"
@@ -7,62 +7,62 @@ import (
 	"github.com/pentops/bcl.go/bcl/errpos"
 )
 
-func tIdent(lit string) Token {
+func tTokIdent(lit string) Token {
 	return Token{
 		Type: IDENT,
 		Lit:  lit,
 	}
 }
 
-func tInt(lit string) Token {
+func tTokInt(lit string) Token {
 	return Token{
 		Type: INT,
 		Lit:  lit,
 	}
 }
 
-func tString(lit string) Token {
+func tTokString(lit string) Token {
 	return Token{
 		Type: STRING,
 		Lit:  lit,
 	}
 }
 
-func tRegex(lit string) Token {
+func tTokRegex(lit string) Token {
 	return Token{
 		Type: REGEX,
 		Lit:  lit,
 	}
 }
 
-func tComment(lit string) Token {
+func tTokComment(lit string) Token {
 	return Token{
 		Type: COMMENT,
 		Lit:  lit,
 	}
 }
-func tBlockComment(lit string) Token {
+func tTokBlockComment(lit string) Token {
 	return Token{
 		Type: BLOCK_COMMENT,
 		Lit:  lit,
 	}
 }
 
-func tDescription(lit string) Token {
+func tTokDescription(lit string) Token {
 	return Token{
 		Type: DESCRIPTION,
 		Lit:  lit,
 	}
 }
 
-func tDecimal(lit string) Token {
+func tTokDecimal(lit string) Token {
 	return Token{
 		Type: DECIMAL,
 		Lit:  lit,
 	}
 }
 
-func tBool(lit string) Token {
+func tTokBool(lit string) Token {
 	return Token{
 		Type: BOOL,
 		Lit:  lit,
@@ -70,40 +70,40 @@ func tBool(lit string) Token {
 }
 
 var (
-	tAssign = Token{
+	tTokAssign = Token{
 		Type: ASSIGN,
 		Lit:  "=",
 	}
-	tEOF = Token{
+	tTokEOF = Token{
 		Type: EOF,
 	}
 
-	tLBrace = Token{
+	tTokLBrace = Token{
 		Type: LBRACE,
 		Lit:  "{",
 	}
 
-	tRBrace = Token{
+	tTokRBrace = Token{
 		Type: RBRACE,
 		Lit:  "}",
 	}
-	tDot = Token{
+	tTokDot = Token{
 		Type: DOT,
 		Lit:  ".",
 	}
-	tEOL = Token{
+	tTokEOL = Token{
 		Type: EOL,
 		Lit:  "\n",
 	}
-	tLBracket = Token{
+	tTokLBracket = Token{
 		Type: LBRACK,
 		Lit:  "[",
 	}
-	tRBracket = Token{
+	tTokRBracket = Token{
 		Type: RBRACK,
 		Lit:  "]",
 	}
-	tComma = Token{
+	tTokComma = Token{
 		Type: COMMA,
 		Lit:  ",",
 	}
@@ -182,10 +182,10 @@ func TestSimple(t *testing.T) {
 		name:  "assign",
 		input: []string{`ab=123`},
 		expected: []Token{
-			tIdent("ab").tStart(1, 1).tEnd(1, 2),
-			tAssign.tStart(1, 3).tEnd(1, 3),
-			tInt("123").tStart(1, 4).tEnd(1, 6),
-			tEOF.tStart(1, 7).tEnd(1, 7),
+			tTokIdent("ab").tStart(1, 1).tEnd(1, 2),
+			tTokAssign.tStart(1, 3).tEnd(1, 3),
+			tTokInt("123").tStart(1, 4).tEnd(1, 6),
+			tTokEOF.tStart(1, 7).tEnd(1, 7),
 		},
 	}, {
 		name: "assign with spaces",
@@ -195,17 +195,17 @@ func TestSimple(t *testing.T) {
 			`  `,
 		},
 		expected: []Token{
-			tIdent("ab").tStart(1, 1).tEnd(1, 2),
-			tAssign.tStart(1, 4).tEnd(1, 4),
-			tInt("123").tStart(1, 6).tEnd(1, 8),
-			tEOL.tStart(1, 9).tEnd(1, 9),
+			tTokIdent("ab").tStart(1, 1).tEnd(1, 2),
+			tTokAssign.tStart(1, 4).tEnd(1, 4),
+			tTokInt("123").tStart(1, 6).tEnd(1, 8),
+			tTokEOL.tStart(1, 9).tEnd(1, 9),
 
-			tIdent("cd").tStart(2, 3).tEnd(2, 4),
-			tAssign.tStart(2, 6).tEnd(2, 6),
-			tInt("456").tStart(2, 8).tEnd(2, 10),
-			tEOL.tStart(2, 13).tEnd(2, 13),
+			tTokIdent("cd").tStart(2, 3).tEnd(2, 4),
+			tTokAssign.tStart(2, 6).tEnd(2, 6),
+			tTokInt("456").tStart(2, 8).tEnd(2, 10),
+			tTokEOL.tStart(2, 13).tEnd(2, 13),
 
-			tEOF.tStart(3, 3).tEnd(3, 3),
+			tTokEOF.tStart(3, 3).tEnd(3, 3),
 		},
 	}, {
 		name: "identifier with dots",
@@ -213,14 +213,14 @@ func TestSimple(t *testing.T) {
 			`vv.with.dots = 123`,
 		},
 		expected: []Token{
-			tIdent("vv"),
-			tDot,
-			tIdent("with"),
-			tDot,
-			tIdent("dots"),
-			tAssign,
-			tInt("123"),
-			tEOF,
+			tTokIdent("vv"),
+			tTokDot,
+			tTokIdent("with"),
+			tTokDot,
+			tTokIdent("dots"),
+			tTokAssign,
+			tTokInt("123"),
+			tTokEOF,
 		},
 	}, {
 		name: "literal types",
@@ -232,11 +232,11 @@ func TestSimple(t *testing.T) {
 			`vv = false`,
 		},
 		expected: []Token{
-			tIdent("vv"), tAssign, tInt("123"), tEOL,
-			tIdent("vv"), tAssign, tString("value"), tEOL,
-			tIdent("vv"), tAssign, tDecimal("123.456"), tEOL,
-			tIdent("vv"), tAssign, tBool("true"), tEOL,
-			tIdent("vv"), tAssign, tBool("false"), tEOF,
+			tTokIdent("vv"), tTokAssign, tTokInt("123"), tTokEOL,
+			tTokIdent("vv"), tTokAssign, tTokString("value"), tTokEOL,
+			tTokIdent("vv"), tTokAssign, tTokDecimal("123.456"), tTokEOL,
+			tTokIdent("vv"), tTokAssign, tTokBool("true"), tTokEOL,
+			tTokIdent("vv"), tTokAssign, tTokBool("false"), tTokEOF,
 		},
 	}, {
 		name: "array",
@@ -247,10 +247,10 @@ func TestSimple(t *testing.T) {
 			`vv = ["a", ["b", "c"], "d"]`,
 		},
 		expected: []Token{
-			tIdent("vv"), tAssign, tLBracket, tInt("1"), tComma, tInt("2"), tComma, tInt("3"), tRBracket, tEOL,
-			tIdent("vv"), tAssign, tLBracket, tRBracket, tEOL,
-			tIdent("vv"), tAssign, tLBracket, tInt("1"), tComma, tString("2"), tComma, tDecimal("3.4"), tComma, tBool("true"), tComma, tBool("false"), tRBracket, tEOL,
-			tIdent("vv"), tAssign, tLBracket, tString("a"), tComma, tLBracket, tString("b"), tComma, tString("c"), tRBracket, tComma, tString("d"), tRBracket, tEOF,
+			tTokIdent("vv"), tTokAssign, tTokLBracket, tTokInt("1"), tTokComma, tTokInt("2"), tTokComma, tTokInt("3"), tTokRBracket, tTokEOL,
+			tTokIdent("vv"), tTokAssign, tTokLBracket, tTokRBracket, tTokEOL,
+			tTokIdent("vv"), tTokAssign, tTokLBracket, tTokInt("1"), tTokComma, tTokString("2"), tTokComma, tTokDecimal("3.4"), tTokComma, tTokBool("true"), tTokComma, tTokBool("false"), tTokRBracket, tTokEOL,
+			tTokIdent("vv"), tTokAssign, tTokLBracket, tTokString("a"), tTokComma, tTokLBracket, tTokString("b"), tTokComma, tTokString("c"), tTokRBracket, tTokComma, tTokString("d"), tTokRBracket, tTokEOF,
 		},
 	}, {
 		name: "type declaration",
@@ -258,11 +258,11 @@ func TestSimple(t *testing.T) {
 			`object Foo {}`,
 		},
 		expected: []Token{
-			tIdent("object"),
-			tIdent("Foo"),
-			tLBrace,
-			tRBrace,
-			tEOF,
+			tTokIdent("object"),
+			tTokIdent("Foo"),
+			tTokLBrace,
+			tTokRBrace,
+			tTokEOF,
 		},
 	}, {
 		name: "string quotes",
@@ -270,10 +270,10 @@ func TestSimple(t *testing.T) {
 			`vv = "value"`,
 		},
 		expected: []Token{
-			tIdent("vv"),
-			tAssign,
-			tString("value"),
-			tEOF,
+			tTokIdent("vv"),
+			tTokAssign,
+			tTokString("value"),
+			tTokEOF,
 		},
 	}, {
 		name: "string escaped quotes",
@@ -281,10 +281,10 @@ func TestSimple(t *testing.T) {
 			`vv = "value \"with\" quotes"`,
 		},
 		expected: []Token{
-			tIdent("vv"),
-			tAssign,
-			tString("value \"with\" quotes"),
-			tEOF,
+			tTokIdent("vv"),
+			tTokAssign,
+			tTokString("value \"with\" quotes"),
+			tTokEOF,
 		},
 	}, {
 		name: "string with useless escapes",
@@ -292,10 +292,10 @@ func TestSimple(t *testing.T) {
 			`vv = "value \\ with \\ useless \\ escapes"`,
 		},
 		expected: []Token{
-			tIdent("vv"),
-			tAssign,
-			tString("value \\ with \\ useless \\ escapes"),
-			tEOF,
+			tTokIdent("vv"),
+			tTokAssign,
+			tTokString("value \\ with \\ useless \\ escapes"),
+			tTokEOF,
 		},
 	}, {
 		name: "string with invalid escape",
@@ -319,10 +319,10 @@ func TestSimple(t *testing.T) {
 		// note no EOL token, strings and comments and descriptions include the
 		// newline
 		expected: []Token{
-			tIdent("vv"),
-			tAssign,
-			tString("value\nwith newline"),
-			tEOF,
+			tTokIdent("vv"),
+			tTokAssign,
+			tTokString("value\nwith newline"),
+			tTokEOF,
 		},
 	}, {
 		name: "extend identifier",
@@ -330,10 +330,10 @@ func TestSimple(t *testing.T) {
 			`key123_ü = 123`,
 		},
 		expected: []Token{
-			tIdent("key123_ü"),
-			tAssign,
-			tInt("123"),
-			tEOF,
+			tTokIdent("key123_ü"),
+			tTokAssign,
+			tTokInt("123"),
+			tTokEOF,
 		},
 	}, {
 		name: "comment line",
@@ -344,11 +344,11 @@ func TestSimple(t *testing.T) {
 			" //c3",
 		},
 		expected: []Token{
-			tIdent("vv"), tAssign, tInt("123"),
-			tComment(" c1"), tEOL,
-			tIdent("vv"), tAssign, tInt("123"), tEOL,
-			tComment(" c2"), tEOL,
-			tComment("c3"), tEOF,
+			tTokIdent("vv"), tTokAssign, tTokInt("123"),
+			tTokComment(" c1"), tTokEOL,
+			tTokIdent("vv"), tTokAssign, tTokInt("123"), tTokEOL,
+			tTokComment(" c2"), tTokEOL,
+			tTokComment("c3"), tTokEOF,
 		},
 	}, {
 		name: "regex",
@@ -356,10 +356,10 @@ func TestSimple(t *testing.T) {
 			`vv = /regex/`,
 		},
 		expected: []Token{
-			tIdent("vv"),
-			tAssign,
-			tRegex("regex"),
-			tEOF,
+			tTokIdent("vv"),
+			tTokAssign,
+			tTokRegex("regex"),
+			tTokEOF,
 		},
 	}, {
 		name: "block comment empty",
@@ -367,9 +367,9 @@ func TestSimple(t *testing.T) {
 			"/**/ vv",
 		},
 		expected: []Token{
-			tBlockComment(""),
-			tIdent("vv"),
-			tEOF,
+			tTokBlockComment(""),
+			tTokIdent("vv"),
+			tTokEOF,
 		},
 	}, {
 		name: "block comment",
@@ -379,10 +379,10 @@ func TestSimple(t *testing.T) {
 			"vv",
 		},
 		expected: []Token{
-			tBlockComment(" line1\nline2 "),
-			tEOL,
-			tIdent("vv"),
-			tEOF,
+			tTokBlockComment(" line1\nline2 "),
+			tTokEOL,
+			tTokIdent("vv"),
+			tTokEOF,
 		},
 	}, {
 		name: "description",
@@ -392,10 +392,10 @@ func TestSimple(t *testing.T) {
 			"vv = 123",
 		},
 		expected: []Token{
-			tDescription("line1 of description"), tEOL,
-			tDescription("line2 of description"), tEOL,
-			tIdent("vv"), tAssign, tInt("123"),
-			tEOF,
+			tTokDescription("line1 of description"), tTokEOL,
+			tTokDescription("line2 of description"), tTokEOL,
+			tTokIdent("vv"), tTokAssign, tTokInt("123"),
+			tTokEOF,
 		},
 	}, {
 		name: "longer description",
@@ -408,13 +408,13 @@ func TestSimple(t *testing.T) {
 			`  | line6`,
 		},
 		expected: []Token{
-			tDescription("line1"), tEOL,
-			tDescription(""), tEOL,
-			tDescription("line3"), tEOL,
-			tDescription("line4"), tEOL,
-			tDescription(""), tEOL,
-			tDescription("line6"),
-			tEOF,
+			tTokDescription("line1"), tTokEOL,
+			tTokDescription(""), tTokEOL,
+			tTokDescription("line3"), tTokEOL,
+			tTokDescription("line4"), tTokEOL,
+			tTokDescription(""), tTokEOL,
+			tTokDescription("line6"),
+			tTokEOF,
 		},
 	}, {
 		name: "multi description",
@@ -425,11 +425,11 @@ func TestSimple(t *testing.T) {
 			"vv = 123",
 		},
 		expected: []Token{
-			tDescription("description 1"), tEOL,
-			tEOL,
-			tDescription("description 2"), tEOL,
-			tIdent("vv"), tAssign, tInt("123"),
-			tEOF,
+			tTokDescription("description 1"), tTokEOL,
+			tTokEOL,
+			tTokDescription("description 2"), tTokEOL,
+			tTokIdent("vv"), tTokAssign, tTokInt("123"),
+			tTokEOF,
 		},
 	}, {
 		name: "unexpected character",
@@ -579,25 +579,25 @@ With Lines
 	}
 
 	assertTokensEqual(t, tokens, []Token{
-		tEOL,
-		tIdent("package"), tIdent("pentops"), tDot, tIdent("j5lang"), tDot, tIdent("example"), tEOL,
-		tIdent("version"), tAssign, tString("v1"), tEOL,
-		tEOL,
-		tComment(" Comment Line"), tEOL,
-		tIdent("object"), tIdent("Foo"), tLBrace, tEOL,
-		tDescription("Foo is an example object"), tEOL,
-		tDescription("from ... Python I guess?"), tEOL,
-		tDescription("Unsure."), tEOL,
-		tEOL,
-		tIdent("field"), tIdent("id"), tIdent("uuid"), tLBrace, tRBrace, tEOL,
-		tEOL,
-		tIdent("field"), tIdent("name"), tIdent("string"), tLBrace, tEOL,
-		tIdent("min_len"), tAssign, tInt("10"), tEOL,
-		tRBrace, tEOL,
-		tRBrace, tEOL,
-		tEOL,
-		tBlockComment(" Comment Block\n\nWith Lines\n"),
-		tEOF,
+		tTokEOL,
+		tTokIdent("package"), tTokIdent("pentops"), tTokDot, tTokIdent("j5lang"), tTokDot, tTokIdent("example"), tTokEOL,
+		tTokIdent("version"), tTokAssign, tTokString("v1"), tTokEOL,
+		tTokEOL,
+		tTokComment(" Comment Line"), tTokEOL,
+		tTokIdent("object"), tTokIdent("Foo"), tTokLBrace, tTokEOL,
+		tTokDescription("Foo is an example object"), tTokEOL,
+		tTokDescription("from ... Python I guess?"), tTokEOL,
+		tTokDescription("Unsure."), tTokEOL,
+		tTokEOL,
+		tTokIdent("field"), tTokIdent("id"), tTokIdent("uuid"), tTokLBrace, tTokRBrace, tTokEOL,
+		tTokEOL,
+		tTokIdent("field"), tTokIdent("name"), tTokIdent("string"), tTokLBrace, tTokEOL,
+		tTokIdent("min_len"), tTokAssign, tTokInt("10"), tTokEOL,
+		tTokRBrace, tTokEOL,
+		tTokRBrace, tTokEOL,
+		tTokEOL,
+		tTokBlockComment(" Comment Block\n\nWith Lines\n"),
+		tTokEOF,
 	})
 
 }

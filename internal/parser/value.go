@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/bcl.go/internal/lexer"
 )
 
 type ASTValue interface {
@@ -60,7 +59,7 @@ func (uv unknownValue) AsArray() ([]ASTValue, bool) {
 }
 
 type Value struct {
-	token lexer.Token
+	token Token
 	array []Value
 	SourceNode
 }
@@ -98,10 +97,10 @@ func (v Value) Position() errpos.Position {
 }
 
 func (v Value) AsString() (string, error) {
-	if v.token.Type != lexer.STRING &&
-		v.token.Type != lexer.DESCRIPTION &&
-		v.token.Type != lexer.IDENT &&
-		v.token.Type != lexer.REGEX {
+	if v.token.Type != STRING &&
+		v.token.Type != DESCRIPTION &&
+		v.token.Type != IDENT &&
+		v.token.Type != REGEX {
 
 		return "", &TypeError{
 			Expected: "string",
@@ -112,7 +111,7 @@ func (v Value) AsString() (string, error) {
 }
 
 func (v Value) AsBool() (bool, error) {
-	if v.token.Type != lexer.BOOL {
+	if v.token.Type != BOOL {
 		return false, &TypeError{
 			Expected: "bool",
 			Got:      v.token.String(),
@@ -122,7 +121,7 @@ func (v Value) AsBool() (bool, error) {
 }
 
 func (v Value) AsUint(size int) (uint64, error) {
-	if v.token.Type != lexer.INT {
+	if v.token.Type != INT {
 		return 0, &TypeError{
 			Expected: fmt.Sprintf("uint%d", size),
 			Got:      v.token.String(),
@@ -134,7 +133,7 @@ func (v Value) AsUint(size int) (uint64, error) {
 }
 
 func (v Value) AsInt(size int) (int64, error) {
-	if v.token.Type != lexer.INT {
+	if v.token.Type != INT {
 		return 0, &TypeError{
 			Expected: fmt.Sprintf("int%d", size),
 			Got:      v.token.String(),
@@ -146,10 +145,10 @@ func (v Value) AsInt(size int) (int64, error) {
 
 func (v Value) AsFloat(size int) (float64, error) {
 	switch v.token.Type {
-	case lexer.INT:
+	case INT:
 		parsed, err := strconv.ParseFloat(v.token.Lit, size)
 		return parsed, err
-	case lexer.DECIMAL:
+	case DECIMAL:
 		parsed, err := strconv.ParseFloat(v.token.Lit, size)
 		return parsed, err
 	default:
@@ -217,7 +216,7 @@ const (
 
 type TagValue struct {
 	Mark      TagMark
-	MarkToken lexer.Token
+	MarkToken Token
 	Reference *Reference
 	Value     *Value
 	unknownValue
