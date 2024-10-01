@@ -50,7 +50,7 @@ message Entity {
 
   repeated j5.schema.v1.Enum.Option status = 4 [(buf.validate.field).required = true];
 
-  repeated j5.schema.v1.ObjectProperty keys = 3 [(j5.ext.v1.field).array.single_form = "key"];
+  repeated EntityKey keys = 3 [(j5.ext.v1.field).array.single_form = "key"];
 
   repeated j5.schema.v1.ObjectProperty data = 5;
 
@@ -100,6 +100,23 @@ message NestedSchema {
     Object object = 2;
     j5.schema.v1.Enum enum = 3;
   }
+}
+
+message EntityKey {
+  j5.schema.v1.ObjectProperty def = 1 [
+    (buf.validate.field).required = true,
+    (j5.ext.v1.field).message.flatten = true
+  ];
+
+  // When true, this field will be added included in all endpoints to identify
+  // the DB shard.
+  // The field must be required
+  // If it is a primary key, the Get and GetEvents endpoints are not modified,
+  // but it is added to the ListEvents endpoint.
+  // If it is not a primary key, it is added to all endpoints.
+  // The order in the path, like primary keys, is defined by the lexical order
+  // of the fields in the source file.
+  bool shard_key = 2;
 }
 
 message Oneof {

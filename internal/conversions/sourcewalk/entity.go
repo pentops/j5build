@@ -87,11 +87,15 @@ func (ent *entityNode) run(visitor FileVisitor) error {
 
 func (ent *entityNode) acceptKeys(visitor FileVisitor) error {
 
+	keyProps := make([]*schema_j5pb.ObjectProperty, 0, len(ent.Schema.Keys))
+	for _, key := range ent.Schema.Keys {
+		keyProps = append(keyProps, key.Def)
+	}
 	object, err := newVirtualObjectNode(
 		ent.Source.child("keys"),
 		nil,
 		ent.componentName("Keys"),
-		ent.Schema.Keys,
+		keyProps,
 	)
 
 	object.Entity = &schema_j5pb.EntityObject{
@@ -355,16 +359,34 @@ func (ent *entityNode) acceptQuery(visitor FileVisitor) error {
 	entity := ent.Schema
 	name := ent.name
 
-	primaryKeys := make([]*schema_j5pb.ObjectProperty, 0, len(ent.Schema.Keys))
+	getKeys := make([]*schema_j5pb.ObjectProperty, 0, len(ent.Schema.Keys))
 	httpPath := []string{}
+
+	listKeys := make([]*schema_j5pb.ObjectProperty, 0)
+	listHttpPath := []string{}
+
 	for _, key := range ent.Schema.Keys {
-		kk := key.Schema.GetKey()
+		kk := key.Def.Schema.GetKey()
 		if kk == nil {
 			continue
 		}
 		if kk.Entity != nil && kk.Entity.GetPrimaryKey() {
-			primaryKeys = append(primaryKeys, key)
-			httpPath = append(httpPath, fmt.Sprintf(":%s", key.Name))
+			getKeys = append(getKeys, key.Def)
+			httpPath = append(httpPath, fmt.Sprintf(":%s", key.Def.Name))
+
+			if key.ShardKey {
+				// primary and shard.
+				listKeys = append(listKeys, key.Def)
+				listHttpPath = append(listHttpPath, fmt.Sprintf(":%s", key.Def.Name))
+			}
+		} else if key.ShardKey {
+			// just shard, not primary
+
+			listKeys = append(listKeys, key.Def)
+			listHttpPath = append(listHttpPath, fmt.Sprintf(":%s", key.Def.Name))
+
+			getKeys = append(getKeys, key.Def)
+			httpPath = append(httpPath, fmt.Sprintf(":%s", key.Def.Name))
 		}
 	}
 
@@ -372,9 +394,11 @@ func (ent *entityNode) acceptQuery(visitor FileVisitor) error {
 		BasePath: ptr(fmt.Sprintf("/%s/q", entity.BaseUrlPath)),
 		Name:     ptr(fmt.Sprintf("%sQuery", strcase.ToCamel(name))),
 		Methods: []*sourcedef_j5pb.APIMethod{{
-			Name: fmt.Sprintf("%sGet", strcase.ToCamel(name)),
+			Name:       fmt.Sprintf("%sGet", strcase.ToCamel(name)),
+			HttpPath:   strings.Join(httpPath, "/"),
+			HttpMethod: client_j5pb.HTTPMethod_GET,
 			Request: &sourcedef_j5pb.AnonymousObject{
-				Properties: primaryKeys,
+				Properties: getKeys,
 			},
 
 			Response: &sourcedef_j5pb.AnonymousObject{
@@ -385,25 +409,25 @@ func (ent *entityNode) acceptQuery(visitor FileVisitor) error {
 					Required:   true,
 				}},
 			},
-			HttpPath:   strings.Join(httpPath, "/"),
-			HttpMethod: client_j5pb.HTTPMethod_GET,
 			Options: &ext_j5pb.MethodOptions{
 				StateQuery: &ext_j5pb.StateQueryMethodOptions{
 					Get: true,
 				},
 			},
 		}, {
-			Name: fmt.Sprintf("%sList", strcase.ToCamel(name)),
+			Name:       fmt.Sprintf("%sList", strcase.ToCamel(name)),
+			HttpPath:   strings.Join(listHttpPath, "/"),
+			HttpMethod: client_j5pb.HTTPMethod_GET,
 			Request: &sourcedef_j5pb.AnonymousObject{
-				Properties: []*schema_j5pb.ObjectProperty{{
+				Properties: append(listKeys, &schema_j5pb.ObjectProperty{
 					Name:       "page",
 					ProtoField: []int32{100},
 					Schema:     schemaRefField("j5.list.v1", "PageRequest"),
-				}, {
+				}, &schema_j5pb.ObjectProperty{
 					Name:       "query",
 					ProtoField: []int32{101},
 					Schema:     schemaRefField("j5.list.v1", "QueryRequest"),
-				}},
+				}),
 			},
 			Response: &sourcedef_j5pb.AnonymousObject{
 				Properties: []*schema_j5pb.ObjectProperty{{
@@ -423,17 +447,17 @@ func (ent *entityNode) acceptQuery(visitor FileVisitor) error {
 					Schema:     schemaRefField("j5.list.v1", "PageResponse"),
 				}},
 			},
-			HttpPath:   "",
-			HttpMethod: client_j5pb.HTTPMethod_GET,
 			Options: &ext_j5pb.MethodOptions{
 				StateQuery: &ext_j5pb.StateQueryMethodOptions{
 					List: true,
 				},
 			},
 		}, {
-			Name: fmt.Sprintf("%sEvents", strcase.ToCamel(name)),
+			Name:       fmt.Sprintf("%sEvents", strcase.ToCamel(name)),
+			HttpPath:   strings.Join(append(httpPath, "events"), "/"),
+			HttpMethod: client_j5pb.HTTPMethod_GET,
 			Request: &sourcedef_j5pb.AnonymousObject{
-				Properties: append(primaryKeys, &schema_j5pb.ObjectProperty{
+				Properties: append(getKeys, &schema_j5pb.ObjectProperty{
 					Name:       "page",
 					ProtoField: []int32{100},
 					Schema:     schemaRefField("j5.list.v1", "PageRequest"),
@@ -460,8 +484,6 @@ func (ent *entityNode) acceptQuery(visitor FileVisitor) error {
 					Schema:     schemaRefField("j5.list.v1", "PageResponse"),
 				}},
 			},
-			HttpPath:   strings.Join(append(httpPath, "events"), "/"),
-			HttpMethod: client_j5pb.HTTPMethod_GET,
 			Options: &ext_j5pb.MethodOptions{
 				StateQuery: &ext_j5pb.StateQueryMethodOptions{
 					ListEvents: true,

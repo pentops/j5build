@@ -116,6 +116,20 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 			Path: bclPath("explicitlyOptional"),
 		}},
 	}, {
+		SchemaName: "j5.sourcedef.v1.EntityKey",
+		Name: &bcl_j5pb.Tag{
+			FieldName: ("name"),
+		},
+		TypeSelect: &bcl_j5pb.Tag{
+			FieldName:    ("schema"),
+			BangBool:     ptr("required"),
+			QuestionBool: ptr("optional"),
+		},
+		Alias: []*bcl_j5pb.Alias{{
+			Name: "optional",
+			Path: bclPath("explicitlyOptional"),
+		}},
+	}, {
 		SchemaName: "j5.schema.v1.ObjectField",
 		Qualifier: &bcl_j5pb.Tag{
 			FieldName: ("ref"),

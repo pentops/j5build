@@ -2,7 +2,7 @@ package j5convert
 
 import (
 	"github.com/pentops/j5/gen/j5/messaging/v1/messaging_j5pb"
-	"github.com/pentops/j5build/internal/sourcewalk"
+	"github.com/pentops/j5build/internal/conversions/sourcewalk"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )

@@ -9,7 +9,7 @@ import (
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
-	"github.com/pentops/j5build/internal/sourcewalk"
+	"github.com/pentops/j5build/internal/conversions/sourcewalk"
 )
 
 type rootContext interface {
