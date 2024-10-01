@@ -218,7 +218,7 @@ func TestArrayOfObject(t *testing.T) {
 		// - j5.schema.v1.ArrayField
 		// But does not contain j5.schema.v1.Field
 
-		/// Scope is searched in order, so the Property takes precidence
+		/// Scope is searched in order, so the Property takes precidance
 		// over the Field.
 		// In this case, there is no conflict.
 

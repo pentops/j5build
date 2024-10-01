@@ -97,7 +97,6 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 	}, {
 		SchemaName: "j5.schema.v1.Field",
 		TypeSelect: &bcl_j5pb.Tag{
-			FieldName:    ".",
 			BangBool:     ptr("required"),
 			QuestionBool: ptr("optional"),
 		},

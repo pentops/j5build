@@ -245,8 +245,11 @@ func (eb *entityBuild) addKey(name string) *fieldBuild {
 	prop := &schema_j5pb.ObjectProperty{
 		Name: name,
 	}
+	wrapped := &sourcedef_j5pb.EntityKey{
+		Def: prop,
+	}
 	//num := int32(len(eb.obj.Keys) + 1)
-	eb.obj.Keys = append(eb.obj.Keys, prop)
+	eb.obj.Keys = append(eb.obj.Keys, wrapped)
 	//prop.ProtoField = []int32{num}
 	return &fieldBuild{prop: prop}
 }

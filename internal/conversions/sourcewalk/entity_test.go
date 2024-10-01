@@ -12,10 +12,12 @@ func TestEntity(t *testing.T) {
 
 	entitySrc := &sourcedef_j5pb.Entity{
 		Name: "foo",
-		Keys: []*schema_j5pb.ObjectProperty{{
-			Name: "fooId",
-			Schema: &schema_j5pb.Field{
-				Type: &schema_j5pb.Field_String_{},
+		Keys: []*sourcedef_j5pb.EntityKey{{
+			Def: &schema_j5pb.ObjectProperty{
+				Name: "fooId",
+				Schema: &schema_j5pb.Field{
+					Type: &schema_j5pb.Field_String_{},
+				},
 			},
 		}},
 
