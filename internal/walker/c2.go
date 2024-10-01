@@ -257,7 +257,12 @@ func walkTags(sc Context, spec schema.BlockSpec, gotTags popSet, outerCallback S
 		if gotTag.Reference == nil {
 			return fmt.Errorf("type-select %s needs to be a reference", tagSpec.FieldName)
 		}
-		typeScope, err := sc.BuildScope(schema.PathSpec{tagSpec.FieldName}, gotTag.Reference.Idents, KeepScope)
+
+		pathToType := schema.PathSpec{tagSpec.FieldName}
+		if tagSpec.FieldName == "" || tagSpec.FieldName == "." {
+			pathToType = nil
+		}
+		typeScope, err := sc.BuildScope(pathToType, gotTag.Reference.Idents, KeepScope)
 		if err != nil {
 			return err
 		}
