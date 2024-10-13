@@ -96,8 +96,9 @@ func (tn *topicRef) accept(visitor TopicFileVisitor) error {
 				},
 			},
 			prependFields: []*schema_j5pb.ObjectProperty{{
-				Name:   "upsert",
-				Schema: schemaRefField("j5.messaging.v1", "UpsertMetadata"),
+				Name:     "upsert",
+				Schema:   schemaRefField("j5.messaging.v1", "UpsertMetadata"),
+				Required: true,
 			}},
 		}, visitor)
 
@@ -162,8 +163,9 @@ func acceptMultiReqResTopic(source SourceNode, name string, topic *sourcedef_j5p
 			},
 		},
 		prependFields: []*schema_j5pb.ObjectProperty{{
-			Name:   "request",
-			Schema: schemaRefField("j5.messaging.v1", "RequestMetadata"),
+			Name:     "request",
+			Schema:   schemaRefField("j5.messaging.v1", "RequestMetadata"),
+			Required: true,
 		}},
 	}, visitor); err != nil {
 		return fmt.Errorf("req: %w", err)
@@ -179,8 +181,9 @@ func acceptMultiReqResTopic(source SourceNode, name string, topic *sourcedef_j5p
 			},
 		},
 		prependFields: []*schema_j5pb.ObjectProperty{{
-			Name:   "request",
-			Schema: schemaRefField("j5.messaging.v1", "RequestMetadata"),
+			Name:     "request",
+			Schema:   schemaRefField("j5.messaging.v1", "RequestMetadata"),
+			Required: true,
 		}},
 	}, visitor); err != nil {
 		return fmt.Errorf("req: %w", err)
