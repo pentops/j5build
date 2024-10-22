@@ -111,7 +111,7 @@ func testImage() *source_j5pb.SourceImage {
 						Type:   descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum(),
 						Number: proto.Int32(1),
 					}, &validate.FieldConstraints{
-						Required: true,
+						Required: proto.Bool(true),
 					}), {
 						Name:   proto.String("query_field"),
 						Type:   descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum(),

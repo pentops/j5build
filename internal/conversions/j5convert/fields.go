@@ -41,7 +41,7 @@ func buildProperty(ww *walkContext, node *sourcewalk.PropertyNode) (*descriptorp
 			ext = &validate.FieldConstraints{}
 		}
 		ww.file.ensureImport(bufValidateImport)
-		ext.Required = true
+		ext.Required = ptr(true)
 		proto.SetExtension(desc.Options, validate.E_Field, ext)
 		ww.file.ensureImport(j5ExtImport)
 	}
