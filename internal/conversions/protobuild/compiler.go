@@ -109,7 +109,7 @@ func (c *Compiler) loadPackage(ctx context.Context, name string, chain []string)
 
 	files, err := c.Resolver.PackageFiles(ctx, name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("package files for %s: %w", name, err)
 	}
 
 	pkg := &Package{
@@ -135,7 +135,7 @@ func (c *Compiler) loadPackage(ctx context.Context, name string, chain []string)
 		}
 		depPkg, err := c.loadPackage(ctx, dep, append(chain, name))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("loadPackage %s: %w", dep, err)
 		}
 		pkg.DirectDependencies[dep] = depPkg
 	}

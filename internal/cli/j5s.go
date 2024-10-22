@@ -158,7 +158,7 @@ func runJ5sGenProto(ctx context.Context, cfg struct {
 		return err
 	}
 
-	return cfg.EachBundle(ctx, func(bundle source.Bundle) error {
+	err = cfg.EachBundle(ctx, func(bundle source.Bundle) error {
 
 		bundleDir := bundle.DirInRepo()
 
@@ -200,7 +200,7 @@ func runJ5sGenProto(ctx context.Context, cfg struct {
 		for _, pkg := range packages {
 			out, err := compiler.CompilePackage(ctx, pkg)
 			if err != nil {
-				return err
+				return fmt.Errorf("compile package: %w", err)
 			}
 
 			for _, file := range out {
@@ -227,6 +227,17 @@ func runJ5sGenProto(ctx context.Context, cfg struct {
 		return nil
 	})
 
+	if err == nil {
+		return nil
+	}
+
+	e, ok := errpos.AsErrorsWithSource(err)
+	if !ok {
+		return err
+	}
+	fmt.Fprintln(os.Stderr, e.HumanString(3))
+
+	return err
 }
 
 type fileReader struct {

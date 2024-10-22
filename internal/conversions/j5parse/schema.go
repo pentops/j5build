@@ -241,6 +241,9 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 			Name: "entity",
 			Path: bclPath("elements", "entity"),
 		}, {
+			Name: "service",
+			Path: bclPath("elements", "service"),
+		}, {
 			Name: "topic",
 			Path: bclPath("elements", "topic"),
 		}},
