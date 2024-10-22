@@ -110,8 +110,19 @@ func newSourceSet(locs *bcl_j5pb.SourceLocation) sourceSet {
 	}
 }
 
+func maybeString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
 func (s sourceSet) addViolation(violation *validate.Violation) {
-	path := strings.Split(violation.FieldPath, ".")
+	msg := maybeString(violation.Message)
+	if violation.FieldPath == nil {
+		s.err(errors.New(msg))
+		return
+	}
+	path := strings.Split(*violation.FieldPath, ".")
 	fullPath := make([]string, 0)
 	for i, p := range path {
 		parts := strings.Split(p, "[")
@@ -129,7 +140,7 @@ func (s sourceSet) addViolation(violation *validate.Violation) {
 	for _, p := range fullPath {
 		ss = ss.field(p)
 	}
-	ss.err(fmt.Errorf("%s: %s", violation.FieldPath, violation.Message))
+	ss.err(fmt.Errorf("%s: %s", *violation.FieldPath, msg))
 }
 
 func (s sourceSet) field(name string) sourceSet {
