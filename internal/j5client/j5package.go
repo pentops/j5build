@@ -203,6 +203,7 @@ func (mm *Method) ToJ5Proto() (*client_j5pb.Method, error) {
 		HttpPath:     mm.HTTPPath,
 		Request:      mm.Request.ToJ5Proto(),
 		Auth:         mm.Auth,
+		MethodType:   mm.MethodType,
 	}
 	if mm.ResponseBody != nil {
 		out.ResponseBody = mm.ResponseBody.ToJ5ClientObject()

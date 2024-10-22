@@ -2,6 +2,7 @@ package protobuild
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -219,7 +220,9 @@ func TestCircularDependency(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected error, got nil")
 	}
-	if _, ok := err.(*CircularDependencyError); !ok {
-		t.Fatalf("Expected CircularDependencyError, got %T", err)
+	cde := &CircularDependencyError{}
+
+	if !errors.As(err, &cde) {
+		t.Fatalf("Expected CircularDependencyError, got %T (%s)", err, err.Error())
 	}
 }
