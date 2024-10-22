@@ -33,5 +33,5 @@ plugins:
   - name: go-sugar
     type: PLUGIN_PROTO
     docker:
-      image: ghcr.io/pentops/protoc-gen-go-sugar:19495b5f5ac3fd3964a03031396d83f1bc1341ca
+      image: ghcr.io/pentops/protoc-gen-go-sugar:b1e769eeea97192209ab5a4e8fc560bf72ce5ba7
 

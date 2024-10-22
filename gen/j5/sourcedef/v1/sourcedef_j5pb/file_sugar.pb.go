@@ -2,6 +2,10 @@
 
 package sourcedef_j5pb
 
+import (
+	proto "google.golang.org/protobuf/proto"
+)
+
 type IsRootElement_Type = isRootElement_Type
 type IsNestedSchema_Type = isNestedSchema_Type
 
@@ -29,6 +33,7 @@ func (x *TopicType) TypeKey() (TopicTypeKey, bool) {
 
 type IsTopicTypeWrappedType interface {
 	TypeKey() TopicTypeKey
+	proto.Message
 }
 
 func (x *TopicType) Set(val IsTopicTypeWrappedType) {

@@ -2,6 +2,10 @@
 
 package config_j5pb
 
+import (
+	proto "google.golang.org/protobuf/proto"
+)
+
 // OutputType is a oneof wrapper
 type OutputTypeKey string
 
@@ -20,6 +24,7 @@ func (x *OutputType) TypeKey() (OutputTypeKey, bool) {
 
 type IsOutputTypeWrappedType interface {
 	TypeKey() OutputTypeKey
+	proto.Message
 }
 
 func (x *OutputType) Set(val IsOutputTypeWrappedType) {

@@ -5,6 +5,7 @@ package foo_testpb
 import (
 	driver "database/sql/driver"
 	fmt "fmt"
+	proto "google.golang.org/protobuf/proto"
 )
 
 // FooEventType is a oneof wrapper
@@ -28,6 +29,7 @@ func (x *FooEventType) TypeKey() (FooEventTypeKey, bool) {
 
 type IsFooEventTypeWrappedType interface {
 	TypeKey() FooEventTypeKey
+	proto.Message
 }
 
 func (x *FooEventType) Set(val IsFooEventTypeWrappedType) {
