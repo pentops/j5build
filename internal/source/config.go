@@ -7,7 +7,7 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/bufbuild/protoyaml-go"
+	"buf.build/go/protoyaml"
 	"github.com/pentops/j5build/gen/j5/config/v1/config_j5pb"
 	"google.golang.org/protobuf/proto"
 )
