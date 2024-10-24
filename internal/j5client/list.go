@@ -62,14 +62,13 @@ func buildListRequest(response j5schema.RootSchema) (*client_j5pb.ListRequest, e
 		out.FilterableFields = append(out.FilterableFields, filter)
 	}
 
-	addSort := func(schema j5schema.WalkProperty, sorting *list_j5pb.SortingConstraint) {
+	addSort := func(schema j5schema.WalkProperty, sorting *list_j5pb.SortingConstraint, defaultDirection client_j5pb.ListRequest_SortField_Direction) {
 		if sorting == nil {
 			return
 		}
 		var ds *client_j5pb.ListRequest_SortField_Direction
 		if sorting.DefaultSort {
-			direction := client_j5pb.ListRequest_SortField_DIRECTION_ASC
-			ds = &direction
+			ds = &defaultDirection
 		}
 		out.SortableFields = append(out.SortableFields, &client_j5pb.ListRequest_SortField{
 			Name:        strings.Join(schema.Path, "."),
@@ -126,13 +125,13 @@ func buildListRequest(response j5schema.RootSchema) (*client_j5pb.ListRequest, e
 			case *schema_j5pb.Field_Float:
 				if scalar.Float.ListRules != nil {
 					addFilter(schema, scalar.Float.ListRules.Filtering)
-					addSort(schema, scalar.Float.ListRules.Sorting)
+					addSort(schema, scalar.Float.ListRules.Sorting, client_j5pb.ListRequest_SortField_DIRECTION_ASC)
 				}
 
 			case *schema_j5pb.Field_Integer:
 				if scalar.Integer.ListRules != nil {
 					addFilter(schema, scalar.Integer.ListRules.Filtering)
-					addSort(schema, scalar.Integer.ListRules.Sorting)
+					addSort(schema, scalar.Integer.ListRules.Sorting, client_j5pb.ListRequest_SortField_DIRECTION_ASC)
 				}
 
 			case *schema_j5pb.Field_Key:
@@ -154,7 +153,7 @@ func buildListRequest(response j5schema.RootSchema) (*client_j5pb.ListRequest, e
 			case *schema_j5pb.Field_Timestamp:
 				if scalar.Timestamp.ListRules != nil {
 					addFilter(schema, scalar.Timestamp.ListRules.Filtering)
-					addSort(schema, scalar.Timestamp.ListRules.Sorting)
+					addSort(schema, scalar.Timestamp.ListRules.Sorting, client_j5pb.ListRequest_SortField_DIRECTION_DESC)
 				}
 
 			case *schema_j5pb.Field_String_:
