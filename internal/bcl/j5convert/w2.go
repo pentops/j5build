@@ -2,7 +2,7 @@ package j5convert
 
 import (
 	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
-	"github.com/pentops/j5build/internal/conversions/sourcewalk"
+	"github.com/pentops/j5build/internal/bcl/sourcewalk"
 )
 
 func convertFile(ww *walkContext, src *sourcedef_j5pb.SourceFile) error {

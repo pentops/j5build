@@ -3,7 +3,7 @@ package j5convert
 import (
 	"github.com/iancoleman/strcase"
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
-	"github.com/pentops/j5build/internal/conversions/sourcewalk"
+	"github.com/pentops/j5build/internal/bcl/sourcewalk"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )

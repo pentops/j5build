@@ -14,8 +14,8 @@ import (
 	"github.com/jhump/protoreflect/desc/sourceinfo"
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
-	"github.com/pentops/j5build/internal/conversions/j5convert"
-	"github.com/pentops/j5build/internal/conversions/j5parse"
+	"github.com/pentops/j5build/internal/bcl/j5convert"
+	"github.com/pentops/j5build/internal/bcl/j5parse"
 	"github.com/pentops/j5build/internal/protosrc"
 	"google.golang.org/protobuf/types/descriptorpb"
 )

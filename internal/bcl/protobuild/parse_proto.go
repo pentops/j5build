@@ -7,7 +7,7 @@ import (
 
 	proto_parser "github.com/bufbuild/protocompile/parser"
 	"github.com/bufbuild/protocompile/reporter"
-	"github.com/pentops/j5build/internal/conversions/j5convert"
+	"github.com/pentops/j5build/internal/bcl/j5convert"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"

@@ -11,7 +11,7 @@ import (
 	"github.com/bufbuild/protocompile"
 	"github.com/bufbuild/protocompile/linker"
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/j5build/internal/conversions/j5convert"
+	"github.com/pentops/j5build/internal/bcl/j5convert"
 	"github.com/pentops/j5build/internal/protosrc"
 )
 
