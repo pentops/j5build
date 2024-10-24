@@ -435,6 +435,15 @@ func buildField(ww *walkContext, node sourcewalk.FieldNode) (*descriptorpb.Field
 			proto.SetExtension(desc.Options, validate.E_Field, rules)
 		}
 
+		if st.Timestamp.ListRules != nil {
+			ww.file.ensureImport(j5ListAnnotationsImport)
+			proto.SetExtension(desc.Options, list_j5pb.E_Field, &list_j5pb.FieldConstraint{
+				Type: &list_j5pb.FieldConstraint_Timestamp{
+					Timestamp: st.Timestamp.ListRules,
+				},
+			})
+		}
+
 		return desc, nil
 	case *schema_j5pb.Field_Any:
 
