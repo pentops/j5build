@@ -2,48 +2,94 @@ package protobuild
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	proto_parser "github.com/bufbuild/protocompile/parser"
 	"github.com/bufbuild/protocompile/reporter"
+	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/j5build/internal/bcl/j5convert"
+	"github.com/pentops/log.go/log"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-type ProtoParser struct {
-	handler *reporter.Handler
+func ptr[T any](v T) *T {
+	return &v
 }
 
-func NewProtoParser(rep reporter.Reporter) *ProtoParser {
-	reportHandler := reporter.NewHandler(rep)
-	return &ProtoParser{handler: reportHandler}
+func hasAPrefix(s string, prefixes []string) bool {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(s, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
-func (pp ProtoParser) protoToDescriptor(filename string, data []byte) (proto_parser.Result, *j5convert.FileSummary, error) {
-	fileNode, err := proto_parser.Parse(filename, bytes.NewReader(data), pp.handler)
+var ErrNotFound = errors.New("File not found")
+
+func contextReporter(ctx context.Context) reporter.Reporter {
+
+	errs := func(err reporter.ErrorWithPos) error {
+		pos := err.GetPosition()
+		errWithoutPos := err.Unwrap()
+		log.WithFields(ctx, map[string]interface{}{
+			"line":   pos.Line,
+			"column": pos.Col,
+			"file":   pos.Filename,
+			"error":  errWithoutPos.Error(),
+		}).Error("Compiler Error (BCL)")
+		return errpos.AddPosition(err.Unwrap(), errpos.Position{
+			Filename: ptr(pos.Filename),
+			Start: errpos.Point{
+				Line:   pos.Line - 1,
+				Column: pos.Col - 1,
+			},
+		})
+	}
+
+	warnings := func(err reporter.ErrorWithPos) {
+		pos := err.GetPosition()
+		errWithoutPos := err.Unwrap()
+		log.WithFields(ctx, map[string]interface{}{
+			"line":   pos.Line,
+			"column": pos.Col,
+			"file":   pos.Filename,
+			"error":  errWithoutPos.Error(),
+		}).Warn("Compiler Warning (BCL)")
+	}
+
+	return reporter.NewReporter(errs, warnings)
+}
+
+func protoToDescriptor(ctx context.Context, filename string, data []byte) (proto_parser.Result, *j5convert.FileSummary, error) {
+	ctx = log.WithField(ctx, "parseStep", "protoToDescriptor")
+	reportHandler := reporter.NewHandler(contextReporter(ctx))
+	fileNode, err := proto_parser.Parse(filename, bytes.NewReader(data), reportHandler)
 	if err != nil {
 		return nil, nil, err
 	}
-	result, err := proto_parser.ResultFromAST(fileNode, true, pp.handler)
+	result, err := proto_parser.ResultFromAST(fileNode, true, reportHandler)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	summary, err := pp.buildSummaryFromDescriptor(result.FileDescriptorProto())
+	summary, err := buildSummaryFromDescriptor(result.FileDescriptorProto())
 	if err != nil {
 		return nil, nil, err
 	}
 	return result, summary, nil
 }
 
-func (pp ProtoParser) buildSummaryFromReflect(res protoreflect.FileDescriptor) (*j5convert.FileSummary, error) {
-	return pp.buildSummaryFromDescriptor(protodesc.ToFileDescriptorProto(res))
+func buildSummaryFromReflect(res protoreflect.FileDescriptor) (*j5convert.FileSummary, error) {
+	return buildSummaryFromDescriptor(protodesc.ToFileDescriptorProto(res))
 }
 
-func (pp ProtoParser) buildSummaryFromDescriptor(res *descriptorpb.FileDescriptorProto) (*j5convert.FileSummary, error) {
+func buildSummaryFromDescriptor(res *descriptorpb.FileDescriptorProto) (*j5convert.FileSummary, error) {
 	filename := res.GetName()
 	exports := map[string]*j5convert.TypeRef{}
 
@@ -71,7 +117,11 @@ func (pp ProtoParser) buildSummaryFromDescriptor(res *descriptorpb.FileDescripto
 	return &j5convert.FileSummary{
 		Exports:          exports,
 		FileDependencies: res.Dependency,
+		ProducesFiles:    []string{filename},
+		Package:          res.GetPackage(),
+
 		// No type dependencies for proto files, all deps come from the files.
+		TypeDependencies: nil,
 	}, nil
 }
 

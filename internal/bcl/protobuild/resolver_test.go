@@ -74,68 +74,33 @@ func TestFileLoad(t *testing.T) {
 		},
 	}
 
-	rr, err := NewResolver(tf, tf)
+	rr, err := newResolver(tf)
 	if err != nil {
 		t.Fatalf("FATAL: Unexpected error: %s", err.Error())
 	}
+	ctx := context.Background()
 
 	t.Run("Inbuilt", func(t *testing.T) {
 		path := "j5/list/v1/query.proto"
-		result, err := rr.findFileByPath(path)
+		result, err := rr.readFile(ctx, path)
 		if err != nil {
 			t.Fatalf("FATAL: Unexpected error: %s", err.Error())
 		}
-		if result.Result == nil || result.Result.Desc == nil {
-			t.Fatal("FATAL: Desc is nil")
+		if result.Refl == nil {
+			t.Fatal("FATAL: result.Refl is nil")
 		}
-		assert.Equal(t, path, result.Result.Desc.Path())
+		assert.Equal(t, path, result.Refl.Path())
 	})
 
 	t.Run("External", func(t *testing.T) {
-		result, err := rr.findFileByPath("external/v1/foo.proto")
+		result, err := rr.readFile(ctx, "external/v1/foo.proto")
 		if err != nil {
 			t.Fatalf("FATAL: Unexpected error: %s", err.Error())
 		}
-		if result.Result == nil || result.Result.Proto == nil {
-			t.Fatal("FATAL: Proto is nil")
+		if result.Desc == nil {
+			t.Fatal("FATAL: result.Desc is nil")
 		}
-		assert.Equal(t, "external/v1/foo.proto", *result.Result.Proto.Name)
-	})
-
-	t.Run("Local Proto", func(t *testing.T) {
-		result, err := rr.findFileByPath("local/v1/foo.proto")
-		if err != nil {
-			t.Fatalf("FATAL: Unexpected error: %s", err.Error())
-		}
-		if result.Result == nil {
-			t.Fatal("FATAL: Source is nil")
-		}
-	})
-
-	t.Run("Local j5 file", func(t *testing.T) {
-		t.Skip("Not implemented")
-		result, err := rr.findFileByPath("local/v1/foo/foo.j5s")
-		if err != nil {
-			t.Fatalf("FATAL: Unexpected error: %s", err.Error())
-		}
-		if result.Result != nil {
-			t.Fatal("Somehow find file got a result...")
-		}
-		if result.J5Source == nil {
-			t.Fatal("FATAL: J5Source is nil")
-		}
-
-	})
-
-	t.Run("Local j5 service file", func(t *testing.T) {
-		t.Skip("Not implemented")
-		result, err := rr.findFileByPath("local/v1/foo/service/foo.j5s")
-		if err != nil {
-			t.Fatalf("FATAL: Unexpected error: %s", err.Error())
-		}
-		if result.J5Source == nil {
-			t.Fatal("FATAL: J5 Source is nil")
-		}
+		assert.Equal(t, "external/v1/foo.proto", *result.Desc.Name)
 	})
 
 }
@@ -167,12 +132,10 @@ func TestResolveType(t *testing.T) {
 		},
 	}
 
-	rr, err := NewResolver(tf, tf)
+	cc, err := NewCompiler(tf, tf)
 	if err != nil {
 		t.Fatalf("FATAL: Unexpected error: %s", err.Error())
 	}
-
-	cc := NewCompiler(rr)
 
 	out, err := cc.CompilePackage(ctx, "local.v1")
 	if err != nil {
@@ -209,12 +172,10 @@ func TestCircularDependency(t *testing.T) {
 		localPackages: []string{"foo.v1", "bar.v1", "baz.v1"},
 	}
 
-	rr, err := NewResolver(tf, tf)
+	cc, err := NewCompiler(tf, tf)
 	if err != nil {
 		t.Fatalf("FATAL: Unexpected error: %s", err.Error())
 	}
-
-	cc := NewCompiler(rr)
 
 	_, err = cc.loadPackage(ctx, "foo.v1", nil)
 	if err == nil {

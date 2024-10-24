@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/bufbuild/protocompile"
+	"github.com/bufbuild/protocompile/linker"
 	"github.com/bufbuild/protocompile/reporter"
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/log.go/log"
@@ -25,9 +26,9 @@ func NewCompiler(resolver protocompile.Resolver) *Compiler {
 	}
 }
 
-func (cc *Compiler) Compile(ctx context.Context, filenames []string) ([]*descriptorpb.FileDescriptorProto, error) {
+func (cc *Compiler) CompileToLinkers(ctx context.Context, filenames []string) (linker.Files, error) {
 	errs := func(err reporter.ErrorWithPos) error {
-		log.WithError(ctx, err).Error("Compiler Error")
+		log.WithError(ctx, err).Error("Compiler Error (protosrc)")
 		pos := err.GetPosition()
 		return errpos.AddPosition(err.Unwrap(), errpos.Position{
 			Filename: &pos.Filename,
@@ -39,7 +40,7 @@ func (cc *Compiler) Compile(ctx context.Context, filenames []string) ([]*descrip
 	}
 
 	warnings := func(err reporter.ErrorWithPos) {
-		log.WithError(ctx, err).Warn("Compiler Warning")
+		log.WithError(ctx, err).Warn("Compiler Warning (protosrc)")
 	}
 
 	pcCompiler := protocompile.Compiler{
@@ -55,6 +56,15 @@ func (cc *Compiler) Compile(ctx context.Context, filenames []string) ([]*descrip
 			fmt.Printf("PANIC: %s\n", panicErr.Stack)
 		}
 
+		return nil, err
+	}
+	return customDesc, nil
+}
+
+func (cc *Compiler) Compile(ctx context.Context, filenames []string) ([]*descriptorpb.FileDescriptorProto, error) {
+
+	customDesc, err := cc.CompileToLinkers(ctx, filenames)
+	if err != nil {
 		return nil, err
 	}
 

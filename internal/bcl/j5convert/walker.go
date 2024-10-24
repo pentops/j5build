@@ -45,6 +45,14 @@ func newRoot(deps Package, imports *importMap, file *FileBuilder, source *bcl_j5
 
 var _ rootContext = &Root{}
 
+func subPackageFileName(sourceFilename, subPackage string) string {
+	dirName, baseName := path.Split(sourceFilename)
+	baseRoot := strings.TrimSuffix(baseName, ".j5s.proto")
+	newBase := fmt.Sprintf("%s.p.j5s.proto", baseRoot)
+	subName := path.Join(dirName, subPackage, newBase)
+	return subName
+}
+
 func (rr *Root) subPackageFile(subPackage string) fileContext {
 	fullPackage := fmt.Sprintf("%s.%s", rr.packageName, subPackage)
 
@@ -53,14 +61,9 @@ func (rr *Root) subPackageFile(subPackage string) fileContext {
 			return search
 		}
 	}
-
 	rootName := *rr.mainFile.fdp.Name
-	dirName, baseName := path.Split(rootName)
+	subName := subPackageFileName(rootName, subPackage)
 
-	baseRoot := strings.TrimSuffix(baseName, ".j5s.proto")
-	newBase := fmt.Sprintf("%s.p.j5s.proto", baseRoot)
-
-	subName := path.Join(dirName, subPackage, newBase)
 	found := newFileBuilder(subName)
 
 	found.fdp.Package = &fullPackage
