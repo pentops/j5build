@@ -4,10 +4,10 @@ go 1.22.4
 
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.35.1-20240920164238-5a7b106cbb87.1
+	buf.build/go/protoyaml v0.2.0
 	github.com/aws/aws-sdk-go-v2/config v1.28.0
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.36.2
 	github.com/bufbuild/protocompile v0.14.1
-	github.com/bufbuild/protoyaml-go v0.1.12
 	github.com/docker/docker v27.3.1+incompatible
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.6.0
