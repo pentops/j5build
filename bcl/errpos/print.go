@@ -53,23 +53,26 @@ func AsErrorsWithSource(err error) (*ErrorsWithSource, bool) {
 func humanString(err *Err, lines []string, context int) string {
 	out := &strings.Builder{}
 
-	out.WriteString("Parser Error: ")
-	out.WriteString("\n")
-
 	func() {
-		if err.Pos == nil {
+		if err.Pos == nil || err.Pos.isEmpty() {
 			out.WriteString("<no position information>")
 			out.WriteString("\n")
 			return
 		}
+
 		out.WriteString(fmt.Sprintf("Position: %s\n", err.Pos.String()))
+
+		if err.Pos.Start.isEmpty() {
+			return
+		}
+		out.WriteString(fmt.Sprintf("LIT: %d %d\n", err.Pos.Start.Line, err.Pos.Start.Column))
 
 		pos := *err.Pos
 
 		startLine := pos.Start.Line + 1
 		startCol := pos.Start.Column + 1
 		if startLine > len(lines) {
-			out.WriteString(fmt.Sprintf("<line %d out of range (len %d)>", startLine, len(lines)))
+			out.WriteString(fmt.Sprintf("<line %d out of range (len %d) - a>", startLine, len(lines)))
 			out.WriteString("\n")
 			return
 		}
@@ -86,7 +89,7 @@ func humanString(err *Err, lines []string, context int) string {
 		}
 
 		if startLine > len(lines) || startLine < 1 {
-			out.WriteString(fmt.Sprintf("<line %d out of range (len %d)>", startLine, len(lines)))
+			out.WriteString(fmt.Sprintf("<line %d out of range (len %d) - b>", startLine, len(lines)))
 			out.WriteString("\n")
 			return
 		}

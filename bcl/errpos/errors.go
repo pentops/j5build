@@ -9,6 +9,19 @@ import (
 	"strings"
 )
 
+type Point struct {
+	Line   int
+	Column int
+}
+
+func (p Point) String() string {
+	return fmt.Sprintf("%d:%d", p.Line+1, p.Column+1)
+}
+
+func (p Point) isEmpty() bool {
+	return p.Line < 0 && p.Column < 0
+}
+
 // Position represents a position within a file-like string
 type Position struct {
 	// Optional filename. Nothing special about the value but
@@ -19,23 +32,30 @@ type Position struct {
 	End   Point
 }
 
+func (p Position) isEmpty() bool {
+	if !p.Start.isEmpty() {
+		return false
+	}
+	if !p.End.isEmpty() {
+		return false
+	}
+	if p.Filename != nil {
+		return false
+	}
+	return true
+}
+
 func (p Position) Position() Position {
 	return p
-}
-
-type Point struct {
-	Line   int
-	Column int
-}
-
-func (p Point) String() string {
-	return fmt.Sprintf("%d:%d", p.Line+1, p.Column+1)
 }
 
 func (p Position) String() string {
 	prefix := ""
 	if p.Filename != nil {
 		prefix = *p.Filename + ":"
+	}
+	if p.Start.isEmpty() {
+		return prefix
 	}
 	return fmt.Sprintf("%s%d:%d", prefix, p.Start.Line+1, p.Start.Column+1)
 }

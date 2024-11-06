@@ -2,50 +2,25 @@ package lsp
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 
 	"github.com/pentops/bcl.go/internal/parser"
-	"github.com/sourcegraph/jsonrpc2"
+	"go.lsp.dev/protocol"
 )
-
-func (h *langHandler) handleTextDocumentFormatting(ctx context.Context, _ *jsonrpc2.Conn, req *jsonrpc2.Request) (result any, err error) {
-	if req.Params == nil {
-		return nil, &jsonrpc2.Error{Code: jsonrpc2.CodeInvalidParams}
-	}
-
-	var params DocumentFormattingParams
-	if err := json.Unmarshal(*req.Params, &params); err != nil {
-		return nil, err
-	}
-
-	doc, err := h.buildRequest(params.TextDocument.URI)
-	if err != nil {
-		return nil, fmt.Errorf("failed to build request: %v", err)
-	}
-
-	diffs, err := h.Handlers.Fmter.FormatFile(ctx, doc)
-	if err != nil {
-		return nil, fmt.Errorf("failed to format: %v", err)
-	}
-	return diffs, nil
-
-}
 
 type ASTFormatter struct{}
 
-func (f ASTFormatter) FormatFile(ctx context.Context, doc *FileRequest) ([]TextEdit, error) {
-	diffs, err := parser.FmtDiffs(doc.Content)
+func (f ASTFormatter) Format(ctx context.Context, doc *protocol.TextDocumentItem) ([]protocol.TextEdit, error) {
+	diffs, err := parser.FmtDiffs(doc.Text)
 	if err != nil {
 		return nil, err
 	}
 
-	edits := make([]TextEdit, 0, len(diffs))
+	edits := make([]protocol.TextEdit, 0, len(diffs))
 	for _, diff := range diffs {
-		edits = append(edits, TextEdit{
-			Range: Range{
-				Start: Position{Line: diff.FromLine, Character: 0},
-				End:   Position{Line: diff.ToLine, Character: 0},
+		edits = append(edits, protocol.TextEdit{
+			Range: protocol.Range{
+				Start: protocol.Position{Line: uint32(diff.FromLine), Character: 0},
+				End:   protocol.Position{Line: uint32(diff.ToLine), Character: 0},
 			},
 			NewText: diff.NewText,
 		})
