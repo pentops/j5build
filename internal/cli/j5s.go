@@ -7,12 +7,12 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/pentops/bcl.go/bcl"
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/j5build/internal/conversions/j5parse"
-	"github.com/pentops/j5build/internal/conversions/protobuild"
+	"github.com/pentops/j5build/internal/bcl/protobuild"
 	"github.com/pentops/j5build/internal/source"
 	"github.com/pentops/prototools/protoprint"
 	"github.com/pentops/runner/commander"
@@ -27,57 +27,120 @@ func j5sSet() *commander.CommandSet {
 }
 
 func runJ5sLint(ctx context.Context, cfg struct {
-	Dir  string `flag:"dir" required:"false" description:"Source / working directory containing j5.yaml and buf.lock.yaml"`
+	Dir  string `flag:"dir" required:"false" description:"Source / working directory containing j5.yaml"`
 	File string `flag:"file" required:"false" description:"Single file to format"`
 }) error {
 
-	parser, err := bcl.NewParser(j5parse.J5SchemaSpec)
+	resolver, err := source.NewEnvResolver()
 	if err != nil {
 		return err
 	}
 
-	allOK := true
-	doFile := func(ctx context.Context, pathname string, data []byte) error {
-		_, mainError := parser.ParseFile(pathname, string(data), j5parse.FileStub(pathname))
-		if mainError == nil {
+	if cfg.Dir == "" {
+		cfg.Dir, err = os.Getwd()
+		if err != nil {
+			return err
+		}
+	}
+	fsRoot := os.DirFS(cfg.Dir)
+	srcRoot, err := source.NewFSRepoRoot(ctx, fsRoot, resolver)
+	if err != nil {
+		return err
+	}
+
+	bundles := srcRoot.AllBundles()
+	if cfg.File != "" {
+		fullDir, err := filepath.Abs(cfg.Dir)
+		if err != nil {
+			return err
+		}
+		var bundle source.Bundle
+		var relToBundle string
+		for _, search := range bundles {
+			bundleDir := filepath.Join(fullDir, search.DirInRepo())
+			rel, err := filepath.Rel(bundleDir, cfg.File)
+			if err != nil {
+				continue
+			}
+			if strings.HasPrefix(rel, "..") {
+				continue
+			}
+			bundle = search
+			relToBundle = rel
+		}
+
+		if bundle == nil {
+			return fmt.Errorf("File %s not found in any bundle", cfg.File)
+		}
+
+		deps, err := bundle.GetDependencies(ctx, srcRoot)
+		if err != nil {
+			return err
+		}
+
+		localFiles, err := protobuild.NewBundleResolver(ctx, bundle)
+		if err != nil {
+			return err
+		}
+
+		compiler, err := protobuild.NewPackageSet(deps, localFiles)
+		if err != nil {
+			return err
+		}
+
+		data, err := fs.ReadFile(bundle.FS(), relToBundle)
+		if err != nil {
+			return err
+		}
+
+		lintErr, err := protobuild.LintFile(ctx, compiler, relToBundle, string(data))
+		if err != nil {
+			return err
+		}
+		if lintErr == nil {
+			fmt.Fprintln(os.Stderr, "No linting errors")
 			return nil
 		}
-
-		locErr, ok := errpos.AsErrorsWithSource(mainError)
-		if !ok {
-			return mainError
-		}
-
-		log.Println(locErr.HumanString(2))
-
-		allOK = false
-		return nil
+		fmt.Fprintln(os.Stderr, lintErr.HumanString(2))
+		return fmt.Errorf("Linting failed")
 	}
 
-	if cfg.File != "" {
-		if cfg.Dir != "" {
-			return fmt.Errorf("Cannot specify both dir and file")
-		}
-		data, err := os.ReadFile(cfg.File)
+	hadErrors := false
+
+	for _, bundle := range bundles {
+
+		deps, err := bundle.GetDependencies(ctx, srcRoot)
 		if err != nil {
 			return err
 		}
-		err = doFile(ctx, cfg.File, data)
+
+		localFiles, err := protobuild.NewBundleResolver(ctx, bundle)
 		if err != nil {
 			return err
 		}
-		return nil
+
+		compiler, err := protobuild.NewPackageSet(deps, localFiles)
+		if err != nil {
+			return err
+		}
+
+		lintErr, err := protobuild.LintAll(ctx, compiler)
+		if err != nil {
+			return err
+		}
+		if lintErr == nil {
+			continue
+		}
+		hadErrors = true
+		fmt.Fprintln(os.Stderr, lintErr.HumanString(2))
 	}
 
-	err = runForJ5Files(ctx, os.DirFS(cfg.Dir), doFile)
-	if err != nil {
-		return err
-	}
-	if allOK {
-		return nil
+	if hadErrors {
+		return fmt.Errorf("Linting failed")
 	}
 
-	return fmt.Errorf("Linting failed")
+	fmt.Fprintln(os.Stderr, "No linting errors")
+	return nil
 }
 
 func runJ5sFmt(ctx context.Context, cfg struct {
@@ -160,32 +223,17 @@ func runJ5sGenProto(ctx context.Context, cfg struct {
 
 	err = cfg.EachBundle(ctx, func(bundle source.Bundle) error {
 
-		bundleDir := bundle.DirInRepo()
-
-		bundleConfig, err := bundle.J5Config()
-		if err != nil {
-			return err
-		}
-
-		bundleFS := bundle.FS()
-
-		packages := []string{}
-		for _, pkg := range bundleConfig.Packages {
-			packages = append(packages, pkg.Name)
-		}
-
-		localFiles := &fileReader{
-			fs:       bundleFS,
-			fsName:   bundleDir,
-			packages: packages,
-		}
-
 		deps, err := bundle.GetDependencies(ctx, src)
 		if err != nil {
 			return err
 		}
 
-		resolver, err := protobuild.NewResolver(deps, localFiles)
+		localFiles, err := protobuild.NewBundleResolver(ctx, bundle)
+		if err != nil {
+			return err
+		}
+
+		compiler, err := protobuild.NewPackageSet(deps, localFiles)
 		if err != nil {
 			return err
 		}
@@ -195,9 +243,7 @@ func runJ5sGenProto(ctx context.Context, cfg struct {
 			return err
 		}
 
-		compiler := protobuild.NewCompiler(resolver)
-
-		for _, pkg := range packages {
+		for _, pkg := range localFiles.ListPackages() {
 			out, err := compiler.CompilePackage(ctx, pkg)
 			if err != nil {
 				return fmt.Errorf("compile package: %w", err)
@@ -238,64 +284,4 @@ func runJ5sGenProto(ctx context.Context, cfg struct {
 	fmt.Fprintln(os.Stderr, e.HumanString(3))
 
 	return err
-}
-
-type fileReader struct {
-	fs       fs.FS
-	fsName   string
-	packages []string
-}
-
-func (rr *fileReader) GetLocalFile(ctx context.Context, filename string) ([]byte, error) {
-	return fs.ReadFile(rr.fs, filename)
-}
-
-func (rr *fileReader) ListPackages() []string {
-	return rr.packages
-}
-
-func (rr *fileReader) ListSourceFiles(ctx context.Context, pkgName string) ([]string, error) {
-	pkgRoot := strings.ReplaceAll(pkgName, ".", "/")
-
-	files := make([]string, 0)
-	err := fs.WalkDir(rr.fs, pkgRoot, func(path string, dirEntry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if dirEntry.IsDir() {
-			return nil
-		}
-		if strings.HasSuffix(path, ".j5s.proto") {
-			return nil
-		}
-		if strings.HasSuffix(path, ".proto") || strings.HasSuffix(path, ".j5s") {
-			files = append(files, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("walk %s: %w", rr.fsName, err)
-	}
-	return files, nil
-}
-
-func (rr *fileReader) ListJ5Files(ctx context.Context) ([]string, error) {
-	files := make([]string, 0)
-	err := fs.WalkDir(rr.fs, ".", func(path string, dirEntry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if dirEntry.IsDir() {
-			return nil
-		}
-		if strings.HasSuffix(path, ".j5s") {
-			files = append(files, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return files, nil
-
 }

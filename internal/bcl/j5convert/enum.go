@@ -7,7 +7,7 @@ import (
 	"github.com/iancoleman/strcase"
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
-	"github.com/pentops/j5build/internal/conversions/sourcewalk"
+	"github.com/pentops/j5build/internal/bcl/sourcewalk"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
@@ -79,7 +79,7 @@ func (e *EnumBuilder) addValue(number int32, schema *schema_j5pb.Enum_Option) {
 		Number: ptr(number),
 	}
 
-	if schema.Info != nil && len(schema.Info) > 0 {
+	if len(schema.Info) > 0 {
 		value.Options = &descriptorpb.EnumValueOptions{}
 		proto.SetExtension(value.Options, ext_j5pb.E_EnumValue, &ext_j5pb.EnumValueOptions{
 			Info: schema.Info,

@@ -93,7 +93,7 @@ func (cfg SourceConfig) WriteFile(filename string, data []byte) error {
 	return os.WriteFile(filepath.Join(cfg.Source, filename), data, 0644)
 }
 
-func (cfg SourceConfig) GetSource(ctx context.Context) (*source.Source, error) {
+func (cfg SourceConfig) GetSource(ctx context.Context) (*source.RepoRoot, error) {
 
 	resolver, err := source.NewEnvResolver()
 	if err != nil {
@@ -101,7 +101,7 @@ func (cfg SourceConfig) GetSource(ctx context.Context) (*source.Source, error) {
 	}
 
 	fsRoot := os.DirFS(cfg.Source)
-	return source.NewFSSource(ctx, fsRoot, resolver)
+	return source.NewFSRepoRoot(ctx, fsRoot, resolver)
 }
 
 func (cfg SourceConfig) EachBundle(ctx context.Context, fn func(source.Bundle) error) error {

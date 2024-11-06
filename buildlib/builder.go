@@ -54,7 +54,7 @@ func (b *Builder) MutateImageWithMods(img *source_j5pb.SourceImage, mods []*conf
 }
 
 func (b *Builder) SourceImage(ctx context.Context, fs fs.FS, bundleName string) (*source_j5pb.SourceImage, *config_j5pb.BundleConfigFile, error) {
-	src, err := source.NewFSSource(ctx, fs, b.resolver)
+	src, err := source.NewFSRepoRoot(ctx, fs, b.resolver)
 	if err != nil {
 		return nil, nil, err
 	}

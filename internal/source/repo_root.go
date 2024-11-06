@@ -53,13 +53,13 @@ type InputSource interface {
 	GetSourceImage(ctx context.Context, input *config_j5pb.Input) (*source_j5pb.SourceImage, error)
 }
 
-type Source struct {
+type RepoRoot struct {
 	thisRepo *repo
 	resolver RemoteResolver
 }
 
-func NewFSSource(ctx context.Context, root fs.FS, resolver RemoteResolver) (*Source, error) {
-	src := &Source{
+func NewFSRepoRoot(ctx context.Context, root fs.FS, resolver RemoteResolver) (*RepoRoot, error) {
+	src := &RepoRoot{
 		resolver: resolver,
 	}
 
@@ -72,7 +72,7 @@ func NewFSSource(ctx context.Context, root fs.FS, resolver RemoteResolver) (*Sou
 	return src, nil
 }
 
-func (src *Source) ListAllDependencies() ([]*config_j5pb.Input, error) {
+func (src *RepoRoot) ListAllDependencies() ([]*config_j5pb.Input, error) {
 	allDeps := []*config_j5pb.Input{}
 	for _, bundle := range src.thisRepo.bundles {
 		cfg, err := bundle.J5Config()
@@ -88,7 +88,7 @@ func (src *Source) ListAllDependencies() ([]*config_j5pb.Input, error) {
 	return allDeps, nil
 }
 
-func (src *Source) GetSourceImage(ctx context.Context, input *config_j5pb.Input) (*source_j5pb.SourceImage, error) {
+func (src *RepoRoot) GetSourceImage(ctx context.Context, input *config_j5pb.Input) (*source_j5pb.SourceImage, error) {
 	if local, ok := input.Type.(*config_j5pb.Input_Local); ok {
 		bundle, ok := src.thisRepo.bundles[local.Local]
 		if !ok {
@@ -107,7 +107,7 @@ type repo struct {
 	lockFile *config_j5pb.LockFile
 }
 
-func (src *Source) newRepo(debugName string, repoRoot fs.FS) (*repo, error) {
+func (src *RepoRoot) newRepo(debugName string, repoRoot fs.FS) (*repo, error) {
 
 	config, err := readDirConfigs(repoRoot)
 	if err != nil {
@@ -189,11 +189,11 @@ func (src *Source) newRepo(debugName string, repoRoot fs.FS) (*repo, error) {
 	return thisRepo, nil
 }
 
-func (src Source) RepoConfig() *config_j5pb.RepoConfigFile {
+func (src RepoRoot) RepoConfig() *config_j5pb.RepoConfigFile {
 	return src.thisRepo.config
 }
 
-func (src Source) AllBundles() []*bundleSource {
+func (src RepoRoot) AllBundles() []*bundleSource {
 	out := make([]*bundleSource, 0, len(src.thisRepo.bundles))
 	for _, bundle := range src.thisRepo.bundles {
 		out = append(out, bundle)
@@ -201,7 +201,7 @@ func (src Source) AllBundles() []*bundleSource {
 	return out
 }
 
-func (src *Source) CombinedSourceImage(ctx context.Context, inputs []*config_j5pb.Input) (*source_j5pb.SourceImage, error) {
+func (src *RepoRoot) CombinedSourceImage(ctx context.Context, inputs []*config_j5pb.Input) (*source_j5pb.SourceImage, error) {
 	if len(inputs) == 0 {
 		return nil, fmt.Errorf("no inputs")
 	}
@@ -234,7 +234,7 @@ func (src *Source) CombinedSourceImage(ctx context.Context, inputs []*config_j5p
 	return fullImage, nil
 }
 
-func (src *Source) BundleDependencies(ctx context.Context, name string) (DependencySet, error) {
+func (src *RepoRoot) BundleDependencies(ctx context.Context, name string) (DependencySet, error) {
 	bs, err := src.BundleSource(name)
 	if err != nil {
 		return nil, err
@@ -242,7 +242,7 @@ func (src *Source) BundleDependencies(ctx context.Context, name string) (Depende
 	return bs.GetDependencies(ctx, src)
 }
 
-func (src *Source) BundleImageSource(ctx context.Context, name string) (*source_j5pb.SourceImage, *config_j5pb.BundleConfigFile, error) {
+func (src *RepoRoot) BundleImageSource(ctx context.Context, name string) (*source_j5pb.SourceImage, *config_j5pb.BundleConfigFile, error) {
 	bundleSource, err := src.BundleSource(name)
 	if err != nil {
 		return nil, nil, err
@@ -261,7 +261,7 @@ func (src *Source) BundleImageSource(ctx context.Context, name string) (*source_
 	return img, cfg, nil
 }
 
-func (src *Source) BundleSource(name string) (*bundleSource, error) {
+func (src *RepoRoot) BundleSource(name string) (*bundleSource, error) {
 	if name != "" {
 		if bundle, ok := src.thisRepo.bundles[name]; ok {
 			return bundle, nil
@@ -283,6 +283,6 @@ func (src *Source) BundleSource(name string) (*bundleSource, error) {
 
 }
 
-func (src *Source) SourceFile(ctx context.Context, filename string) ([]byte, error) {
+func (src *RepoRoot) SourceFile(ctx context.Context, filename string) ([]byte, error) {
 	return fs.ReadFile(src.thisRepo.repoRoot, filename)
 }

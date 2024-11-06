@@ -7,14 +7,17 @@ import (
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
-	"github.com/pentops/j5build/internal/conversions/sourcewalk"
+	"github.com/pentops/j5build/internal/bcl/sourcewalk"
 )
 
 type FileSummary struct {
+	SourceFilename   string
 	Package          string
 	Exports          map[string]*TypeRef
 	FileDependencies []string
 	TypeDependencies []*schema_j5pb.Ref
+
+	ProducesFiles []string
 }
 
 type PackageSummary struct {
@@ -33,8 +36,12 @@ type TypeRef struct {
 	*MessageRef
 }
 
+type ErrCollector interface {
+	WarnPos(pos *errpos.Position, err error)
+}
+
 // SourceSummary collects the exports and imports for a file
-func SourceSummary(sourceFile *sourcedef_j5pb.SourceFile) (*FileSummary, error) {
+func SourceSummary(sourceFile *sourcedef_j5pb.SourceFile, ec ErrCollector) (*FileSummary, error) {
 
 	cc := &collector{}
 	err := cc.collectFileRefs(sourceFile)
@@ -42,9 +49,18 @@ func SourceSummary(sourceFile *sourcedef_j5pb.SourceFile) (*FileSummary, error) 
 		return nil, err
 	}
 
+	importPath := sourceFile.Path + ".proto"
+
+	allFilenames := []string{importPath}
+	for _, subPackage := range cc.subPackageFiles {
+		allFilenames = append(allFilenames, subPackageFileName(sourceFile.Path, subPackage))
+	}
+
 	fs := &FileSummary{
-		Package: sourceFile.Package.Name,
-		Exports: make(map[string]*TypeRef),
+		SourceFilename: sourceFile.Path,
+		Package:        sourceFile.Package.Name,
+		Exports:        make(map[string]*TypeRef),
+		ProducesFiles:  allFilenames,
 	}
 
 	importMap, err := j5Imports(sourceFile)
@@ -67,7 +83,6 @@ func SourceSummary(sourceFile *sourcedef_j5pb.SourceFile) (*FileSummary, error) 
 		fs.TypeDependencies = append(fs.TypeDependencies, expanded.ref)
 	}
 
-	importPath := sourceFile.Path + ".proto"
 	for _, export := range cc.exports {
 		export.Package = sourceFile.Package.Name
 		export.File = importPath
@@ -75,13 +90,44 @@ func SourceSummary(sourceFile *sourcedef_j5pb.SourceFile) (*FileSummary, error) 
 		//fmt.Printf("export from %s: %s\n", export.Package, export.Name)
 	}
 
+	for _, ref := range importMap.vals {
+		if ref.used {
+			continue
+		}
+		err := fmt.Errorf("import %q not used", ref.fullPath)
+		var pos *errpos.Position
+		if ref.source != nil {
+			pos = &errpos.Position{
+				Start: errpos.Point{
+					Line:   int(ref.source.StartLine),
+					Column: int(ref.source.StartColumn),
+				},
+				End: errpos.Point{
+					Line:   int(ref.source.EndLine),
+					Column: int(ref.source.EndColumn),
+				},
+			}
+		}
+		ec.WarnPos(pos, err)
+	}
+
 	return fs, nil
 
 }
 
 type collector struct {
-	exports []*TypeRef
-	refs    []*sourcewalk.RefNode
+	exports         []*TypeRef
+	refs            []*sourcewalk.RefNode
+	subPackageFiles []string
+}
+
+func (c *collector) includeSubFile(subPackage string) {
+	for _, file := range c.subPackageFiles {
+		if file == subPackage {
+			return
+		}
+	}
+	c.subPackageFiles = append(c.subPackageFiles, subPackage)
 }
 
 func (c *collector) addExport(ref *TypeRef) {
@@ -109,7 +155,6 @@ func (cc *collector) collectFileRefs(sourceFile *sourcedef_j5pb.SourceFile) erro
 			return nil
 		},
 		Oneof: func(node *sourcewalk.OneofNode) error {
-
 			cc.addExport(oneofTypeRef(node))
 			return nil
 		},
@@ -119,6 +164,14 @@ func (cc *collector) collectFileRefs(sourceFile *sourcedef_j5pb.SourceFile) erro
 				valMap[node.Schema.Prefix+value.Name] = value.Number
 			}
 			cc.addExport(enumTypeRef(node))
+			return nil
+		},
+		Service: func(node *sourcewalk.ServiceNode) error {
+			cc.includeSubFile("service")
+			return nil
+		},
+		Topic: func(node *sourcewalk.TopicNode) error {
+			cc.includeSubFile("topic")
 			return nil
 		},
 	}

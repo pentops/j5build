@@ -61,7 +61,7 @@ func TestObjectField(t *testing.T) {
 	obj := file.addObject("Foo")
 	field := obj.addField("bar")
 
-	// The name isn't explicitly set in the source, it is automaticaly set from
+	// The name isn't explicitly set in the source, it is automatically set from
 	// the field name when converting
 	fieldObj := field.inlineObject("")
 	fieldObj.addField("bar_id").setSchema(basicString())

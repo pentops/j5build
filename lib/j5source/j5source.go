@@ -16,7 +16,7 @@ type DependencySet interface {
 }
 
 type Source struct {
-	src *source.Source
+	src *source.RepoRoot
 }
 
 func (w *Source) BundleConfig(name string) (*config_j5pb.BundleConfigFile, error) {
@@ -44,7 +44,7 @@ func NewFSSource(ctx context.Context, root fs.FS) (*Source, error) {
 	if err != nil {
 		return nil, err
 	}
-	src, err := source.NewFSSource(ctx, root, resolver)
+	src, err := source.NewFSRepoRoot(ctx, root, resolver)
 	if err != nil {
 		return nil, err
 	}

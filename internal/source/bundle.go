@@ -8,6 +8,7 @@ import (
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
 	"github.com/pentops/j5build/gen/j5/config/v1/config_j5pb"
 	"github.com/pentops/j5build/internal/protosrc"
+	"github.com/pentops/log.go/log"
 )
 
 type Bundle interface {
@@ -56,6 +57,8 @@ func (b *bundleSource) SourceImage(ctx context.Context, resolver InputSource) (*
 }
 
 func (bundle *bundleSource) GetDependencies(ctx context.Context, resolver InputSource) (DependencySet, error) {
+	ctx = log.WithField(ctx, "bundleDeps", bundle.DebugName())
+
 	j5Config, err := bundle.J5Config()
 	if err != nil {
 		return nil, err
