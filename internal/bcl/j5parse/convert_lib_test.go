@@ -27,7 +27,7 @@ func (fb *fileBuild) run(t *testing.T, input string, cb ...func(*testing.T, *sou
 	got, err := parser.ParseFile("pentops/j5lang/example/example.ext", input)
 	if err != nil {
 		if pe, ok := errpos.AsErrorsWithSource(err); ok {
-			t.Logf(pe.HumanString(3))
+			t.Log(pe.HumanString(3))
 		}
 		t.Fatalf("FATAL: %s", err)
 	}

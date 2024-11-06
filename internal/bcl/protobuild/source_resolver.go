@@ -3,14 +3,15 @@ package protobuild
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"path"
-	"sort"
 	"strings"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/j5build/internal/bcl/j5convert"
 	"github.com/pentops/j5build/internal/bcl/j5parse"
-	"golang.org/x/exp/maps"
+	"github.com/pentops/j5build/internal/source"
+	"github.com/pentops/log.go/log"
 )
 
 type LocalFileSource interface {
@@ -19,8 +20,93 @@ type LocalFileSource interface {
 	ListSourceFiles(ctx context.Context, pkgName string) ([]string, error)
 }
 
+func NewBundleResolver(ctsx context.Context, bundle source.Bundle) (LocalFileSource, error) {
+
+	bundleDir := bundle.DirInRepo()
+
+	bundleConfig, err := bundle.J5Config()
+	if err != nil {
+		return nil, err
+	}
+
+	bundleFS := bundle.FS()
+
+	packages := []string{}
+	for _, pkg := range bundleConfig.Packages {
+		packages = append(packages, pkg.Name)
+	}
+
+	localFiles := &fileReader{
+		fs:       bundleFS,
+		fsName:   bundleDir,
+		packages: packages,
+	}
+
+	return localFiles, nil
+}
+
+type fileReader struct {
+	fs       fs.FS
+	fsName   string
+	packages []string
+}
+
+func (rr *fileReader) GetLocalFile(ctx context.Context, filename string) ([]byte, error) {
+	return fs.ReadFile(rr.fs, filename)
+}
+
+func (rr *fileReader) ListPackages() []string {
+	return rr.packages
+}
+
+func (rr *fileReader) ListSourceFiles(ctx context.Context, pkgName string) ([]string, error) {
+	pkgRoot := strings.ReplaceAll(pkgName, ".", "/")
+
+	files := make([]string, 0)
+	err := fs.WalkDir(rr.fs, pkgRoot, func(path string, dirEntry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if dirEntry.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".j5s.proto") {
+			return nil
+		}
+		if strings.HasSuffix(path, ".proto") || strings.HasSuffix(path, ".j5s") {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("walk %s: %w", rr.fsName, err)
+	}
+	return files, nil
+}
+
+func (rr *fileReader) ListJ5Files(ctx context.Context) ([]string, error) {
+	files := make([]string, 0)
+	err := fs.WalkDir(rr.fs, ".", func(path string, dirEntry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if dirEntry.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".j5s") {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return files, nil
+
+}
+
 type sourceResolver struct {
-	BundleFiles       LocalFileSource
+	bundleFiles       LocalFileSource
 	j5Parser          *j5parse.Parser
 	localPrefixes     []string
 	localPackageNames map[string]struct{}
@@ -34,6 +120,7 @@ func newSourceResolver(localFiles LocalFileSource) (*sourceResolver, error) {
 	for i, p := range packages {
 		s := strings.ReplaceAll(p, ".", "/")
 		localPrefixes[i] = s + "/"
+		localPackageNames[p] = struct{}{}
 	}
 
 	j5Parser, err := j5parse.NewParser()
@@ -44,7 +131,7 @@ func newSourceResolver(localFiles LocalFileSource) (*sourceResolver, error) {
 	sr := &sourceResolver{
 		j5Parser: j5Parser,
 
-		BundleFiles:       localFiles,
+		bundleFiles:       localFiles,
 		localPackageNames: localPackageNames,
 		localPrefixes:     localPrefixes,
 	}
@@ -52,10 +139,8 @@ func newSourceResolver(localFiles LocalFileSource) (*sourceResolver, error) {
 	return sr, nil
 }
 
-func (sr *sourceResolver) listPackages() []string {
-	pkgs := maps.Keys(sr.localPackageNames)
-	sort.Strings(pkgs)
-	return pkgs
+func (sr *sourceResolver) ListPackages() []string {
+	return sr.bundleFiles.ListPackages()
 }
 
 func (sr *sourceResolver) packageForFile(filename string) (string, bool, error) {
@@ -79,7 +164,7 @@ func (sr *sourceResolver) isLocalPackage(pkgName string) bool {
 func (sr *sourceResolver) listPackageFiles(ctx context.Context, pkgName string) ([]string, error) {
 	root := strings.ReplaceAll(pkgName, ".", "/")
 
-	files, err := sr.BundleFiles.ListSourceFiles(ctx, root)
+	files, err := sr.bundleFiles.ListSourceFiles(ctx, root)
 	if err != nil {
 		return nil, err
 	}
@@ -97,35 +182,37 @@ func (sr *sourceResolver) listPackageFiles(ctx context.Context, pkgName string) 
 	return filtered, nil
 }
 
-func (sr *sourceResolver) getFileData(ctx context.Context, filename string) ([]byte, error) {
-	return sr.BundleFiles.GetLocalFile(ctx, filename)
+func (sr *sourceResolver) getFileContent(ctx context.Context, sourceFilename string) ([]byte, error) {
+	return sr.bundleFiles.GetLocalFile(ctx, sourceFilename)
 }
 
-func (sr *sourceResolver) getFile(ctx context.Context, sourceFilename string) (*SourceFile, error) {
-	data, err := sr.BundleFiles.GetLocalFile(ctx, sourceFilename)
+func (sr *sourceResolver) getFile(ctx context.Context, sourceFilename string, ec *ErrCollector) (*SourceFile, error) {
+	log.WithField(ctx, "sourceFilename", sourceFilename).Debug("read local source file")
+
+	data, err := sr.bundleFiles.GetLocalFile(ctx, sourceFilename)
 	if err != nil {
 		return nil, err
 	}
 
 	if strings.HasSuffix(sourceFilename, ".j5s") {
-		return sr.parseJ5s(ctx, sourceFilename, data)
+		return sr.parseJ5s(ctx, sourceFilename, data, ec)
 	}
 
 	if strings.HasSuffix(sourceFilename, ".proto") {
-		return sr.parseProto(ctx, sourceFilename, data)
+		return sr.parseProto(ctx, sourceFilename, data, ec)
 	}
 
 	return nil, fmt.Errorf("unsupported file type: %s", sourceFilename)
 }
 
-func (sr *sourceResolver) parseJ5s(ctx context.Context, sourceFilename string, data []byte) (*SourceFile, error) {
+func (sr *sourceResolver) parseJ5s(_ context.Context, sourceFilename string, data []byte, ec *ErrCollector) (*SourceFile, error) {
 
 	sourceFile, err := sr.j5Parser.ParseFile(sourceFilename, string(data))
 	if err != nil {
 		return nil, errpos.AddSourceFile(err, sourceFilename, string(data))
 	}
 
-	summary, err := j5convert.SourceSummary(sourceFile)
+	summary, err := j5convert.SourceSummary(sourceFile, ec)
 	if err != nil {
 		return nil, errpos.AddSourceFile(err, sourceFilename, string(data))
 	}
@@ -138,20 +225,21 @@ func (sr *sourceResolver) parseJ5s(ctx context.Context, sourceFilename string, d
 	}, nil
 }
 
-func (sr *sourceResolver) parseProto(ctx context.Context, sourceFilename string, data []byte) (*SourceFile, error) {
-	data, err := sr.BundleFiles.GetLocalFile(ctx, sourceFilename)
+func (sr *sourceResolver) parseProto(ctx context.Context, sourceFilename string, data []byte, ec *ErrCollector) (*SourceFile, error) {
+
+	result, summary, err := protoToDescriptor(ctx, sourceFilename, data, ec)
 	if err != nil {
 		return nil, err
 	}
-	result, summary, err := protoToDescriptor(ctx, sourceFilename, data)
-	if err != nil {
-		return nil, err
-	}
+
 	return &SourceFile{
 		Filename:  sourceFilename,
 		Summary:   summary,
 		RawSource: data,
 
-		Result: &SearchResult{ParseResult: &result},
+		Result: &SearchResult{
+			Summary:     summary,
+			ParseResult: &result,
+		},
 	}, nil
 }

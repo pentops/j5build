@@ -8,10 +8,7 @@ import (
 	"strings"
 
 	proto_parser "github.com/bufbuild/protocompile/parser"
-	"github.com/bufbuild/protocompile/reporter"
-	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/j5build/internal/bcl/j5convert"
-	"github.com/pentops/log.go/log"
 	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
@@ -32,64 +29,29 @@ func hasAPrefix(s string, prefixes []string) bool {
 
 var ErrNotFound = errors.New("File not found")
 
-func contextReporter(ctx context.Context) reporter.Reporter {
+func protoToDescriptor(_ context.Context, filename string, data []byte, errs *ErrCollector) (proto_parser.Result, *j5convert.FileSummary, error) {
 
-	errs := func(err reporter.ErrorWithPos) error {
-		pos := err.GetPosition()
-		errWithoutPos := err.Unwrap()
-		log.WithFields(ctx, map[string]interface{}{
-			"line":   pos.Line,
-			"column": pos.Col,
-			"file":   pos.Filename,
-			"error":  errWithoutPos.Error(),
-		}).Error("Compiler Error (BCL)")
-		return errpos.AddPosition(err.Unwrap(), errpos.Position{
-			Filename: ptr(pos.Filename),
-			Start: errpos.Point{
-				Line:   pos.Line - 1,
-				Column: pos.Col - 1,
-			},
-		})
-	}
-
-	warnings := func(err reporter.ErrorWithPos) {
-		pos := err.GetPosition()
-		errWithoutPos := err.Unwrap()
-		log.WithFields(ctx, map[string]interface{}{
-			"line":   pos.Line,
-			"column": pos.Col,
-			"file":   pos.Filename,
-			"error":  errWithoutPos.Error(),
-		}).Warn("Compiler Warning (BCL)")
-	}
-
-	return reporter.NewReporter(errs, warnings)
-}
-
-func protoToDescriptor(ctx context.Context, filename string, data []byte) (proto_parser.Result, *j5convert.FileSummary, error) {
-	ctx = log.WithField(ctx, "parseStep", "protoToDescriptor")
-	reportHandler := reporter.NewHandler(contextReporter(ctx))
-	fileNode, err := proto_parser.Parse(filename, bytes.NewReader(data), reportHandler)
+	fileNode, err := proto_parser.Parse(filename, bytes.NewReader(data), errs.Handler())
 	if err != nil {
 		return nil, nil, err
 	}
-	result, err := proto_parser.ResultFromAST(fileNode, true, reportHandler)
+	result, err := proto_parser.ResultFromAST(fileNode, true, errs.Handler())
 	if err != nil {
 		return nil, nil, err
 	}
 
-	summary, err := buildSummaryFromDescriptor(result.FileDescriptorProto())
+	summary, err := buildSummaryFromDescriptor(result.FileDescriptorProto(), errs)
 	if err != nil {
 		return nil, nil, err
 	}
 	return result, summary, nil
 }
 
-func buildSummaryFromReflect(res protoreflect.FileDescriptor) (*j5convert.FileSummary, error) {
-	return buildSummaryFromDescriptor(protodesc.ToFileDescriptorProto(res))
+func buildSummaryFromReflect(res protoreflect.FileDescriptor, errs *ErrCollector) (*j5convert.FileSummary, error) {
+	return buildSummaryFromDescriptor(protodesc.ToFileDescriptorProto(res), errs)
 }
 
-func buildSummaryFromDescriptor(res *descriptorpb.FileDescriptorProto) (*j5convert.FileSummary, error) {
+func buildSummaryFromDescriptor(res *descriptorpb.FileDescriptorProto, errs *ErrCollector) (*j5convert.FileSummary, error) {
 	filename := res.GetName()
 	exports := map[string]*j5convert.TypeRef{}
 
@@ -101,8 +63,8 @@ func buildSummaryFromDescriptor(res *descriptorpb.FileDescriptorProto) (*j5conve
 			MessageRef: &j5convert.MessageRef{},
 		}
 	}
-	for _, en := range res.EnumType {
-		built, err := buildEnumRef(en)
+	for idx, en := range res.EnumType {
+		built, err := buildEnumRef(res, int32(idx), en, errs)
 		if err != nil {
 			return nil, err
 		}
@@ -115,6 +77,7 @@ func buildSummaryFromDescriptor(res *descriptorpb.FileDescriptorProto) (*j5conve
 	}
 
 	return &j5convert.FileSummary{
+		SourceFilename:   filename,
 		Exports:          exports,
 		FileDependencies: res.Dependency,
 		ProducesFiles:    []string{filename},
@@ -125,7 +88,7 @@ func buildSummaryFromDescriptor(res *descriptorpb.FileDescriptorProto) (*j5conve
 	}, nil
 }
 
-func buildEnumRef(enumDescriptor *descriptorpb.EnumDescriptorProto) (*j5convert.EnumRef, error) {
+func buildEnumRef(file *descriptorpb.FileDescriptorProto, idx int32, enumDescriptor *descriptorpb.EnumDescriptorProto, errs *ErrCollector) (*j5convert.EnumRef, error) {
 	for idx, value := range enumDescriptor.Value {
 		if value.Number == nil {
 			return nil, fmt.Errorf("enum value[%d] does not have a number", idx)
@@ -135,19 +98,25 @@ func buildEnumRef(enumDescriptor *descriptorpb.EnumDescriptorProto) (*j5convert.
 		}
 	}
 
+	suffix := "UNSPECIFIED"
+	var trimPrefix string
+
 	if len(enumDescriptor.Value) < 1 {
 		return nil, fmt.Errorf("enum has no values")
-	}
-	if *enumDescriptor.Value[0].Number != 0 {
-		return nil, fmt.Errorf("enum does not have a value 0")
+	} else {
+		if *enumDescriptor.Value[0].Number != 0 {
+			return nil, fmt.Errorf("enum does not have a value 0")
+		}
+		unspecifiedVal := *enumDescriptor.Value[0].Name
+
+		if strings.HasSuffix(unspecifiedVal, suffix) {
+			trimPrefix = strings.TrimSuffix(unspecifiedVal, suffix)
+		} else {
+			errs.WarnProtoDesc(file, []int32{5, idx}, fmt.Errorf("enum value 0 should have suffix %s", suffix))
+			// proceed without prefix.
+		}
 	}
 
-	suffix := "UNSPECIFIED"
-	unspecifiedVal := *enumDescriptor.Value[0].Name
-	if !strings.HasSuffix(unspecifiedVal, suffix) {
-		return nil, fmt.Errorf("enum value 0 should have suffix %s", suffix)
-	}
-	trimPrefix := strings.TrimSuffix(unspecifiedVal, suffix)
 	ref := &j5convert.EnumRef{
 		Prefix: trimPrefix,
 		ValMap: map[string]int32{},

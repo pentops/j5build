@@ -20,7 +20,7 @@ func TestFooSchema(t *testing.T) {
 	ctx := context.Background()
 	rootFS := os.DirFS("../../")
 
-	thisRoot, err := source.NewFSSource(ctx, rootFS, nil)
+	thisRoot, err := source.NewFSRepoRoot(ctx, rootFS, nil)
 	if err != nil {
 		t.Fatalf("ReadLocalSource: %v", err)
 	}

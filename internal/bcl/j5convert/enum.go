@@ -79,7 +79,7 @@ func (e *EnumBuilder) addValue(number int32, schema *schema_j5pb.Enum_Option) {
 		Number: ptr(number),
 	}
 
-	if schema.Info != nil && len(schema.Info) > 0 {
+	if len(schema.Info) > 0 {
 		value.Options = &descriptorpb.EnumValueOptions{}
 		proto.SetExtension(value.Options, ext_j5pb.E_EnumValue, &ext_j5pb.EnumValueOptions{
 			Info: schema.Info,

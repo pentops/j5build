@@ -11,14 +11,13 @@ import (
 )
 
 type FileSummary struct {
+	SourceFilename   string
 	Package          string
 	Exports          map[string]*TypeRef
 	FileDependencies []string
 	TypeDependencies []*schema_j5pb.Ref
 
 	ProducesFiles []string
-
-	Warnings errpos.Errors
 }
 
 type PackageSummary struct {
@@ -37,8 +36,12 @@ type TypeRef struct {
 	*MessageRef
 }
 
+type ErrCollector interface {
+	WarnPos(pos *errpos.Position, err error)
+}
+
 // SourceSummary collects the exports and imports for a file
-func SourceSummary(sourceFile *sourcedef_j5pb.SourceFile) (*FileSummary, error) {
+func SourceSummary(sourceFile *sourcedef_j5pb.SourceFile, ec ErrCollector) (*FileSummary, error) {
 
 	cc := &collector{}
 	err := cc.collectFileRefs(sourceFile)
@@ -54,9 +57,10 @@ func SourceSummary(sourceFile *sourcedef_j5pb.SourceFile) (*FileSummary, error) 
 	}
 
 	fs := &FileSummary{
-		Package:       sourceFile.Package.Name,
-		Exports:       make(map[string]*TypeRef),
-		ProducesFiles: allFilenames,
+		SourceFilename: sourceFile.Path,
+		Package:        sourceFile.Package.Name,
+		Exports:        make(map[string]*TypeRef),
+		ProducesFiles:  allFilenames,
 	}
 
 	importMap, err := j5Imports(sourceFile)
@@ -86,8 +90,6 @@ func SourceSummary(sourceFile *sourcedef_j5pb.SourceFile) (*FileSummary, error) 
 		//fmt.Printf("export from %s: %s\n", export.Package, export.Name)
 	}
 
-	warnings := errpos.Errors{}
-
 	for _, ref := range importMap.vals {
 		if ref.used {
 			continue
@@ -106,13 +108,7 @@ func SourceSummary(sourceFile *sourcedef_j5pb.SourceFile) (*FileSummary, error) 
 				},
 			}
 		}
-		warnings = append(warnings, &errpos.Err{
-			Pos: pos,
-			Err: err,
-		})
-	}
-	if len(warnings) > 0 {
-		fs.Warnings = warnings
+		ec.WarnPos(pos, err)
 	}
 
 	return fs, nil

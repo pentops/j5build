@@ -121,7 +121,11 @@ type importMap struct {
 func j5Imports(file *sourcedef_j5pb.SourceFile) (*importMap, error) {
 	out := map[string]*importDef{}
 	errs := []error{}
-	importSources := file.SourceLocations.Children["imports"]
+
+	var importSources *bcl_j5pb.SourceLocation
+	if file.SourceLocations != nil && file.SourceLocations.Children != nil {
+		importSources = file.SourceLocations.Children["imports"]
+	}
 
 	for idx, imp := range file.Imports {
 		if imp.Path == "" {

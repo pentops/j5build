@@ -43,7 +43,7 @@ func runJ5sLint(ctx context.Context, cfg struct {
 		}
 	}
 	fsRoot := os.DirFS(cfg.Dir)
-	srcRoot, err := source.NewFSSource(ctx, fsRoot, resolver)
+	srcRoot, err := source.NewFSRepoRoot(ctx, fsRoot, resolver)
 	if err != nil {
 		return err
 	}
@@ -78,12 +78,12 @@ func runJ5sLint(ctx context.Context, cfg struct {
 			return err
 		}
 
-		localFiles, err := bundleResolver(ctx, bundle)
+		localFiles, err := protobuild.NewBundleResolver(ctx, bundle)
 		if err != nil {
 			return err
 		}
 
-		compiler, err := protobuild.NewCompiler(deps, localFiles)
+		compiler, err := protobuild.NewPackageSet(deps, localFiles)
 		if err != nil {
 			return err
 		}
@@ -93,7 +93,7 @@ func runJ5sLint(ctx context.Context, cfg struct {
 			return err
 		}
 
-		lintErr, err := compiler.LintFile(ctx, relToBundle, string(data))
+		lintErr, err := protobuild.LintFile(ctx, compiler, relToBundle, string(data))
 		if err != nil {
 			return err
 		}
@@ -114,17 +114,17 @@ func runJ5sLint(ctx context.Context, cfg struct {
 			return err
 		}
 
-		localFiles, err := bundleResolver(ctx, bundle)
+		localFiles, err := protobuild.NewBundleResolver(ctx, bundle)
 		if err != nil {
 			return err
 		}
 
-		compiler, err := protobuild.NewCompiler(deps, localFiles)
+		compiler, err := protobuild.NewPackageSet(deps, localFiles)
 		if err != nil {
 			return err
 		}
 
-		lintErr, err := compiler.LintAll(ctx)
+		lintErr, err := protobuild.LintAll(ctx, compiler)
 		if err != nil {
 			return err
 		}
@@ -212,31 +212,6 @@ func runForJ5Files(ctx context.Context, root fs.FS, doFile func(ctx context.Cont
 	return nil
 }
 
-func bundleResolver(ctsx context.Context, bundle source.Bundle) (*fileReader, error) {
-
-	bundleDir := bundle.DirInRepo()
-
-	bundleConfig, err := bundle.J5Config()
-	if err != nil {
-		return nil, err
-	}
-
-	bundleFS := bundle.FS()
-
-	packages := []string{}
-	for _, pkg := range bundleConfig.Packages {
-		packages = append(packages, pkg.Name)
-	}
-
-	localFiles := &fileReader{
-		fs:       bundleFS,
-		fsName:   bundleDir,
-		packages: packages,
-	}
-
-	return localFiles, nil
-}
-
 func runJ5sGenProto(ctx context.Context, cfg struct {
 	SourceConfig
 	Verbose bool `flag:"verbose" env:"BCL_VERBOSE" default:"false" desc:"Verbose output"`
@@ -253,12 +228,12 @@ func runJ5sGenProto(ctx context.Context, cfg struct {
 			return err
 		}
 
-		localFiles, err := bundleResolver(ctx, bundle)
+		localFiles, err := protobuild.NewBundleResolver(ctx, bundle)
 		if err != nil {
 			return err
 		}
 
-		compiler, err := protobuild.NewCompiler(deps, localFiles)
+		compiler, err := protobuild.NewPackageSet(deps, localFiles)
 		if err != nil {
 			return err
 		}
@@ -268,7 +243,7 @@ func runJ5sGenProto(ctx context.Context, cfg struct {
 			return err
 		}
 
-		for _, pkg := range localFiles.packages {
+		for _, pkg := range localFiles.ListPackages() {
 			out, err := compiler.CompilePackage(ctx, pkg)
 			if err != nil {
 				return fmt.Errorf("compile package: %w", err)
@@ -309,64 +284,4 @@ func runJ5sGenProto(ctx context.Context, cfg struct {
 	fmt.Fprintln(os.Stderr, e.HumanString(3))
 
 	return err
-}
-
-type fileReader struct {
-	fs       fs.FS
-	fsName   string
-	packages []string
-}
-
-func (rr *fileReader) GetLocalFile(ctx context.Context, filename string) ([]byte, error) {
-	return fs.ReadFile(rr.fs, filename)
-}
-
-func (rr *fileReader) ListPackages() []string {
-	return rr.packages
-}
-
-func (rr *fileReader) ListSourceFiles(ctx context.Context, pkgName string) ([]string, error) {
-	pkgRoot := strings.ReplaceAll(pkgName, ".", "/")
-
-	files := make([]string, 0)
-	err := fs.WalkDir(rr.fs, pkgRoot, func(path string, dirEntry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if dirEntry.IsDir() {
-			return nil
-		}
-		if strings.HasSuffix(path, ".j5s.proto") {
-			return nil
-		}
-		if strings.HasSuffix(path, ".proto") || strings.HasSuffix(path, ".j5s") {
-			files = append(files, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("walk %s: %w", rr.fsName, err)
-	}
-	return files, nil
-}
-
-func (rr *fileReader) ListJ5Files(ctx context.Context) ([]string, error) {
-	files := make([]string, 0)
-	err := fs.WalkDir(rr.fs, ".", func(path string, dirEntry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if dirEntry.IsDir() {
-			return nil
-		}
-		if strings.HasSuffix(path, ".j5s") {
-			files = append(files, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return files, nil
-
 }
