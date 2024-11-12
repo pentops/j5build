@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/iancoleman/strcase"
+	"github.com/pentops/golib/gl"
 	"github.com/pentops/j5/gen/j5/client/v1/client_j5pb"
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
@@ -25,7 +26,7 @@ func blankService(root fileContext, name string) *ServiceBuilder {
 	return &ServiceBuilder{
 		root: root,
 		desc: &descriptorpb.ServiceDescriptorProto{
-			Name: ptr(name),
+			Name: gl.Ptr(name),
 		},
 	}
 }
@@ -38,7 +39,7 @@ type MethodBuilder struct {
 func blankMethod(name string) *MethodBuilder {
 	return &MethodBuilder{
 		desc: &descriptorpb.MethodDescriptorProto{
-			Name:    ptr(name),
+			Name:    gl.Ptr(name),
 			Options: &descriptorpb.MethodOptions{},
 		},
 	}
@@ -89,8 +90,8 @@ func convertMethod(ww *walkContext, service *ServiceBuilder, node *sourcewalk.Se
 		return
 	}
 
-	methodBuilder.desc.InputType = ptr(node.InputType)
-	methodBuilder.desc.OutputType = ptr(node.OutputType)
+	methodBuilder.desc.InputType = gl.Ptr(node.InputType)
+	methodBuilder.desc.OutputType = gl.Ptr(node.OutputType)
 
 	if node.OutputType == "google.api.HttpBody" {
 		ww.file.ensureImport(googleApiHttpBodyImport)

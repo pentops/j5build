@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/pentops/golib/gl"
 	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
@@ -52,7 +53,7 @@ func sourceLoc(path []int32, description string) *descriptorpb.SourceCodeInfo_Lo
 	if description != "" {
 		lines := strings.Split(description, "\n")
 		joined := " " + strings.Join(lines, "\n ") + "\n"
-		loc.LeadingComments = ptr(joined)
+		loc.LeadingComments = gl.Ptr(joined)
 	}
 
 	return loc

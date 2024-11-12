@@ -139,8 +139,8 @@ type PackageSrc interface {
 var _ PackageSrc = &PackageSet{}
 
 type PackageSet struct {
-	extResolver   *dependencyResolver
-	localResolver *sourceResolver
+	dependencyResolver *dependencyResolver
+	localResolver      *sourceResolver
 
 	Packages map[string]*Package
 }
@@ -158,9 +158,9 @@ func NewPackageSet(deps DependencySet, localFiles LocalFileSource) (*PackageSet,
 	}
 
 	cc := &PackageSet{
-		extResolver:   resolver,
-		localResolver: sourceResolver,
-		Packages:      map[string]*Package{},
+		dependencyResolver: resolver,
+		localResolver:      sourceResolver,
+		Packages:           map[string]*Package{},
 	}
 	return cc, nil
 }
@@ -191,25 +191,25 @@ func (ps *PackageSet) GetLocalFileContent(ctx context.Context, filename string) 
 	return string(data), nil
 }
 
-func (c *PackageSet) findFileByPath(ctx context.Context, filename string) (*SearchResult, error) {
+func (ps *PackageSet) findFileByPath(ctx context.Context, filename string) (*SearchResult, error) {
 	if filename == "" {
 		return nil, errors.New("empty filename")
 	}
 
-	pkgName, isLocal, err := c.localResolver.packageForFile(filename)
+	pkgName, isLocal, err := ps.localResolver.packageForFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("packageForFile: %w", err)
 	}
 
 	if !isLocal {
-		file, err := c.extResolver.getFile(ctx, filename)
+		file, err := ps.dependencyResolver.findFileByPath(ctx, filename)
 		if err != nil {
 			return nil, fmt.Errorf("readFile: %w", err)
 		}
 		return file, nil
 	}
 
-	pkg, ok := c.Packages[pkgName]
+	pkg, ok := ps.Packages[pkgName]
 	if !ok {
 		return nil, fmt.Errorf("package %s not found for file %q", pkgName, filename)
 	}
@@ -222,39 +222,39 @@ func (c *PackageSet) findFileByPath(ctx context.Context, filename string) (*Sear
 	return nil, fmt.Errorf("file %s not found in package %s, have %s", filename, pkgName, strings.Join(maps.Keys(pkg.Files), ", "))
 }
 
-func (c *PackageSet) loadPackage(ctx context.Context, rb *resolveBaton, name string) (*Package, error) {
+func (ps *PackageSet) loadPackage(ctx context.Context, rb *resolveBaton, name string) (*Package, error) {
 	ctx = log.WithField(ctx, "loadPackage", name)
 	rb, err := rb.cloneFor(name)
 	if err != nil {
 		return nil, fmt.Errorf("cloneFor %s: %w", name, err)
 	}
 
-	pkg, ok := c.Packages[name]
+	pkg, ok := ps.Packages[name]
 	if ok {
 		return pkg, nil
 	}
 
-	if c.localResolver.isLocalPackage(name) {
-		pkg, err = c.loadLocalPackage(ctx, rb, name)
+	if ps.localResolver.isLocalPackage(name) {
+		pkg, err = ps.loadLocalPackage(ctx, rb, name)
 		if err != nil {
 			return nil, fmt.Errorf("loadLocalPackage %s: %w", name, err)
 		}
 	} else {
-		pkg, err = c.loadExternalPackage(ctx, rb, name)
+		pkg, err = ps.loadExternalPackage(ctx, rb, name)
 		if err != nil {
 			return nil, fmt.Errorf("loadExternalPackage %s: %w", name, err)
 		}
 	}
-	c.Packages[name] = pkg
+	ps.Packages[name] = pkg
 
 	return pkg, nil
 }
 
-func (c *PackageSet) resolveDependencies(ctx context.Context, rb *resolveBaton, pkg *Package, deps map[string]struct{}) error {
+func (ps *PackageSet) resolveDependencies(ctx context.Context, rb *resolveBaton, pkg *Package, deps map[string]struct{}) error {
 	delete(deps, pkg.Name)
 	pkg.DirectDependencies = map[string]*Package{}
 	for dep := range deps {
-		depPkg, err := c.loadPackage(ctx, rb, dep)
+		depPkg, err := ps.loadPackage(ctx, rb, dep)
 		if err != nil {
 			return fmt.Errorf("loadPackage %s: %w", dep, err)
 		}
@@ -263,9 +263,9 @@ func (c *PackageSet) resolveDependencies(ctx context.Context, rb *resolveBaton, 
 	return nil
 }
 
-func (c *PackageSet) loadLocalPackage(ctx context.Context, rb *resolveBaton, name string) (*Package, error) {
+func (ps *PackageSet) loadLocalPackage(ctx context.Context, rb *resolveBaton, name string) (*Package, error) {
 
-	fileNames, err := c.localResolver.listPackageFiles(ctx, name)
+	fileNames, err := ps.localResolver.listPackageFiles(ctx, name)
 	if err != nil {
 		return nil, fmt.Errorf("package files for %s: %w", name, err)
 	}
@@ -274,7 +274,7 @@ func (c *PackageSet) loadLocalPackage(ctx context.Context, rb *resolveBaton, nam
 
 	deps := map[string]struct{}{}
 	for _, filename := range fileNames {
-		file, err := c.localResolver.getFile(ctx, filename, rb.errs)
+		file, err := ps.localResolver.getFile(ctx, filename, rb.errs)
 		if err != nil {
 			return nil, fmt.Errorf("GetLocalFile %s: %w", filename, err)
 		}
@@ -282,7 +282,7 @@ func (c *PackageSet) loadLocalPackage(ctx context.Context, rb *resolveBaton, nam
 		pkg.includeIO(file.Summary, deps)
 	}
 
-	err = c.resolveDependencies(ctx, rb, pkg, deps)
+	err = ps.resolveDependencies(ctx, rb, pkg, deps)
 	if err != nil {
 		return nil, fmt.Errorf("resolveDependencies for %s: %w", name, err)
 	}
@@ -310,9 +310,9 @@ func (c *PackageSet) loadLocalPackage(ctx context.Context, rb *resolveBaton, nam
 	return pkg, nil
 }
 
-func (c *PackageSet) loadExternalPackage(ctx context.Context, rb *resolveBaton, name string) (*Package, error) {
+func (ps *PackageSet) loadExternalPackage(ctx context.Context, rb *resolveBaton, name string) (*Package, error) {
 
-	files, err := c.extResolver.PackageFiles(ctx, name)
+	files, err := ps.dependencyResolver.PackageFiles(ctx, name)
 	if err != nil {
 		return nil, fmt.Errorf("package files for %s: %w", name, err)
 	}
@@ -325,7 +325,7 @@ func (c *PackageSet) loadExternalPackage(ctx context.Context, rb *resolveBaton, 
 		pkg.includeIO(file.Summary, deps)
 	}
 
-	err = c.resolveDependencies(ctx, rb, pkg, deps)
+	err = ps.resolveDependencies(ctx, rb, pkg, deps)
 	if err != nil {
 		return nil, fmt.Errorf("resolveDependencies for %s: %w", name, err)
 	}
@@ -333,9 +333,9 @@ func (c *PackageSet) loadExternalPackage(ctx context.Context, rb *resolveBaton, 
 	return pkg, nil
 }
 
-func (c *PackageSet) CompilePackage(ctx context.Context, packageName string) (linker.Files, error) {
+func (ps *PackageSet) CompilePackage(ctx context.Context, packageName string) (linker.Files, error) {
 	rb := newResolveBaton()
-	pkg, err := c.loadPackage(ctx, rb, packageName)
+	pkg, err := ps.loadPackage(ctx, rb, packageName)
 	if err != nil {
 		return nil, fmt.Errorf("loadPackage %s: %w", packageName, err)
 	}
@@ -351,6 +351,6 @@ func (c *PackageSet) CompilePackage(ctx context.Context, packageName string) (li
 
 	errs := &ErrCollector{}
 
-	cc := newLinker(c, errs)
+	cc := newLinker(ps, errs)
 	return cc.resolveAll(ctx, filenames)
 }

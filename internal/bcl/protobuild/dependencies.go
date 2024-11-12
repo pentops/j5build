@@ -16,6 +16,8 @@ type DependencySet interface {
 	GetDependencyFile(filename string) (*descriptorpb.FileDescriptorProto, error)
 }
 
+// dependencyResolver provides non-local proto files, either Global or from a
+// DependencySet.
 type dependencyResolver struct {
 	deps        DependencySet
 	resultCache map[string]*SearchResult
@@ -34,7 +36,7 @@ type DependencyFile struct {
 	Refl *protoreflect.FileDescriptor
 }
 
-func (rr *dependencyResolver) getFile(ctx context.Context, filename string) (*SearchResult, error) {
+func (rr *dependencyResolver) findFileByPath(ctx context.Context, filename string) (*SearchResult, error) {
 	if res, ok := rr.resultCache[filename]; ok {
 		return res, nil
 	}
@@ -87,7 +89,7 @@ func (rr *dependencyResolver) PackageFiles(ctx context.Context, pkgName string) 
 
 	files := make([]*SearchResult, 0)
 	for _, filename := range filenames {
-		file, err := rr.getFile(ctx, filename)
+		file, err := rr.findFileByPath(ctx, filename)
 		if err != nil {
 			return nil, err
 		}

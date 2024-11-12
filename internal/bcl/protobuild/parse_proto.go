@@ -14,10 +14,6 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-func ptr[T any](v T) *T {
-	return &v
-}
-
 func hasAPrefix(s string, prefixes []string) bool {
 	for _, prefix := range prefixes {
 		if strings.HasPrefix(s, prefix) {

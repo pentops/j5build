@@ -14,9 +14,9 @@ require (
 	github.com/iancoleman/strcase v0.3.0
 	github.com/pentops/bcl.go v0.0.0-20241106053808-87160f72331b
 	github.com/pentops/flowtest v0.0.0-20241005200401-85365de288f3
+	github.com/pentops/golib v0.0.0-20241112050940-7fef6c0232c2
 	github.com/pentops/j5 v0.0.0-20241022210403-7bf86c63d6e6
 	github.com/pentops/log.go v0.0.0-20241106053730-7ac2afa77d54
-	github.com/pentops/prototools v0.0.0-20240930012619-3e24c48fd079
 	github.com/pentops/runner v0.0.0-20241010184552-1a959b902d93
 	github.com/ryanuber/go-glob v1.0.0
 	github.com/stretchr/testify v1.9.0
@@ -92,6 +92,7 @@ require (
 	golang.org/x/time v0.6.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241021214115-324edc3d5d38 // indirect
 	google.golang.org/grpc v1.67.1 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.1 // indirect
 )

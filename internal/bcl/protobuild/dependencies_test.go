@@ -91,7 +91,7 @@ func TestFileLoad(t *testing.T) {
 
 	t.Run("Inbuilt", func(t *testing.T) {
 		path := "j5/list/v1/query.proto"
-		result, err := rr.getFile(ctx, path)
+		result, err := rr.findFileByPath(ctx, path)
 		if err != nil {
 			t.Fatalf("FATAL: Unexpected error: %s", err.Error())
 		}
@@ -102,7 +102,7 @@ func TestFileLoad(t *testing.T) {
 	})
 
 	t.Run("External", func(t *testing.T) {
-		result, err := rr.getFile(ctx, "external/v1/foo.proto")
+		result, err := rr.findFileByPath(ctx, "external/v1/foo.proto")
 		if err != nil {
 			t.Fatalf("FATAL: Unexpected error: %s", err.Error())
 		}

@@ -5,6 +5,7 @@ package foo_testpb
 import (
 	driver "database/sql/driver"
 	fmt "fmt"
+
 	proto "google.golang.org/protobuf/proto"
 )
 

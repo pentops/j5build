@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pentops/golib/gl"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
 )
@@ -169,13 +170,13 @@ func TestArrayOfObject(t *testing.T) {
 		Type: &schema_j5pb.Field_Array{
 			Array: &schema_j5pb.ArrayField{
 				Rules: &schema_j5pb.ArrayField_Rules{
-					MinItems: ptr(uint64(1)),
+					MinItems: gl.Ptr(uint64(1)),
 				},
 				Items: &schema_j5pb.Field{
 					Type: &schema_j5pb.Field_Object{
 						Object: &schema_j5pb.ObjectField{
 							Rules: &schema_j5pb.ObjectField_Rules{
-								MinProperties: ptr(uint64(1)),
+								MinProperties: gl.Ptr(uint64(1)),
 							},
 							Schema: &schema_j5pb.ObjectField_Ref{
 								Ref: &schema_j5pb.Ref{
@@ -283,7 +284,7 @@ func TestConvert(t *testing.T) {
 	obj.addField("bar_field").
 		setRequired().
 		setSchema(basicString(func(s *schema_j5pb.StringField) {
-			s.Rules = &schema_j5pb.StringField_Rules{MinLength: ptr(uint64(1))}
+			s.Rules = &schema_j5pb.StringField_Rules{MinLength: gl.Ptr(uint64(1))}
 		}))
 
 	baz := obj.addField("baz_field")

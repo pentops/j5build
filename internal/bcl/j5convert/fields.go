@@ -6,6 +6,7 @@ import (
 
 	"buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"github.com/iancoleman/strcase"
+	"github.com/pentops/golib/gl"
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	"github.com/pentops/j5/gen/j5/list/v1/list_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
@@ -41,7 +42,7 @@ func buildProperty(ww *walkContext, node *sourcewalk.PropertyNode) (*descriptorp
 			ext = &validate.FieldConstraints{}
 		}
 		ww.file.ensureImport(bufValidateImport)
-		ext.Required = ptr(true)
+		ext.Required = gl.Ptr(true)
 		proto.SetExtension(desc.Options, validate.E_Field, ext)
 		ww.file.ensureImport(j5ExtImport)
 	}
@@ -50,13 +51,13 @@ func buildProperty(ww *walkContext, node *sourcewalk.PropertyNode) (*descriptorp
 		if required {
 			return nil, fmt.Errorf("cannot be both required and optional")
 		}
-		desc.Proto3Optional = ptr(true)
+		desc.Proto3Optional = gl.Ptr(true)
 	}
 
 	protoFieldName := strcase.ToSnake(node.Schema.Name)
-	desc.Name = ptr(protoFieldName)
-	desc.JsonName = ptr(node.Schema.Name)
-	desc.Number = ptr(node.Number)
+	desc.Name = gl.Ptr(protoFieldName)
+	desc.JsonName = gl.Ptr(node.Schema.Name)
+	desc.Number = gl.Ptr(node.Number)
 	return desc, nil
 }
 
@@ -194,7 +195,7 @@ func buildField(ww *walkContext, node sourcewalk.FieldNode) (*descriptorpb.Field
 		ww.setJ5Ext(node.Source, desc.Options, "enum", st.Enum.Ext)
 
 		enumRules := &validate.EnumRules{
-			DefinedOnly: ptr(true),
+			DefinedOnly: gl.Ptr(true),
 		}
 
 		if st.Enum.Rules != nil {
@@ -255,7 +256,7 @@ func buildField(ww *walkContext, node sourcewalk.FieldNode) (*descriptorpb.Field
 	case *schema_j5pb.Field_Date:
 		ww.file.ensureImport(j5DateImport)
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
-		desc.TypeName = ptr(".j5.types.date.v1.Date")
+		desc.TypeName = gl.Ptr(".j5.types.date.v1.Date")
 
 		ww.setJ5Ext(node.Source, desc.Options, "date", st.Date.Ext)
 
@@ -264,7 +265,7 @@ func buildField(ww *walkContext, node sourcewalk.FieldNode) (*descriptorpb.Field
 	case *schema_j5pb.Field_Decimal:
 		ww.file.ensureImport(j5DecimalImport)
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
-		desc.TypeName = ptr(".j5.types.decimal.v1.Decimal")
+		desc.TypeName = gl.Ptr(".j5.types.decimal.v1.Decimal")
 
 		ww.setJ5Ext(node.Source, desc.Options, "decimal", st.Decimal.Ext)
 
@@ -378,7 +379,7 @@ func buildField(ww *walkContext, node sourcewalk.FieldNode) (*descriptorpb.Field
 				}
 
 			case *schema_j5pb.KeyFormat_Id62:
-				stringRules.Pattern = ptr(id62.PatternString)
+				stringRules.Pattern = gl.Ptr(id62.PatternString)
 
 			case *schema_j5pb.KeyFormat_Custom_:
 				stringRules.Pattern = &ff.Custom.Pattern
@@ -420,7 +421,7 @@ func buildField(ww *walkContext, node sourcewalk.FieldNode) (*descriptorpb.Field
 	case *schema_j5pb.Field_Timestamp:
 
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
-		desc.TypeName = ptr(".google.protobuf.Timestamp")
+		desc.TypeName = gl.Ptr(".google.protobuf.Timestamp")
 		ww.file.ensureImport(pbTimestamp)
 
 		ww.setJ5Ext(node.Source, desc.Options, "timestamp", st.Timestamp.Ext)
@@ -439,7 +440,7 @@ func buildField(ww *walkContext, node sourcewalk.FieldNode) (*descriptorpb.Field
 	case *schema_j5pb.Field_Any:
 
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
-		desc.TypeName = ptr(".j5.types.any.v1.Any")
+		desc.TypeName = gl.Ptr(".j5.types.any.v1.Any")
 		ww.file.ensureImport(j5AnyImport)
 
 		proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{

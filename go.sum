@@ -1,7 +1,3 @@
-buf.build/gen/go/bufbuild/buf/grpc/go v1.5.1-20240801225352-56ed5eaafdd5.1 h1:kpsifEwOvElihPf6j2sriqzdTYLa19V+OWcIqLb8Ecg=
-buf.build/gen/go/bufbuild/buf/grpc/go v1.5.1-20240801225352-56ed5eaafdd5.1/go.mod h1:MvR2fzutlXDdPJRSFuqlG/mlTG2ZEv+tZXBTu+vFHGM=
-buf.build/gen/go/bufbuild/buf/protocolbuffers/go v1.34.2-20240801225352-56ed5eaafdd5.2 h1:ZcwAfI2BApbeM0atjcghA+gjBfdokgW4/IjmPRqTBxc=
-buf.build/gen/go/bufbuild/buf/protocolbuffers/go v1.34.2-20240801225352-56ed5eaafdd5.2/go.mod h1:ebzkeqWlkoZ1Tk0htPMA7EtLbII2nNBuDaSsEYvDdHE=
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.35.1-20240920164238-5a7b106cbb87.1 h1:9wP6ZZYWnF2Z0TxmII7m3XNykxnP4/w8oXeth6ekcRI=
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.35.1-20240920164238-5a7b106cbb87.1/go.mod h1:Duw/9JoXkXIydyASnLYIiufkzySThoqavOsF+IihqvM=
 buf.build/go/protoyaml v0.2.0 h1:2g3OHjtLDqXBREIOjpZGHmQ+U/4mkN1YiQjxNB68Ip8=
@@ -142,12 +138,12 @@ github.com/pentops/bcl.go v0.0.0-20241106053808-87160f72331b h1:fFscbEeTgck050Ck
 github.com/pentops/bcl.go v0.0.0-20241106053808-87160f72331b/go.mod h1:7CAqeSxPCWnSvSQXxZq8KQ5L+2VyR6S9oEHlTmKAfYI=
 github.com/pentops/flowtest v0.0.0-20241005200401-85365de288f3 h1:uaBiam9L2iIewcMWWhALhm4Bjnj5KoWFC+CX4090nvg=
 github.com/pentops/flowtest v0.0.0-20241005200401-85365de288f3/go.mod h1:vNp8crAKcH0f/sZU9frkmQLUeDsTIgMqV14kQtkAqC0=
+github.com/pentops/golib v0.0.0-20241112050940-7fef6c0232c2 h1:UlrfmZnJ6hQ99pjSgwfxKKAb78tgc8A2+3bVz7bPTeA=
+github.com/pentops/golib v0.0.0-20241112050940-7fef6c0232c2/go.mod h1:I58JIVvL1/nP4CEHGKGbBhvWIEA9mVkGeoviemaqanU=
 github.com/pentops/j5 v0.0.0-20241022210403-7bf86c63d6e6 h1:wXY9/LefTmxYX5qOvlo4c59cykTZKmXaekBYqvLA8RQ=
 github.com/pentops/j5 v0.0.0-20241022210403-7bf86c63d6e6/go.mod h1:NR62+pdiUYNndQwp90IjYZO9NVVPGm1RH167Zejrds4=
 github.com/pentops/log.go v0.0.0-20241106053730-7ac2afa77d54 h1:Vbcs2ZJyDRZ8tsfa0WxEuiCwAgB6Y6wvDkc46K2grNc=
 github.com/pentops/log.go v0.0.0-20241106053730-7ac2afa77d54/go.mod h1:925Eobg9xBopcmy9rxefY5s+yp0rRFD+wm8xlFnlSQg=
-github.com/pentops/prototools v0.0.0-20240930012619-3e24c48fd079 h1:T6FjhD5HnZ73NA6iv97vcb9vb741JoEVoUcChBeslm0=
-github.com/pentops/prototools v0.0.0-20240930012619-3e24c48fd079/go.mod h1:HatfLqeOKQNST6gQUv4SNBV8n6ns3prr2u3MDUgBgc0=
 github.com/pentops/runner v0.0.0-20241010184552-1a959b902d93 h1:5LvXsCuw/JO3PUN/D7ZtdIQIkNok/PKYvhmAaDOXiyM=
 github.com/pentops/runner v0.0.0-20241010184552-1a959b902d93/go.mod h1:hzPLosxy6O/1qjLUyt9lzE2M1Re/ASxmrErHbImXgNk=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=

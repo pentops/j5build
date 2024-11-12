@@ -156,6 +156,8 @@ func (ll *searchLinker) _descriptorToFile(ctx context.Context, desc *descriptorp
 		return nil, err
 	}
 
+	linked.PopulateSourceCodeInfo()
+
 	linked.CheckForUnusedImports(handler)
 	return linked, nil
 }

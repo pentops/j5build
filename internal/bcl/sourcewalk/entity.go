@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/iancoleman/strcase"
+	"github.com/pentops/golib/gl"
 	"github.com/pentops/j5/gen/j5/client/v1/client_j5pb"
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
@@ -391,8 +392,8 @@ func (ent *entityNode) acceptQuery(visitor FileVisitor) error {
 	}
 
 	query := &sourcedef_j5pb.Service{
-		BasePath: ptr(fmt.Sprintf("/%s/q", entity.BaseUrlPath)),
-		Name:     ptr(fmt.Sprintf("%sQuery", strcase.ToCamel(name))),
+		BasePath: gl.Ptr(fmt.Sprintf("/%s/q", entity.BaseUrlPath)),
+		Name:     gl.Ptr(fmt.Sprintf("%sQuery", strcase.ToCamel(name))),
 		Methods: []*sourcedef_j5pb.APIMethod{{
 			Name:       fmt.Sprintf("%sGet", strcase.ToCamel(name)),
 			HttpPath:   strings.Join(httpPath, "/"),
@@ -507,8 +508,4 @@ func (ent *entityNode) acceptQuery(visitor FileVisitor) error {
 		}},
 	})
 
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/iancoleman/strcase"
+	"github.com/pentops/golib/gl"
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5build/internal/bcl/sourcewalk"
@@ -60,10 +61,10 @@ func emptyEnum(name string, prefix string) *EnumBuilder {
 	return &EnumBuilder{
 		prefix: prefix,
 		desc: &descriptorpb.EnumDescriptorProto{
-			Name: ptr(name),
+			Name: gl.Ptr(name),
 			Value: []*descriptorpb.EnumValueDescriptorProto{{
-				Name:   ptr(fmt.Sprintf("%sUNSPECIFIED", prefix)),
-				Number: ptr(int32(0)),
+				Name:   gl.Ptr(fmt.Sprintf("%sUNSPECIFIED", prefix)),
+				Number: gl.Ptr(int32(0)),
 			}},
 		},
 	}
@@ -75,8 +76,8 @@ func (e *EnumBuilder) addValue(number int32, schema *schema_j5pb.Enum_Option) {
 		name = e.prefix + name
 	}
 	value := &descriptorpb.EnumValueDescriptorProto{
-		Name:   ptr(name),
-		Number: ptr(number),
+		Name:   gl.Ptr(name),
+		Number: gl.Ptr(number),
 	}
 
 	if len(schema.Info) > 0 {

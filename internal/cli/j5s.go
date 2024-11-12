@@ -13,8 +13,8 @@ import (
 	"github.com/pentops/bcl.go/bcl"
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/j5build/internal/bcl/protobuild"
+	"github.com/pentops/j5build/internal/bcl/protoprint"
 	"github.com/pentops/j5build/internal/source"
-	"github.com/pentops/prototools/protoprint"
 	"github.com/pentops/runner/commander"
 )
 

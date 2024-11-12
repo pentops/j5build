@@ -5,16 +5,13 @@ import (
 	"strings"
 
 	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
+	"github.com/pentops/golib/gl"
 	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 func bclPath(strings ...string) *bcl_j5pb.Path {
 	return &bcl_j5pb.Path{Path: strings}
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }
 
 func FileStub(sourceFilename string) protoreflect.Message {
@@ -38,7 +35,7 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 	Blocks: []*bcl_j5pb.Block{{
 		SchemaName: "j5.schema.v1.Ref",
 		ScalarSplit: &bcl_j5pb.ScalarSplit{
-			Delimiter:      ptr("."),
+			Delimiter:      gl.Ptr("."),
 			RightToLeft:    true,
 			RequiredFields: []*bcl_j5pb.Path{bclPath("schema")},
 			RemainderField: bclPath("package"),
@@ -46,7 +43,7 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 	}, {
 		SchemaName: "j5.schema.v1.EntityRef",
 		ScalarSplit: &bcl_j5pb.ScalarSplit{
-			Delimiter:      ptr("."),
+			Delimiter:      gl.Ptr("."),
 			RightToLeft:    true,
 			RequiredFields: []*bcl_j5pb.Path{bclPath("entity")},
 			RemainderField: bclPath("package"),
@@ -97,8 +94,8 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 	}, {
 		SchemaName: "j5.schema.v1.Field",
 		TypeSelect: &bcl_j5pb.Tag{
-			BangBool:     ptr("required"),
-			QuestionBool: ptr("optional"),
+			BangBool:     gl.Ptr("required"),
+			QuestionBool: gl.Ptr("optional"),
 		},
 	}, {
 		SchemaName: "j5.schema.v1.ObjectProperty",
@@ -107,8 +104,8 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 		},
 		TypeSelect: &bcl_j5pb.Tag{
 			FieldName:    ("schema"),
-			BangBool:     ptr("required"),
-			QuestionBool: ptr("optional"),
+			BangBool:     gl.Ptr("required"),
+			QuestionBool: gl.Ptr("optional"),
 		},
 		Alias: []*bcl_j5pb.Alias{{
 			Name: "optional",
@@ -121,8 +118,8 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 		},
 		TypeSelect: &bcl_j5pb.Tag{
 			FieldName:    ("schema"),
-			BangBool:     ptr("required"),
-			QuestionBool: ptr("optional"),
+			BangBool:     gl.Ptr("required"),
+			QuestionBool: gl.Ptr("optional"),
 		},
 		Alias: []*bcl_j5pb.Alias{{
 			Name: "optional",
@@ -154,7 +151,7 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 	}, {
 		SchemaName:       "j5.sourcedef.v1.Object",
 		Name:             &bcl_j5pb.Tag{FieldName: ("name")},
-		DescriptionField: ptr("description"),
+		DescriptionField: gl.Ptr("description"),
 		Alias: []*bcl_j5pb.Alias{{
 			Name: "field",
 			Path: bclPath("properties"),
@@ -165,7 +162,7 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 	}, {
 		SchemaName:       "j5.schema.v1.Object",
 		Name:             &bcl_j5pb.Tag{FieldName: ("name")},
-		DescriptionField: ptr("description"),
+		DescriptionField: gl.Ptr("description"),
 		Alias: []*bcl_j5pb.Alias{{
 			Name: "field",
 			Path: bclPath("properties"),
@@ -173,7 +170,7 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 	}, {
 		SchemaName:       "j5.sourcedef.v1.Oneof",
 		Name:             &bcl_j5pb.Tag{FieldName: ("name")},
-		DescriptionField: ptr("description"),
+		DescriptionField: gl.Ptr("description"),
 		Alias: []*bcl_j5pb.Alias{{
 			Name: "option",
 			Path: bclPath("properties"),
@@ -181,7 +178,7 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 	}, {
 		SchemaName:       "j5.schema.v1.Oneof",
 		Name:             &bcl_j5pb.Tag{FieldName: ("name")},
-		DescriptionField: ptr("description"),
+		DescriptionField: gl.Ptr("description"),
 		Alias: []*bcl_j5pb.Alias{{
 			Name: "option",
 			Path: bclPath("properties"),
@@ -189,7 +186,7 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 	}, {
 		SchemaName:       "j5.schema.v1.Enum",
 		Name:             &bcl_j5pb.Tag{FieldName: ("name")},
-		DescriptionField: ptr("description"),
+		DescriptionField: gl.Ptr("description"),
 		Alias: []*bcl_j5pb.Alias{{
 			Name: "option",
 			Path: bclPath("options"),

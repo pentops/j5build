@@ -3,12 +3,15 @@ package j5convert
 import (
 	"fmt"
 	"log"
+	"maps"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
 	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
+	"github.com/pentops/golib/gl"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
 )
@@ -82,9 +85,9 @@ type MessageRef struct {
 
 func (typeRef TypeRef) protoTypeName() *string {
 	if typeRef.Package == "" {
-		return ptr(typeRef.Name)
+		return gl.Ptr(typeRef.Name)
 	}
-	return ptr(fmt.Sprintf(".%s.%s", typeRef.Package, typeRef.Name))
+	return gl.Ptr(fmt.Sprintf(".%s.%s", typeRef.Package, typeRef.Name))
 }
 
 type sourceLink struct {
@@ -103,7 +106,7 @@ func (c *sourceLink) getSource(path []string) *bcl_j5pb.SourceLocation {
 			if part != "<virtual>" {
 				didSee := path[:idx]
 				after := path[idx:]
-				log.Printf("no location at %q for %q have %q", strings.Join(didSee, "."), after, keys(loc.Children))
+				log.Printf("no location at %q for %q have %q", strings.Join(didSee, "."), after, slices.Sorted(maps.Keys(loc.Children)))
 			}
 			return loc // last known
 		}
@@ -127,16 +130,4 @@ func (c *sourceLink) getPos(path []string) *errpos.Position {
 			Column: int(loc.EndColumn),
 		},
 	}
-}
-
-func ptr[T any](v T) *T {
-	return &v
-}
-
-func keys[T any](m map[string]T) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	return out
 }

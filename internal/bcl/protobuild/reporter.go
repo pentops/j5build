@@ -3,6 +3,7 @@ package protobuild
 import (
 	"github.com/bufbuild/protocompile/reporter"
 	"github.com/pentops/bcl.go/bcl/errpos"
+	"github.com/pentops/golib/gl"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )
@@ -57,7 +58,7 @@ func (ec *ErrCollector) WarnProtoDesc(file *descriptorpb.FileDescriptorProto, pa
 	}
 
 	pos := &errpos.Position{
-		Filename: ptr(file.GetName()),
+		Filename: gl.Ptr(file.GetName()),
 	}
 
 	if loc != nil {
@@ -93,7 +94,7 @@ func (ec *ErrCollector) WarnProto(desc protoreflect.Descriptor, err error) {
 	// may be zero value
 	ec.Warnings = append(ec.Warnings, &errpos.Err{
 		Pos: &errpos.Position{
-			Filename: ptr(file.Path()),
+			Filename: gl.Ptr(file.Path()),
 			Start: errpos.Point{
 				Line:   int(loc.StartLine),
 				Column: int(loc.StartColumn),

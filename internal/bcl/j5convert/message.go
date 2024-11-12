@@ -2,6 +2,7 @@ package j5convert
 
 import (
 	"github.com/iancoleman/strcase"
+	"github.com/pentops/golib/gl"
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	"github.com/pentops/j5build/internal/bcl/sourcewalk"
 	"google.golang.org/protobuf/proto"
@@ -18,7 +19,7 @@ func blankMessage(root fileContext, name string) *MessageBuilder {
 	message := &MessageBuilder{
 		root: root,
 		descriptor: &descriptorpb.DescriptorProto{
-			Name:    ptr(name),
+			Name:    gl.Ptr(name),
 			Options: &descriptorpb.MessageOptions{},
 		},
 	}
@@ -103,7 +104,7 @@ func convertOneof(ww *walkContext, node *sourcewalk.OneofNode) {
 
 	message := blankMessage(ww.file, schema.Name)
 	message.descriptor.OneofDecl = []*descriptorpb.OneofDescriptorProto{{
-		Name: ptr("type"),
+		Name: gl.Ptr("type"),
 	}}
 	message.comment([]int32{}, schema.Description)
 
@@ -128,7 +129,7 @@ func convertOneof(ww *walkContext, node *sourcewalk.OneofNode) {
 				ww.error(node.Source, err)
 				return nil
 			}
-			propertyDesc.OneofIndex = ptr(int32(0))
+			propertyDesc.OneofIndex = gl.Ptr(int32(0))
 
 			// Take the index (prior to append len == index), not the field number
 			locPath := []int32{2, int32(len(message.descriptor.Field))}

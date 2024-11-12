@@ -6,6 +6,7 @@ import (
 
 	"buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"github.com/google/go-cmp/cmp"
+	"github.com/pentops/golib/gl"
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
@@ -223,7 +224,7 @@ func TestSchemaToProto(t *testing.T) {
 				Options: withOption(tEmptyTypeExt(t, "enum"), validate.E_Field, &validate.FieldConstraints{
 					Type: &validate.FieldConstraints_Enum{
 						Enum: &validate.EnumRules{
-							DefinedOnly: ptr(true),
+							DefinedOnly: gl.Ptr(true),
 						},
 					},
 				}),

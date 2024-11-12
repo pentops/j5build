@@ -114,13 +114,6 @@ func (ww *walkContext) _clone() *walkContext {
 	}
 }
 
-/*
-func (ww *walkContext) at(path ...string) *walkContext {
-	walk := ww._clone()
-	walk.path = append(ww.path, path...)
-	return walk
-}*/
-
 func (ww *walkContext) inMessage(msg *MessageBuilder) *walkContext {
 	walk := ww._clone()
 	walk.parentContext = msg

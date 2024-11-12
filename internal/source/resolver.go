@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pentops/golib/gl"
 	"github.com/pentops/j5/gen/j5/source/v1/source_j5pb"
 	"github.com/pentops/j5build/gen/j5/config/v1/config_j5pb"
 	"github.com/pentops/log.go/log"
@@ -51,7 +52,7 @@ func (rr *Resolver) GetRemoteDependency(ctx context.Context, input *config_j5pb.
 			owner:     st.Registry.Owner,
 			repoName:  st.Registry.Name,
 			version:   st.Registry.Version,
-			reference: coalesce(st.Registry.Reference, ptr("main")),
+			reference: coalesce(st.Registry.Reference, gl.Ptr("main")),
 		}, rr.regClient, locks)
 		if err != nil {
 			return nil, fmt.Errorf("resolving remote %s:%s : %w", st.Registry.Owner, st.Registry.Name, err)
@@ -79,12 +80,12 @@ func (rr *Resolver) cacheDance(ctx context.Context, spec cacheSpec, source Regis
 	ctx = log.WithField(ctx, "bundle", fullName)
 	var version *string
 	if spec.version != nil {
-		version = ptr(*spec.version)
+		version = gl.Ptr(*spec.version)
 		ctx = log.WithField(ctx, "specVersion", *version)
 	} else if lockVersion := getInputLockVersion(locks, fullName); lockVersion != nil {
 		ctx = log.WithField(ctx, "lockVersion", *lockVersion)
 		log.Debug(ctx, "using lock version")
-		version = ptr(*lockVersion)
+		version = gl.Ptr(*lockVersion)
 	}
 
 	// only use cache if version is explicit, otherwise needs to pull latest
@@ -96,9 +97,9 @@ func (rr *Resolver) cacheDance(ctx context.Context, spec cacheSpec, source Regis
 	}
 	if version == nil {
 		if spec.reference != nil {
-			version = ptr(*spec.reference)
+			version = gl.Ptr(*spec.reference)
 		} else {
-			version = ptr("main")
+			version = gl.Ptr("main")
 		}
 	}
 
@@ -135,8 +136,7 @@ func (src *Resolver) LatestLocks(ctx context.Context, deps []*config_j5pb.Input)
 				repoType:  "registry",
 				owner:     st.Registry.Owner,
 				repoName:  st.Registry.Name,
-				version:   st.Registry.Version,
-				reference: coalesce(st.Registry.Reference, ptr("main")),
+				reference: coalesce(st.Registry.Reference, gl.Ptr("main")),
 			}
 			resolver = src.regClient
 
@@ -188,14 +188,10 @@ func getInputLockVersion(locks *config_j5pb.LockFile, name string) *string {
 	}
 	for _, dep := range locks.Inputs {
 		if dep.Name == name {
-			return ptr(dep.Version)
+			return gl.Ptr(dep.Version)
 		}
 	}
 	return nil
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }
 
 func coalesce[T any](vals ...*T) *T {

@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/iancoleman/strcase"
+	"github.com/pentops/golib/gl"
 	"github.com/pentops/j5/gen/j5/messaging/v1/messaging_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
@@ -67,7 +68,7 @@ func (tn *topicRef) accept(visitor TopicFileVisitor) error {
 			name:    tn.schema.Name,
 			methods: tt.Publish.Messages,
 			serviceConfig: &messaging_j5pb.ServiceConfig{
-				TopicName: ptr(strcase.ToSnake(tn.schema.Name)),
+				TopicName: gl.Ptr(strcase.ToSnake(tn.schema.Name)),
 				Role: &messaging_j5pb.ServiceConfig_Publish_{
 					Publish: &messaging_j5pb.ServiceConfig_Publish{},
 				},
@@ -90,7 +91,7 @@ func (tn *topicRef) accept(visitor TopicFileVisitor) error {
 				tt.Upsert.Message,
 			},
 			serviceConfig: &messaging_j5pb.ServiceConfig{
-				TopicName: ptr(strcase.ToSnake(name)),
+				TopicName: gl.Ptr(strcase.ToSnake(name)),
 				Role: &messaging_j5pb.ServiceConfig_Publish_{
 					Publish: &messaging_j5pb.ServiceConfig_Publish{},
 				},
@@ -157,7 +158,7 @@ func acceptMultiReqResTopic(source SourceNode, name string, topic *sourcedef_j5p
 		name:    fmt.Sprintf("%sRequest", name),
 		methods: topic.Request,
 		serviceConfig: &messaging_j5pb.ServiceConfig{
-			TopicName: ptr(strcase.ToSnake(name)),
+			TopicName: gl.Ptr(strcase.ToSnake(name)),
 			Role: &messaging_j5pb.ServiceConfig_Request_{
 				Request: &messaging_j5pb.ServiceConfig_Request{},
 			},
@@ -175,7 +176,7 @@ func acceptMultiReqResTopic(source SourceNode, name string, topic *sourcedef_j5p
 		name:    fmt.Sprintf("%sReply", name),
 		methods: topic.Reply,
 		serviceConfig: &messaging_j5pb.ServiceConfig{
-			TopicName: ptr(strcase.ToSnake(name)),
+			TopicName: gl.Ptr(strcase.ToSnake(name)),
 			Role: &messaging_j5pb.ServiceConfig_Reply_{
 				Reply: &messaging_j5pb.ServiceConfig_Reply{},
 			},
