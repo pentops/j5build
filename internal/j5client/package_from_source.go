@@ -44,7 +44,7 @@ func (sb *sourceBuilder) apiBaseFromSource(api *source_j5pb.API) (*API, error) {
 			Name:          pkgSource.Name,
 			Label:         pkgSource.Label,
 			Indirect:      pkgSource.Indirect,
-			StateEntities: map[string]*StateEntity{},
+			StateEntities: []*StateEntity{},
 		}
 		apiPkg.Packages = append(apiPkg.Packages, pkg)
 
@@ -112,11 +112,13 @@ func getEntity(inPackage *subPackage, name string) (*StateEntity, error) {
 		return nil, fmt.Errorf("invalid state entity name %q", name)
 	}
 
-	entity, ok := inPackage.Package.StateEntities[name]
-	if !ok {
-		return nil, fmt.Errorf("unknown entity %q", name)
+	for _, entity := range inPackage.Package.StateEntities {
+		if entity.Name == name {
+			return entity, nil
+		}
 	}
-	return entity, nil
+
+	return nil, fmt.Errorf("unknown entity %q", name)
 }
 
 type subPackage struct {
@@ -167,13 +169,21 @@ func (sb *sourceBuilder) walkSourceSchemas(pkg *Package, schemaPackage *j5schema
 }
 
 func includeEntity(pkg *Package, obj *j5schema.ObjectSchema) error {
-	entity, ok := pkg.StateEntities[obj.Entity.Entity]
-	if !ok {
+	var entity *StateEntity
+
+	for _, e := range pkg.StateEntities {
+		if e.Name == obj.Entity.Entity {
+			entity = e
+			break
+		}
+	}
+
+	if entity == nil {
 		entity = &StateEntity{
 			Package: pkg,
 			Name:    obj.Entity.Entity,
 		}
-		pkg.StateEntities[obj.Entity.Entity] = entity
+		pkg.StateEntities = append(pkg.StateEntities, entity)
 	}
 
 	switch obj.Entity.Part {
