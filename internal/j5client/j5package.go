@@ -80,7 +80,7 @@ type Package struct {
 	Label         string
 	Indirect      bool
 	Services      []*Service
-	StateEntities map[string]*StateEntity
+	StateEntities []*StateEntity
 	Exported      []*j5schema.ObjectSchema
 }
 
