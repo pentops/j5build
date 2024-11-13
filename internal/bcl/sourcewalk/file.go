@@ -101,11 +101,12 @@ func (fn *FileNode) RangeRootElements(visitor FileVisitor) error {
 
 		case *sourcedef_j5pb.RootElement_Service:
 			service := element.Service
+			node, err := newServiceRef(source.child("service"), service)
+			if err != nil {
+				return wrapErr(source, err)
+			}
 			serviceFileNode := &ServiceFileNode{
-				services: []*serviceRef{{
-					schema: service,
-					source: source.child("service"),
-				}},
+				services: []*serviceBuilder{node},
 			}
 			if err := visitor.VisitServiceFile(serviceFileNode); err != nil {
 				return err

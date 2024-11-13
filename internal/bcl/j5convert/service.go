@@ -1,7 +1,6 @@
 package j5convert
 
 import (
-	"path"
 	"strings"
 
 	"github.com/iancoleman/strcase"
@@ -16,9 +15,8 @@ import (
 )
 
 type ServiceBuilder struct {
-	root     fileContext // service always belongs to a file
-	desc     *descriptorpb.ServiceDescriptorProto
-	basePath string
+	root fileContext // service always belongs to a file
+	desc *descriptorpb.ServiceDescriptorProto
 	commentSet
 }
 
@@ -63,7 +61,6 @@ func convertServiceNode(ww *walkContext, node *sourcewalk.ServiceNode) {
 	serviceWalker := ww.subPackageFile("service")
 
 	service := blankService(serviceWalker.file, node.Name)
-	service.basePath = node.BasePath
 
 	for _, method := range node.Methods {
 		convertMethod(ww, service, method)
@@ -98,7 +95,7 @@ func convertMethod(ww *walkContext, service *ServiceBuilder, node *sourcewalk.Se
 	}
 
 	annotation := &annotations.HttpRule{}
-	reqPathParts := strings.Split(path.Join(service.basePath, method.HttpPath), "/")
+	reqPathParts := strings.Split(node.ResolvedPath, "/")
 	for idx, part := range reqPathParts {
 		if strings.HasPrefix(part, ":") {
 			var field *schema_j5pb.ObjectProperty

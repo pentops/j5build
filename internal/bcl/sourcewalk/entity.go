@@ -312,7 +312,7 @@ func (ent *entityNode) acceptEvent(visitor FileVisitor) error {
 func (ent *entityNode) acceptCommands(visitor FileVisitor) error {
 	entity := ent.Schema
 
-	services := make([]*serviceRef, 0)
+	services := make([]*serviceBuilder, 0)
 	for idx, service := range entity.Commands {
 		var serviceName string
 		var servicePath string
@@ -331,6 +331,7 @@ func (ent *entityNode) acceptCommands(visitor FileVisitor) error {
 		} else {
 			servicePath = fmt.Sprintf("/%s/c", entity.BaseUrlPath)
 		}
+		service.BasePath = &servicePath
 
 		service.Name = &serviceName
 
@@ -343,11 +344,11 @@ func (ent *entityNode) acceptCommands(visitor FileVisitor) error {
 		}
 
 		source := ent.Source.child("commands", strconv.Itoa(idx))
-		services = append(services, &serviceRef{
-			BasePath: servicePath,
-			schema:   service,
-			source:   source,
-		})
+		node, err := newServiceRef(source, service)
+		if err != nil {
+			return wrapErr(source, err)
+		}
+		services = append(services, node)
 	}
 
 	return visitor.VisitServiceFile(&ServiceFileNode{
@@ -500,12 +501,13 @@ func (ent *entityNode) acceptQuery(visitor FileVisitor) error {
 		},
 	}
 
+	serviceNode, err := newServiceRef(ent.Source.child(virtualPathNode, "query"), query)
+	if err != nil {
+		return wrapErr(ent.Source, err)
+	}
+
 	return visitor.VisitServiceFile(&ServiceFileNode{
-		services: []*serviceRef{{
-			BasePath: *query.BasePath,
-			schema:   query,
-			source:   ent.Source.child(virtualPathNode, "query"),
-		}},
+		services: []*serviceBuilder{serviceNode},
 	})
 
 }

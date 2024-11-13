@@ -2,6 +2,7 @@ package sourcewalk
 
 import (
 	"fmt"
+	"path"
 	"strconv"
 
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
@@ -10,20 +11,13 @@ import (
 )
 
 type ServiceFileNode struct {
-	services []*serviceRef
-}
-
-type serviceRef struct {
-	BasePath string
-	schema   *sourcedef_j5pb.Service
-	source   SourceNode
+	services []*serviceBuilder
 }
 
 type ServiceNode struct {
 	// Schema  *sourcedef_j5pb.Service
-	BasePath string
-	Source   SourceNode
-	Methods  []*ServiceMethodNode
+	Source  SourceNode
+	Methods []*ServiceMethodNode
 
 	Name string
 
@@ -31,10 +25,11 @@ type ServiceNode struct {
 }
 
 type ServiceMethodNode struct {
-	Source     SourceNode
-	InputType  string
-	OutputType string
-	Schema     *sourcedef_j5pb.APIMethod
+	Source       SourceNode
+	InputType    string
+	OutputType   string
+	Schema       *sourcedef_j5pb.APIMethod
+	ResolvedPath string
 }
 
 type ServiceFileVisitor interface {
@@ -71,7 +66,19 @@ func (sf *ServiceFileNode) Accept(visitor ServiceFileVisitor) error {
 	return nil
 }
 
-func (sn *serviceRef) accept(visitor ServiceFileVisitor) error {
+type serviceBuilder struct {
+	schema *sourcedef_j5pb.Service
+	source SourceNode
+}
+
+func newServiceRef(source SourceNode, schema *sourcedef_j5pb.Service) (*serviceBuilder, error) {
+	return &serviceBuilder{
+		source: source,
+		schema: schema,
+	}, nil
+}
+
+func (sn *serviceBuilder) accept(visitor ServiceFileVisitor) error {
 	methods := make([]*ServiceMethodNode, 0, len(sn.schema.Methods))
 
 	for idx, method := range sn.schema.Methods {
@@ -112,11 +119,17 @@ func (sn *serviceRef) accept(visitor ServiceFileVisitor) error {
 			outputType = response.Name
 		}
 
+		resolvedPath := method.HttpPath
+		if sn.schema.BasePath != nil {
+			resolvedPath = path.Join(*sn.schema.BasePath, resolvedPath)
+		}
+
 		methods = append(methods, &ServiceMethodNode{
-			Source:     source.child("request"),
-			InputType:  request.Name,
-			OutputType: outputType,
-			Schema:     method,
+			Source:       source.child("request"),
+			InputType:    request.Name,
+			OutputType:   outputType,
+			Schema:       method,
+			ResolvedPath: resolvedPath,
 		})
 
 	}
@@ -124,8 +137,6 @@ func (sn *serviceRef) accept(visitor ServiceFileVisitor) error {
 		return fmt.Errorf("missing service name")
 	}
 	serviceNode := &ServiceNode{
-		//Schema:  sn.schema,
-		BasePath:       sn.BasePath,
 		Source:         sn.source,
 		Methods:        methods,
 		Name:           *sn.schema.Name + "Service",
