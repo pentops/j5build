@@ -63,8 +63,9 @@ func (dw *Runner) runDocker(ctx context.Context, rc RunContext) error {
 		return err
 	}
 	defer func() {
-		if err := dw.client.ContainerRemove(ctx, resp.ID, container.RemoveOptions{}); err != nil {
-			log.WithError(ctx, err).Error("failed to remove container")
+		ctx := context.WithoutCancel(ctx)
+		if remErr := dw.client.ContainerRemove(ctx, resp.ID, container.RemoveOptions{}); remErr != nil {
+			log.WithError(ctx, remErr).Warn("failed to remove container in defer")
 		}
 	}()
 
@@ -76,18 +77,20 @@ func (dw *Runner) runDocker(ctx context.Context, rc RunContext) error {
 		Logs:   true,
 	})
 	if err != nil {
+		log.WithError(ctx, err).Debug("container attach error")
 		return err
 	}
 
 	defer hj.Close()
 
-	log.WithField(ctx, "t0", time.Since(t0).String()).Debug("ContainerStart")
+	log.WithField(ctx, "t0", time.Since(t0).String()).Debug("Container Start")
 
 	if err := dw.client.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+		log.WithError(ctx, err).Debug("Container Start Error")
 		return err
 	}
 
-	log.WithField(ctx, "t0", time.Since(t0).String()).Debug("ContainerStarted")
+	log.WithField(ctx, "t0", time.Since(t0).String()).Debug("Container Started")
 
 	chOut := make(chan error)
 	go func() {
@@ -106,16 +109,18 @@ func (dw *Runner) runDocker(ctx context.Context, rc RunContext) error {
 		return fmt.Errorf("output copy error: %w", err)
 	}
 
-	log.WithField(ctx, "t0", time.Since(t0).String()).Debug("ContainerWait")
+	log.WithField(ctx, "t0", time.Since(t0).String()).Debug("Container Wait")
 
 	statusCh, errCh := dw.client.ContainerWait(ctx, resp.ID, container.WaitConditionNotRunning)
 
 	select {
 	case err := <-errCh:
 		if err != nil {
+			log.WithError(ctx, err).Debug("Container Wait Error")
 			return err
 		}
 	case st := <-statusCh:
+		log.WithField(ctx, "status-code", st.StatusCode).Debug("Container Exit")
 		if st.StatusCode != 0 {
 			return fmt.Errorf("non-zero exit code: %d", st.StatusCode)
 		}
