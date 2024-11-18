@@ -15,7 +15,7 @@ require (
 	github.com/pentops/bcl.go v0.0.0-20241106053808-87160f72331b
 	github.com/pentops/flowtest v0.0.0-20241110231021-42663ac00b63
 	github.com/pentops/golib v0.0.0-20241112050940-7fef6c0232c2
-	github.com/pentops/j5 v0.0.0-20241104203331-fb5a90a95412
+	github.com/pentops/j5 v0.0.0-20241118000406-f797e76617c3
 	github.com/pentops/log.go v0.0.0-20241106053730-7ac2afa77d54
 	github.com/pentops/runner v0.0.0-20241117231504-8174ef5b83e7
 	github.com/ryanuber/go-glob v1.0.0
@@ -24,7 +24,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.31.0
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c
 	golang.org/x/mod v0.21.0
-	golang.org/x/sync v0.8.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20241021214115-324edc3d5d38
 	google.golang.org/protobuf v1.35.1
 )
@@ -87,6 +86,7 @@ require (
 	go.uber.org/multierr v1.10.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/net v0.30.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.26.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
