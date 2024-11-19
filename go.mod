@@ -15,7 +15,7 @@ require (
 	github.com/pentops/bcl.go v0.0.0-20241106053808-87160f72331b
 	github.com/pentops/flowtest v0.0.0-20241110231021-42663ac00b63
 	github.com/pentops/golib v0.0.0-20241112050940-7fef6c0232c2
-	github.com/pentops/j5 v0.0.0-20241118000406-f797e76617c3
+	github.com/pentops/j5 v0.0.0-20241118024238-cc0053870591
 	github.com/pentops/log.go v0.0.0-20241106053730-7ac2afa77d54
 	github.com/pentops/runner v0.0.0-20241117231504-8174ef5b83e7
 	github.com/ryanuber/go-glob v1.0.0
