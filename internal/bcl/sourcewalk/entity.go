@@ -313,12 +313,13 @@ func (ent *entityNode) acceptCommands(visitor FileVisitor) error {
 	entity := ent.Schema
 
 	services := make([]*serviceBuilder, 0)
-	for idx, service := range entity.Commands {
+	for idx, serviceSrc := range entity.Commands {
+
 		var serviceName string
 		var servicePath string
 
-		if service.Name != nil {
-			serviceName = *service.Name
+		if serviceSrc.Name != nil {
+			serviceName = *serviceSrc.Name
 			if !strings.HasSuffix(serviceName, "Command") {
 				serviceName += "Command"
 			}
@@ -326,19 +327,22 @@ func (ent *entityNode) acceptCommands(visitor FileVisitor) error {
 			serviceName = fmt.Sprintf("%sCommand", strcase.ToCamel(ent.Schema.Name))
 		}
 
-		if service.BasePath != nil {
-			servicePath = fmt.Sprintf("/%s/%s", entity.BaseUrlPath, *service.BasePath)
+		if serviceSrc.BasePath != nil {
+			servicePath = fmt.Sprintf("/%s/%s", entity.BaseUrlPath, *serviceSrc.BasePath)
 		} else {
 			servicePath = fmt.Sprintf("/%s/c", entity.BaseUrlPath)
 		}
-		service.BasePath = &servicePath
 
-		service.Name = &serviceName
-
-		service.Options = &ext_j5pb.ServiceOptions{
-			Type: &ext_j5pb.ServiceOptions_StateCommand_{
-				StateCommand: &ext_j5pb.ServiceOptions_StateCommand{
-					Entity: ent.name,
+		service := &sourcedef_j5pb.Service{
+			Name:        &serviceName,
+			BasePath:    &servicePath,
+			Description: serviceSrc.Description,
+			Methods:     serviceSrc.Methods,
+			Options: &ext_j5pb.ServiceOptions{
+				Type: &ext_j5pb.ServiceOptions_StateCommand_{
+					StateCommand: &ext_j5pb.ServiceOptions_StateCommand{
+						Entity: ent.name,
+					},
 				},
 			},
 		}
