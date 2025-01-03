@@ -224,6 +224,7 @@ func (ps *PackageSet) findFileByPath(ctx context.Context, filename string) (*Sea
 
 func (ps *PackageSet) loadPackage(ctx context.Context, rb *resolveBaton, name string) (*Package, error) {
 	ctx = log.WithField(ctx, "loadPackage", name)
+	log.Debug(ctx, "Loading package")
 	rb, err := rb.cloneFor(name)
 	if err != nil {
 		return nil, fmt.Errorf("cloneFor %s: %w", name, err)
@@ -334,6 +335,8 @@ func (ps *PackageSet) loadExternalPackage(ctx context.Context, rb *resolveBaton,
 }
 
 func (ps *PackageSet) CompilePackage(ctx context.Context, packageName string) (linker.Files, error) {
+	ctx = log.WithField(ctx, "CompilePackage", packageName)
+	log.Debug(ctx, "Compiler: Load")
 	rb := newResolveBaton()
 	pkg, err := ps.loadPackage(ctx, rb, packageName)
 	if err != nil {
@@ -346,8 +349,7 @@ func (ps *PackageSet) CompilePackage(ctx context.Context, packageName string) (l
 	}
 	sort.Strings(filenames) // for consistent error ordering
 
-	ctx = log.WithField(ctx, "CompilePackage", packageName)
-	log.Debug(ctx, "Compiling package")
+	log.Debug(ctx, "Compiler: Link")
 
 	errs := &ErrCollector{}
 

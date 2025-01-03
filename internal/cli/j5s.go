@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -15,6 +14,7 @@ import (
 	"github.com/pentops/j5build/internal/bcl/protobuild"
 	"github.com/pentops/j5build/internal/bcl/protoprint"
 	"github.com/pentops/j5build/internal/source"
+	"github.com/pentops/log.go/log"
 	"github.com/pentops/runner/commander"
 )
 
@@ -216,12 +216,18 @@ func runJ5sGenProto(ctx context.Context, cfg struct {
 	SourceConfig
 	Verbose bool `flag:"verbose" env:"BCL_VERBOSE" default:"false" desc:"Verbose output"`
 }) error {
+	fmt.Printf("GET SOURCE\n")
 	src, err := cfg.GetSource(ctx)
 	if err != nil {
 		return err
 	}
 
+	fmt.Printf("EACH BUNDLE \n")
 	err = cfg.EachBundle(ctx, func(bundle source.Bundle) error {
+		fmt.Printf("BUNDLE: %v\n", bundle.DebugName())
+
+		ctx = log.WithField(ctx, "bundle", bundle.DebugName())
+		log.Debug(ctx, "GenProto for Bundle")
 
 		deps, err := bundle.GetDependencies(ctx, src)
 		if err != nil {
@@ -244,6 +250,7 @@ func runJ5sGenProto(ctx context.Context, cfg struct {
 		}
 
 		for _, pkg := range localFiles.ListPackages() {
+
 			out, err := compiler.CompilePackage(ctx, pkg)
 			if err != nil {
 				return fmt.Errorf("compile package: %w", err)
@@ -257,7 +264,10 @@ func runJ5sGenProto(ctx context.Context, cfg struct {
 
 				out, err := protoprint.PrintFile(ctx, file)
 				if err != nil {
-					log.Printf("Error printing %s: %v", filename, err)
+					log.WithFields(ctx, map[string]interface{}{
+						"error":    err.Error(),
+						"filename": file.Path(),
+					}).Error("Error printing file")
 					return err
 				}
 

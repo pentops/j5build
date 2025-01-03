@@ -84,14 +84,14 @@ func (rr *Resolver) cacheDance(ctx context.Context, spec cacheSpec, source Regis
 		ctx = log.WithField(ctx, "specVersion", *version)
 	} else if lockVersion := getInputLockVersion(locks, fullName); lockVersion != nil {
 		ctx = log.WithField(ctx, "lockVersion", *lockVersion)
-		log.Debug(ctx, "using lock version")
+		log.Debug(ctx, "Resolver: using lock version")
 		version = gl.Ptr(*lockVersion)
 	}
 
 	// only use cache if version is explicit, otherwise needs to pull latest
 	if version != nil {
 		if cached, ok := rr.getCachedInput(ctx, fullName, *version); ok {
-			log.Debug(ctx, "using cached input")
+			log.Debug(ctx, "Resolver: using cached input")
 			return cached, nil
 		}
 	}
@@ -104,7 +104,7 @@ func (rr *Resolver) cacheDance(ctx context.Context, spec cacheSpec, source Regis
 	}
 
 	ctx = log.WithField(ctx, "depVersion", *version)
-	log.Debug(ctx, "cache miss")
+	log.Debug(ctx, "Resolver: cache miss")
 
 	img, err := source.GetImage(ctx, spec.owner, spec.repoName, *version)
 	if err != nil {
@@ -169,7 +169,7 @@ func (src *Resolver) LatestLocks(ctx context.Context, deps []*config_j5pb.Input)
 			"dep":         fullName,
 			"lockVersion": *img.Version,
 		})
-		log.Info(ctx, "adding lock")
+		log.Info(ctx, "Resolver: adding lock")
 
 		lock := &config_j5pb.InputLock{
 			Name:    fullName,

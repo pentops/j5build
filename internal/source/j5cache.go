@@ -50,7 +50,7 @@ func (c *j5Cache) put(ctx context.Context, name, version string, img *source_j5p
 	log.WithFields(ctx, map[string]interface{}{
 		"bundle":  name,
 		"version": version,
-	}).Debug("caching source image")
+	}).Debug("J5Cache: caching source image")
 	data, err := proto.Marshal(img)
 	if err != nil {
 		return err

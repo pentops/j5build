@@ -40,6 +40,26 @@ func (b bundleSource) DebugName() string {
 	return b.debugName
 }
 
+func (b bundleSource) localDependencies() []string {
+	deps := make([]string, 0)
+	for _, dep := range b.config.Dependencies {
+		local, ok := dep.Type.(*config_j5pb.Input_Local)
+		if !ok {
+			continue
+		}
+		deps = append(deps, local.Local)
+	}
+
+	for _, include := range b.config.Includes {
+		local, ok := include.Input.Type.(*config_j5pb.Input_Local)
+		if !ok {
+			continue
+		}
+		deps = append(deps, local.Local)
+	}
+	return deps
+}
+
 func (b *bundleSource) J5Config() (*config_j5pb.BundleConfigFile, error) {
 	return b.config, nil
 }
@@ -58,6 +78,8 @@ func (b *bundleSource) SourceImage(ctx context.Context, resolver InputSource) (*
 
 func (bundle *bundleSource) GetDependencies(ctx context.Context, resolver InputSource) (DependencySet, error) {
 	ctx = log.WithField(ctx, "bundleDeps", bundle.DebugName())
+
+	log.Debug(ctx, "BundleSource: GetDependencies")
 
 	j5Config, err := bundle.J5Config()
 	if err != nil {
@@ -78,7 +100,12 @@ func (bundle *bundleSource) GetDependencies(ctx context.Context, resolver InputS
 		}
 		dependencies = append(dependencies, img)
 	}
-	return combineSourceImages(dependencies)
+	ds, err := combineSourceImages(dependencies)
+	if err != nil {
+		return nil, err
+	}
+	log.Debug(ctx, "BundleSource: GetDependencies done")
+	return ds, nil
 
 }
 func (bundle *bundleSource) getDependencies(ctx context.Context, resolver InputSource) ([]*source_j5pb.SourceImage, error) {

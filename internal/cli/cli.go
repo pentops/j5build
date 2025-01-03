@@ -87,13 +87,18 @@ func runLatestDeps(ctx context.Context, cfg struct {
 type SourceConfig struct {
 	Source string `flag:"dir" default:"." description:"Source / working directory containing j5.yaml and buf.lock.yaml"`
 	Bundle string `flag:"bundle" default:"" description:"When the bundle j5.yaml is in a subdirectory"`
+
+	_resolved *source.RepoRoot
 }
 
 func (cfg SourceConfig) WriteFile(filename string, data []byte) error {
 	return os.WriteFile(filepath.Join(cfg.Source, filename), data, 0644)
 }
 
-func (cfg SourceConfig) GetSource(ctx context.Context) (*source.RepoRoot, error) {
+func (cfg *SourceConfig) GetSource(ctx context.Context) (*source.RepoRoot, error) {
+	if cfg._resolved != nil {
+		return cfg._resolved, nil
+	}
 
 	resolver, err := source.NewEnvResolver()
 	if err != nil {
@@ -101,7 +106,12 @@ func (cfg SourceConfig) GetSource(ctx context.Context) (*source.RepoRoot, error)
 	}
 
 	fsRoot := os.DirFS(cfg.Source)
-	return source.NewFSRepoRoot(ctx, fsRoot, resolver)
+	root, err := source.NewFSRepoRoot(ctx, fsRoot, resolver)
+	if err != nil {
+		return nil, err
+	}
+	cfg._resolved = root
+	return root, nil
 }
 
 func (cfg SourceConfig) EachBundle(ctx context.Context, fn func(source.Bundle) error) error {

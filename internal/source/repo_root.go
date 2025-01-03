@@ -90,8 +90,8 @@ func (src *RepoRoot) ListAllDependencies() ([]*config_j5pb.Input, error) {
 
 func (src *RepoRoot) GetSourceImage(ctx context.Context, input *config_j5pb.Input) (*source_j5pb.SourceImage, error) {
 	if local, ok := input.Type.(*config_j5pb.Input_Local); ok {
-		bundle, ok := src.thisRepo.bundles[local.Local]
-		if !ok {
+		bundle := src.thisRepo.bundleByName(local.Local)
+		if bundle == nil {
 			return nil, fmt.Errorf("bundle %q not found", local.Local)
 		}
 		return bundle.SourceImage(ctx, src)
@@ -102,9 +102,18 @@ func (src *RepoRoot) GetSourceImage(ctx context.Context, input *config_j5pb.Inpu
 
 type repo struct {
 	repoRoot fs.FS
-	bundles  map[string]*bundleSource
+	bundles  []*bundleSource
 	config   *config_j5pb.RepoConfigFile
 	lockFile *config_j5pb.LockFile
+}
+
+func (rr *repo) bundleByName(name string) *bundleSource {
+	for _, bundle := range rr.bundles {
+		if bundle.refConfig.Name == name {
+			return bundle
+		}
+	}
+	return nil
 }
 
 func (src *RepoRoot) newRepo(debugName string, repoRoot fs.FS) (*repo, error) {
@@ -135,7 +144,6 @@ func (src *RepoRoot) newRepo(debugName string, repoRoot fs.FS) (*repo, error) {
 		config:   config,
 		repoRoot: repoRoot,
 		lockFile: lockFile,
-		bundles:  map[string]*bundleSource{},
 	}
 
 	for _, refConfig := range config.Bundles {
@@ -158,18 +166,18 @@ func (src *RepoRoot) newRepo(debugName string, repoRoot fs.FS) (*repo, error) {
 			return nil, fmt.Errorf("bundle %q Plugin References: %w", debugName, err)
 		}
 
-		thisRepo.bundles[refConfig.Name] = &bundleSource{
+		thisRepo.bundles = append(thisRepo.bundles, &bundleSource{
 			debugName: debugName,
 			fs:        bundleRoot,
 			dirInRepo: refConfig.Dir,
 			refConfig: refConfig,
 			config:    bundleConfig,
-		}
+		})
 	}
 
 	if len(config.Packages) > 0 || len(config.Publish) > 0 || config.Registry != nil {
 		// Inline Bundle
-		thisRepo.bundles[""] = &bundleSource{
+		thisRepo.bundles = append(thisRepo.bundles, &bundleSource{
 			debugName: debugName,
 			fs:        repoRoot,
 			refConfig: &config_j5pb.BundleReference{
@@ -183,10 +191,30 @@ func (src *RepoRoot) newRepo(debugName string, repoRoot fs.FS) (*repo, error) {
 				Options:      config.Options,
 				Dependencies: config.Dependencies,
 			},
-		}
+		})
+	}
+
+	if err := thisRepo.validateBundles(); err != nil {
+		return nil, err
 	}
 
 	return thisRepo, nil
+}
+
+func (src *repo) validateBundles() error {
+	fmt.Printf("ValidateBundles\n")
+	seenLocal := map[string]struct{}{}
+	for _, bundle := range src.bundles {
+		fmt.Printf("BBBBBBB %s\n", bundle.refConfig.Name)
+		for _, dep := range bundle.localDependencies() {
+			fmt.Printf("  BBBBB %s <- %s\n", bundle.refConfig.Name, dep)
+			if _, ok := seenLocal[dep]; !ok {
+				return fmt.Errorf("bundle %q depends on local %q, which is not defined (bundles are loaded in order)", bundle.debugName, dep)
+			}
+		}
+		seenLocal[bundle.refConfig.Name] = struct{}{}
+	}
+	return nil
 }
 
 func (src RepoRoot) RepoConfig() *config_j5pb.RepoConfigFile {
@@ -194,11 +222,7 @@ func (src RepoRoot) RepoConfig() *config_j5pb.RepoConfigFile {
 }
 
 func (src RepoRoot) AllBundles() []*bundleSource {
-	out := make([]*bundleSource, 0, len(src.thisRepo.bundles))
-	for _, bundle := range src.thisRepo.bundles {
-		out = append(out, bundle)
-	}
-	return out
+	return src.thisRepo.bundles
 }
 
 func (src *RepoRoot) CombinedSourceImage(ctx context.Context, inputs []*config_j5pb.Input) (*source_j5pb.SourceImage, error) {
@@ -263,7 +287,7 @@ func (src *RepoRoot) BundleImageSource(ctx context.Context, name string) (*sourc
 
 func (src *RepoRoot) BundleSource(name string) (*bundleSource, error) {
 	if name != "" {
-		if bundle, ok := src.thisRepo.bundles[name]; ok {
+		if bundle := src.thisRepo.bundleByName(name); bundle != nil {
 			return bundle, nil
 		}
 		return nil, fmt.Errorf("bundle %q not found", name)
