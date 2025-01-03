@@ -202,12 +202,9 @@ func (src *RepoRoot) newRepo(debugName string, repoRoot fs.FS) (*repo, error) {
 }
 
 func (src *repo) validateBundles() error {
-	fmt.Printf("ValidateBundles\n")
 	seenLocal := map[string]struct{}{}
 	for _, bundle := range src.bundles {
-		fmt.Printf("BBBBBBB %s\n", bundle.refConfig.Name)
 		for _, dep := range bundle.localDependencies() {
-			fmt.Printf("  BBBBB %s <- %s\n", bundle.refConfig.Name, dep)
 			if _, ok := seenLocal[dep]; !ok {
 				return fmt.Errorf("bundle %q depends on local %q, which is not defined (bundles are loaded in order)", bundle.debugName, dep)
 			}
