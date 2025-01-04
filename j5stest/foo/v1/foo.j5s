@@ -1,0 +1,9 @@
+package j5test.foo.v1
+
+object Foo {
+	| FooDoc
+	field bar string {
+		| Document
+		// Comment
+	}
+}

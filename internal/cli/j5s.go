@@ -216,15 +216,12 @@ func runJ5sGenProto(ctx context.Context, cfg struct {
 	SourceConfig
 	Verbose bool `flag:"verbose" env:"BCL_VERBOSE" default:"false" desc:"Verbose output"`
 }) error {
-	fmt.Printf("GET SOURCE\n")
 	src, err := cfg.GetSource(ctx)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("EACH BUNDLE \n")
 	err = cfg.EachBundle(ctx, func(bundle source.Bundle) error {
-		fmt.Printf("BUNDLE: %v\n", bundle.DebugName())
 
 		ctx = log.WithField(ctx, "bundle", bundle.DebugName())
 		log.Debug(ctx, "GenProto for Bundle")

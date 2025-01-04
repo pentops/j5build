@@ -17,7 +17,7 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-func buildProperty(ww *walkContext, node *sourcewalk.PropertyNode) (*descriptorpb.FieldDescriptorProto, error) {
+func buildProperty(ww *conversionVisitor, node *sourcewalk.PropertyNode) (*descriptorpb.FieldDescriptorProto, error) {
 
 	if node.Schema.Schema == nil {
 		return nil, fmt.Errorf("missing schema")
@@ -61,7 +61,7 @@ func buildProperty(ww *walkContext, node *sourcewalk.PropertyNode) (*descriptorp
 	return desc, nil
 }
 
-func buildField(ww *walkContext, node sourcewalk.FieldNode) (*descriptorpb.FieldDescriptorProto, error) {
+func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb.FieldDescriptorProto, error) {
 
 	desc := &descriptorpb.FieldDescriptorProto{
 		Options: &descriptorpb.FieldOptions{},
@@ -461,7 +461,7 @@ func buildField(ww *walkContext, node sourcewalk.FieldNode) (*descriptorpb.Field
 
 // Copies the J5 extension object to the equivalent protoreflect extension type
 // by field names.
-func (ww *walkContext) setJ5Ext(node sourcewalk.SourceNode, dest *descriptorpb.FieldOptions, fieldType protoreflect.Name, j5Ext proto.Message) *ext_j5pb.FieldOptions {
+func (ww *conversionVisitor) setJ5Ext(node sourcewalk.SourceNode, dest *descriptorpb.FieldOptions, fieldType protoreflect.Name, j5Ext proto.Message) *ext_j5pb.FieldOptions {
 
 	// Options in the *proto* representation.
 	extOptions := &ext_j5pb.FieldOptions{}
@@ -472,13 +472,13 @@ func (ww *walkContext) setJ5Ext(node sourcewalk.SourceNode, dest *descriptorpb.F
 
 	typeField := extOptionsRefl.Descriptor().Fields().ByName(fieldType)
 	if typeField == nil {
-		ww.errorf(node, "Field %s does not have a type field", fieldType)
+		ww.addErrorf(node, "Field %s does not have a type field", fieldType)
 		return nil
 	}
 
 	extTypedRefl := extOptionsRefl.Mutable(typeField).Message()
 	if extTypedRefl == nil {
-		ww.errorf(node, "Field %s type field is not a message", fieldType)
+		ww.addErrorf(node, "Field %s type field is not a message", fieldType)
 		return nil
 	}
 
@@ -503,7 +503,7 @@ func (ww *walkContext) setJ5Ext(node sourcewalk.SourceNode, dest *descriptorpb.F
 			return nil
 		})
 		if err != nil {
-			ww.errorf(node, "Error copying J5 extension to Proto extension: %v", err)
+			ww.addErrorf(node, "Error copying J5 extension to Proto extension: %v", err)
 			return nil
 		}
 	}
