@@ -44,6 +44,12 @@ var implicitImports = map[string]*PackageSummary{
 				File:       "j5/state/v1/metadata.proto",
 				MessageRef: &MessageRef{},
 			},
+			"EventPublishMetadata": {
+				Package:    "j5.state.v1",
+				Name:       "EventPublishMetadata",
+				File:       "j5/state/v1/metadata.proto",
+				MessageRef: &MessageRef{},
+			},
 		},
 	},
 	"j5.list.v1": {

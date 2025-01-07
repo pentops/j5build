@@ -75,6 +75,9 @@ func (ent *entityNode) run(visitor FileVisitor) error {
 	if err := ent.acceptCommands(visitor); err != nil {
 		return err
 	}
+	if err := ent.acceptTopics(visitor); err != nil {
+		return err
+	}
 
 	if len(ent.Schema.Schemas) > 0 {
 		ss := mapNested(ent.Source, nil, ent.Schema.Schemas)
@@ -357,6 +360,80 @@ func (ent *entityNode) acceptCommands(visitor FileVisitor) error {
 
 	return visitor.VisitServiceFile(&ServiceFileNode{
 		services: services,
+	})
+}
+
+func (ent *entityNode) acceptTopics(visitor FileVisitor) error {
+
+	source := ent.Source.child(virtualPathNode, "publish")
+
+	properties := []*schema_j5pb.ObjectProperty{{
+		Name:       "metadata",
+		ProtoField: []int32{1},
+		Required:   true,
+		Schema:     schemaRefField("j5.state.v1", "EventPublishMetadata"),
+	}, {
+		Name:       "keys",
+		ProtoField: []int32{2},
+		Required:   true,
+		Schema:     schemaRefField("", ent.componentName("Keys")),
+	}, {
+		Name:       "event",
+		ProtoField: []int32{3},
+		Required:   true,
+		Schema: &schema_j5pb.Field{
+			Type: &schema_j5pb.Field_Oneof{
+				Oneof: &schema_j5pb.OneofField{
+					Schema: &schema_j5pb.OneofField_Ref{
+						Ref: &schema_j5pb.Ref{
+							Schema: ent.componentName("EventType"),
+						},
+					},
+				},
+			},
+		},
+	}, {
+		Name:       "data",
+		ProtoField: []int32{3},
+		Required:   true,
+		Schema:     ent.innerRef("Data"),
+	}, {
+		Name:       "status",
+		ProtoField: []int32{4},
+		Required:   true,
+		Schema: &schema_j5pb.Field{
+			Type: &schema_j5pb.Field_Enum{
+				Enum: &schema_j5pb.EnumField{
+					Schema: &schema_j5pb.EnumField_Ref{
+						Ref: &schema_j5pb.Ref{
+							Schema: ent.componentName("Status"),
+						},
+					},
+				},
+			},
+		},
+	}}
+
+	publishTopic := &sourcedef_j5pb.Topic{
+		Name: fmt.Sprintf("%sPublish", strcase.ToCamel(ent.Schema.Name)),
+		Type: &sourcedef_j5pb.TopicType{
+			Type: &sourcedef_j5pb.TopicType_Publish_{
+				Publish: &sourcedef_j5pb.TopicType_Publish{
+					Messages: []*sourcedef_j5pb.TopicMethod{{
+						Name:        gl.Ptr(fmt.Sprintf("%sEvent", strcase.ToCamel(ent.Schema.Name))),
+						Description: fmt.Sprintf("Publishes an all events for the %s entity", ent.Schema.Name),
+						Fields:      properties,
+					}},
+				},
+			},
+		},
+	}
+
+	return visitor.VisitTopicFile(&TopicFileNode{
+		topics: []*topicRef{{
+			schema: publishTopic,
+			source: source,
+		}},
 	})
 }
 

@@ -7,13 +7,12 @@
 package schema_testpb
 
 import (
-	reflect "reflect"
-	sync "sync"
-
 	_ "github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
+	reflect "reflect"
+	sync "sync"
 )
 
 const (
