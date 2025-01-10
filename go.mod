@@ -14,8 +14,8 @@ require (
 	github.com/iancoleman/strcase v0.3.0
 	github.com/pentops/bcl.go v0.0.0-20241106053808-87160f72331b
 	github.com/pentops/flowtest v0.0.0-20241110231021-42663ac00b63
-	github.com/pentops/golib v0.0.0-20241112050940-7fef6c0232c2
-	github.com/pentops/j5 v0.0.0-20241118024238-cc0053870591
+	github.com/pentops/golib v0.0.0-20250107012216-1b5307b3bfe0
+	github.com/pentops/j5 v0.0.0-20250110185058-842704b84a3e
 	github.com/pentops/log.go v0.0.0-20241106053730-7ac2afa77d54
 	github.com/pentops/runner v0.0.0-20241117231504-8174ef5b83e7
 	github.com/ryanuber/go-glob v1.0.0
@@ -68,6 +68,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect
 	github.com/segmentio/encoding v0.3.4 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect

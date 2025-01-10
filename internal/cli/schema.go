@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/pentops/j5/codec"
 	"github.com/pentops/j5/gen/j5/client/v1/client_j5pb"
+	"github.com/pentops/j5/lib/j5codec"
 	"github.com/pentops/j5build/internal/export"
 	"github.com/pentops/j5build/internal/j5client"
 	"github.com/pentops/j5build/internal/structure"
@@ -89,7 +89,7 @@ func RunSource(ctx context.Context, cfg struct {
 		}
 	}
 
-	bb, err := codec.NewCodec().ProtoToJSON(out)
+	bb, err := j5codec.NewCodec().ProtoToJSON(out)
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,7 @@ func RunClient(ctx context.Context, cfg BuildConfig) error {
 		}
 	}
 
-	bb, err := codec.NewCodec().ProtoToJSON(descriptorAPI.ProtoReflect())
+	bb, err := j5codec.NewCodec().ProtoToJSON(descriptorAPI.ProtoReflect())
 	if err != nil {
 		return err
 	}
