@@ -482,10 +482,10 @@ func (bb *builder) addQueryMethod(gen *GeneratedFile, req *builtRequest) error {
 		case *schema_j5pb.Field_Enum:
 
 			if field.Property.Required {
-				queryMethod.P("  values.Set(\"", field.Property.Name, "\", s.", field.Name, ")")
+				queryMethod.P("  values.Set(\"", field.Property.Name, "\", string(s.", field.Name, "))")
 			} else {
 				queryMethod.P("  if s.", field.Name, " != nil {")
-				queryMethod.P("    values.Set(\"", field.Property.Name, "\", *s.", field.Name, ")")
+				queryMethod.P("    values.Set(\"", field.Property.Name, "\", string(*s.", field.Name, "))")
 				queryMethod.P("  }")
 			}
 
@@ -569,10 +569,33 @@ func (bb *builder) buildTypeName(currentPackage string, schema *schema_j5pb.Fiel
 		}, nil
 
 	case *schema_j5pb.Field_Enum:
-		// TODO: Something better.
+		var refPackage, refSchema string
+
+		switch linkType := schemaType.Enum.Schema.(type) {
+		case *schema_j5pb.EnumField_Ref:
+			refPackage = linkType.Ref.Package
+			refSchema = linkType.Ref.Schema
+
+		case *schema_j5pb.EnumField_Enum:
+			refPackage = currentPackage
+			refSchema = linkType.Enum.Name
+
+			if err := bb.addEnum(currentPackage, linkType.Enum); err != nil {
+				return nil, fmt.Errorf("referencedType %q.%q: %w", refPackage, refSchema, err)
+			}
+		default:
+			return nil, fmt.Errorf("Unknown enum ref type: %T\n", schema)
+		}
+
+		enumPackage, err := bb.options.ReferenceGoPackage(refPackage)
+		if err != nil {
+			return nil, fmt.Errorf("referredType in %q.%q: %w", refPackage, refSchema, err)
+		}
+
 		return &DataType{
-			Name:    "string",
-			Pointer: false,
+			Name:      goTypeName(refSchema),
+			GoPackage: enumPackage,
+			Pointer:   false,
 		}, nil
 
 	case *schema_j5pb.Field_Array:
