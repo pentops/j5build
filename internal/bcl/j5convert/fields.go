@@ -79,15 +79,17 @@ func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb
 		}
 
 		keyDesc := &descriptorpb.FieldDescriptorProto{}
-
-		desc := &descriptorpb.FieldDescriptorProto{}
-
-		desc.Label = descriptorpb.FieldDescriptorProto_LABEL_REPEATED.Enum()
-		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
-
 		_ = keyDesc
 		_ = itemDesc
 		panic("Map not implemented")
+
+		/*
+			desc := &descriptorpb.FieldDescriptorProto{
+				Label: descriptorpb.FieldDescriptorProto_LABEL_REPEATED.Enum(),
+				Type:  descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum(),
+			}
+			return desc, nil
+		*/
 
 	case *schema_j5pb.Field_Array:
 
@@ -176,6 +178,7 @@ func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb
 			proto.SetExtension(desc.Options, validate.E_Field, rules)
 			ww.file.ensureImport(bufValidateImport)
 		}
+
 		return desc, nil
 
 	case *schema_j5pb.Field_Enum:
@@ -216,6 +219,16 @@ func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb
 		}
 		ww.file.ensureImport(bufValidateImport)
 		proto.SetExtension(desc.Options, validate.E_Field, rules)
+
+		if st.Enum.ListRules != nil {
+			ww.file.ensureImport(j5ListAnnotationsImport)
+			proto.SetExtension(desc.Options, list_j5pb.E_Field, &list_j5pb.FieldConstraint{
+				Type: &list_j5pb.FieldConstraint_Enum{
+					Enum: st.Enum.ListRules,
+				},
+			})
+		}
+
 		return desc, nil
 
 	case *schema_j5pb.Field_Bool:
@@ -232,6 +245,15 @@ func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb
 				},
 			}
 			proto.SetExtension(desc.Options, validate.E_Field, rules)
+		}
+
+		if st.Bool.ListRules != nil {
+			ww.file.ensureImport(j5ListAnnotationsImport)
+			proto.SetExtension(desc.Options, list_j5pb.E_Field, &list_j5pb.FieldConstraint{
+				Type: &list_j5pb.FieldConstraint_Bool{
+					Bool: st.Bool.ListRules,
+				},
+			})
 		}
 		return desc, nil
 
@@ -251,6 +273,7 @@ func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb
 			}
 			proto.SetExtension(desc.Options, validate.E_Field, rules)
 		}
+
 		return desc, nil
 
 	case *schema_j5pb.Field_Date:
@@ -258,7 +281,25 @@ func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
 		desc.TypeName = gl.Ptr(".j5.types.date.v1.Date")
 
-		ww.setJ5Ext(node.Source, desc.Options, "date", st.Date.Ext)
+		if st.Date.Rules != nil {
+			opts := &ext_j5pb.DateField{}
+			opts.Rules = &ext_j5pb.DateField_Rules{
+				Minimum:          st.Date.Rules.Minimum,
+				Maximum:          st.Date.Rules.Maximum,
+				ExclusiveMinimum: st.Date.Rules.ExclusiveMinimum,
+				ExclusiveMaximum: st.Date.Rules.ExclusiveMaximum,
+			}
+			proto.SetExtension(desc.Options, ext_j5pb.E_Field, opts)
+		}
+
+		if st.Date.ListRules != nil {
+			ww.file.ensureImport(j5ListAnnotationsImport)
+			proto.SetExtension(desc.Options, list_j5pb.E_Field, &list_j5pb.FieldConstraint{
+				Type: &list_j5pb.FieldConstraint_Date{
+					Date: st.Date.ListRules,
+				},
+			})
+		}
 
 		return desc, nil
 
@@ -267,7 +308,25 @@ func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
 		desc.TypeName = gl.Ptr(".j5.types.decimal.v1.Decimal")
 
-		ww.setJ5Ext(node.Source, desc.Options, "decimal", st.Decimal.Ext)
+		if st.Decimal.Rules != nil {
+			opts := &ext_j5pb.DecimalField{}
+			opts.Rules = &ext_j5pb.DecimalField_Rules{
+				Minimum:          st.Decimal.Rules.Minimum,
+				Maximum:          st.Decimal.Rules.Maximum,
+				ExclusiveMinimum: st.Decimal.Rules.ExclusiveMinimum,
+				ExclusiveMaximum: st.Decimal.Rules.ExclusiveMaximum,
+			}
+			proto.SetExtension(desc.Options, ext_j5pb.E_Field, opts)
+		}
+
+		if st.Decimal.ListRules != nil {
+			ww.file.ensureImport(j5ListAnnotationsImport)
+			proto.SetExtension(desc.Options, list_j5pb.E_Field, &list_j5pb.FieldConstraint{
+				Type: &list_j5pb.FieldConstraint_Decimal{
+					Decimal: st.Decimal.ListRules,
+				},
+			})
+		}
 
 		return desc, nil
 
@@ -286,6 +345,15 @@ func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb
 		}
 
 		ww.setJ5Ext(node.Source, desc.Options, "float", st.Float.Ext)
+
+		if st.Float.ListRules != nil {
+			ww.file.ensureImport(j5ListAnnotationsImport)
+			proto.SetExtension(desc.Options, list_j5pb.E_Field, &list_j5pb.FieldConstraint{
+				Type: &list_j5pb.FieldConstraint_Float{
+					Float: st.Float.ListRules,
+				},
+			})
+		}
 
 		return desc, nil
 
