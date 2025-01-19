@@ -744,6 +744,10 @@ func (bb *builder) jsonField(packageName string, property *schema_j5pb.ObjectPro
 		return nil, fmt.Errorf("building field %s: %w", property.Name, err)
 	}
 
+	if dataType.Name == "int64" || dataType.Name == "uint64" {
+		tags["json"] += ",string"
+	}
+
 	if !dataType.Pointer && !dataType.Slice && property.ExplicitlyOptional {
 		dataType.Pointer = true
 	}
