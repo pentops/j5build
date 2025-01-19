@@ -7,6 +7,9 @@
 package sourcedef_j5pb
 
 import (
+	reflect "reflect"
+	sync "sync"
+
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	bcl_j5pb "github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
 	auth_j5pb "github.com/pentops/j5/gen/j5/auth/v1/auth_j5pb"
@@ -16,8 +19,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	_ "google.golang.org/protobuf/types/descriptorpb"
-	reflect "reflect"
-	sync "sync"
 )
 
 const (
