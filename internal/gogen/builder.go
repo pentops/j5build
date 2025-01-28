@@ -187,7 +187,7 @@ func (bb *builder) addMethod(packageName string, serviceName string, operation *
 			}
 
 			switch fieldType := param.Field.Property.Schema.Type.(type) {
-			case *schema_j5pb.Field_String_, *schema_j5pb.Field_Key:
+			case *schema_j5pb.Field_String_, *schema_j5pb.Field_Key, *schema_j5pb.Field_Date:
 
 			default:
 				// Only string-like is supported for now
