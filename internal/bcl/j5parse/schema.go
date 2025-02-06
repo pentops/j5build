@@ -74,6 +74,12 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 			IsBlock:   true,
 		},
 	}, {
+		SchemaName: "j5.schema.v1.MapField",
+		Qualifier: &bcl_j5pb.Tag{
+			FieldName: ("itemSchema"),
+			IsBlock:   true,
+		},
+	}, {
 		SchemaName: "j5.schema.v1.KeyField",
 		Qualifier: &bcl_j5pb.Tag{
 			FieldName: ("format"),
@@ -88,6 +94,11 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 		}},
 	}, {
 		SchemaName: "j5.schema.v1.IntegerField",
+		Qualifier: &bcl_j5pb.Tag{
+			FieldName: ("format"),
+		},
+	}, {
+		SchemaName: "j5.schema.v1.FloatField",
 		Qualifier: &bcl_j5pb.Tag{
 			FieldName: ("format"),
 		},
@@ -148,6 +159,10 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 		Qualifier: &bcl_j5pb.Tag{
 			FieldName: ("ref"),
 		},
+		Alias: []*bcl_j5pb.Alias{{
+			Name: "option",
+			Path: bclPath("enum", "options"),
+		}},
 	}, {
 		SchemaName:       "j5.sourcedef.v1.Object",
 		Name:             &bcl_j5pb.Tag{FieldName: ("name")},

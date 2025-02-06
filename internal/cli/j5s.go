@@ -250,7 +250,7 @@ func runJ5sGenProto(ctx context.Context, cfg struct {
 
 			out, err := compiler.CompilePackage(ctx, pkg)
 			if err != nil {
-				return fmt.Errorf("compile package: %w", err)
+				return fmt.Errorf("compile package %q: %w", pkg, err)
 			}
 
 			for _, file := range out {

@@ -53,14 +53,3 @@ func (rr *rootContext) subPackageFile(subPackage string) *fileContext {
 	rr.files = append(rr.files, found)
 	return found
 }
-
-// parentContext is a file's root, or message, which can hold messages and
-// enums. Implemented by FileBuilder and MessageBuilder.
-type parentContext interface {
-	addMessage(*MessageBuilder)
-	addEnum(*enumBuilder)
-}
-
-type fieldContext struct {
-	name string
-}

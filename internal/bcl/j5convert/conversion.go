@@ -18,6 +18,17 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
+// parentContext is a file's root, or message, which can hold messages and
+// enums. Implemented by FileBuilder and MessageBuilder.
+type parentContext interface {
+	addMessage(*MessageBuilder)
+	addEnum(*enumBuilder)
+}
+
+type fieldContext struct {
+	name string
+}
+
 type conversionVisitor struct {
 	root          *rootContext
 	file          *fileContext
@@ -205,11 +216,13 @@ func (ww *conversionVisitor) visitObjectNode(node *sourcewalk.ObjectNode) {
 
 	message.comment([]int32{}, node.Description)
 
+	inMessageWalker := ww.inMessage(message)
+
 	err := node.RangeProperties(&sourcewalk.PropertyCallbacks{
-		SchemaVisitor: walkerSchemaVisitor(ww.inMessage(message)),
+		SchemaVisitor: walkerSchemaVisitor(inMessageWalker),
 		Property: func(node *sourcewalk.PropertyNode) error {
 
-			propertyDesc, err := buildProperty(ww, node)
+			propertyDesc, err := buildProperty(inMessageWalker, node)
 			if err != nil {
 				ww.addError(node.Source, err)
 			}

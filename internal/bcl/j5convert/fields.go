@@ -3,6 +3,7 @@ package j5convert
 import (
 	"errors"
 	"fmt"
+	"unicode"
 
 	"buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"github.com/iancoleman/strcase"
@@ -17,79 +18,75 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
+// mirros the buf check for 'isMap', which in turn mirrors the algorithm in protoc:
+// https://github.com/bufbuild/protocompile/blob/a1712a89e0b94bbc102f376be995692c56435195/internal/util.go#L29
+// https://github.com/protocolbuffers/protobuf/blob/v21.3/src/google/protobuf/descriptor.cc#L95
+// It is necessary for this to match exactly for a message to be interpreted as
+// a map entry.
+func mapName(name string) string {
+	var js []rune
+	nextUpper := true
+	for _, r := range name {
+		if r == '_' {
+			nextUpper = true
+			continue
+		}
+		if nextUpper {
+			nextUpper = false
+			js = append(js, unicode.ToUpper(r))
+		} else {
+			js = append(js, r)
+		}
+	}
+	return string(js) + "Entry"
+}
+
 func buildProperty(ww *conversionVisitor, node *sourcewalk.PropertyNode) (*descriptorpb.FieldDescriptorProto, error) {
 
 	if node.Schema.Schema == nil {
 		return nil, fmt.Errorf("missing schema")
 	}
 
-	desc, err := buildField(ww, node.Field)
-	if err != nil {
-		return nil, err
-	}
-
-	required := node.Schema.Required
-	if ext := proto.GetExtension(desc.Options, ext_j5pb.E_Key).(*ext_j5pb.PSMKeyFieldOptions); ext != nil {
-		if ext.PrimaryKey {
-			// even if not explicitly set, a primary key is required, we don't support partial primary keys.
-			required = true
-		}
-	}
-
-	if required {
-		ext := proto.GetExtension(desc.Options, validate.E_Field).(*validate.FieldConstraints)
-		if ext == nil {
-			ext = &validate.FieldConstraints{}
-		}
-		ww.file.ensureImport(bufValidateImport)
-		ext.Required = gl.Ptr(true)
-		proto.SetExtension(desc.Options, validate.E_Field, ext)
-		ww.file.ensureImport(j5ExtImport)
-	}
-
-	if node.Schema.ExplicitlyOptional {
-		if required {
-			return nil, fmt.Errorf("cannot be both required and optional")
-		}
-		desc.Proto3Optional = gl.Ptr(true)
-	}
-
+	var fieldDesc *descriptorpb.FieldDescriptorProto
+	var err error
 	protoFieldName := strcase.ToSnake(node.Schema.Name)
-	desc.Name = gl.Ptr(protoFieldName)
-	desc.JsonName = gl.Ptr(node.Schema.Name)
-	desc.Number = gl.Ptr(node.Number)
-	return desc, nil
-}
 
-func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb.FieldDescriptorProto, error) {
-
-	desc := &descriptorpb.FieldDescriptorProto{
-		Options: &descriptorpb.FieldOptions{},
-	}
-
-	switch st := node.Schema.(type) {
+	switch st := node.Field.Schema.(type) {
 	case *schema_j5pb.Field_Map:
 		if st.Map.ItemSchema == nil {
 			return nil, errors.New("missing map item schema")
 		}
 
-		itemDesc, err := buildField(ww, *node.Items)
+		itemDesc, err := buildField(ww, *node.Field.Items)
 		if err != nil {
 			return nil, err
 		}
 
-		keyDesc := &descriptorpb.FieldDescriptorProto{}
-		_ = keyDesc
-		_ = itemDesc
-		panic("Map not implemented")
+		keyDesc := &descriptorpb.FieldDescriptorProto{
+			Name:   gl.Ptr("key"),
+			Number: gl.Ptr(int32(1)),
+			Type:   descriptorpb.FieldDescriptorProto_TYPE_STRING.Enum(),
+		}
 
-		/*
-			desc := &descriptorpb.FieldDescriptorProto{
-				Label: descriptorpb.FieldDescriptorProto_LABEL_REPEATED.Enum(),
-				Type:  descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum(),
-			}
-			return desc, nil
-		*/
+		itemDesc.Number = gl.Ptr(int32(2))
+		itemDesc.Name = gl.Ptr("value")
+
+		entryName := mapName(protoFieldName)
+
+		mb := blankMessage(entryName)
+		mb.descriptor.Field = []*descriptorpb.FieldDescriptorProto{
+			keyDesc,
+			itemDesc,
+		}
+		mb.descriptor.Options.MapEntry = gl.Ptr(true)
+
+		ww.parentContext.addMessage(mb)
+
+		fieldDesc = &descriptorpb.FieldDescriptorProto{
+			Label:    descriptorpb.FieldDescriptorProto_LABEL_REPEATED.Enum(),
+			Type:     descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum(),
+			TypeName: &entryName,
+		}
 
 	case *schema_j5pb.Field_Array:
 
@@ -97,15 +94,15 @@ func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb
 			return nil, errors.New("missing array items")
 		}
 
-		desc, err := buildField(ww, *node.Items)
+		fieldDesc, err = buildField(ww, *node.Field.Items)
 		if err != nil {
 			return nil, err
 		}
 
-		desc.Label = descriptorpb.FieldDescriptorProto_LABEL_REPEATED.Enum()
+		fieldDesc.Label = descriptorpb.FieldDescriptorProto_LABEL_REPEATED.Enum()
 
 		if st.Array.Ext != nil {
-			proto.SetExtension(desc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
+			proto.SetExtension(fieldDesc.Options, ext_j5pb.E_Field, &ext_j5pb.FieldOptions{
 				Type: &ext_j5pb.FieldOptions_Array{
 					Array: &ext_j5pb.ArrayField{
 						SingleForm: st.Array.Ext.SingleForm,
@@ -114,7 +111,7 @@ func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb
 			})
 		}
 
-		ww.setJ5Ext(node.Source, desc.Options, "array", st.Array.Ext)
+		ww.setJ5Ext(node.Source, fieldDesc.Options, "array", st.Array.Ext)
 
 		if st.Array.Rules != nil {
 			rules := &validate.FieldConstraints{
@@ -126,12 +123,56 @@ func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb
 					},
 				},
 			}
-			proto.SetExtension(desc.Options, validate.E_Field, rules)
+			proto.SetExtension(fieldDesc.Options, validate.E_Field, rules)
 			ww.file.ensureImport(bufValidateImport)
 		}
 
-		return desc, nil
+	default:
+		fieldDesc, err = buildField(ww, node.Field)
+		if err != nil {
+			return nil, err
+		}
+	}
 
+	required := node.Schema.Required
+	if ext := proto.GetExtension(fieldDesc.Options, ext_j5pb.E_Key).(*ext_j5pb.PSMKeyFieldOptions); ext != nil {
+		if ext.PrimaryKey {
+			// even if not explicitly set, a primary key is required, we don't support partial primary keys.
+			required = true
+		}
+	}
+
+	if required {
+		ext := proto.GetExtension(fieldDesc.Options, validate.E_Field).(*validate.FieldConstraints)
+		if ext == nil {
+			ext = &validate.FieldConstraints{}
+		}
+		ww.file.ensureImport(bufValidateImport)
+		ext.Required = gl.Ptr(true)
+		proto.SetExtension(fieldDesc.Options, validate.E_Field, ext)
+		ww.file.ensureImport(j5ExtImport)
+	}
+
+	if node.Schema.ExplicitlyOptional {
+		if required {
+			return nil, fmt.Errorf("cannot be both required and optional")
+		}
+		fieldDesc.Proto3Optional = gl.Ptr(true)
+	}
+
+	fieldDesc.Name = gl.Ptr(protoFieldName)
+	fieldDesc.JsonName = gl.Ptr(node.Schema.Name)
+	fieldDesc.Number = gl.Ptr(node.Number)
+	return fieldDesc, nil
+}
+
+func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb.FieldDescriptorProto, error) {
+
+	desc := &descriptorpb.FieldDescriptorProto{
+		Options: &descriptorpb.FieldOptions{},
+	}
+
+	switch st := node.Schema.(type) {
 	case *schema_j5pb.Field_Object:
 		desc.Type = descriptorpb.FieldDescriptorProto_TYPE_MESSAGE.Enum()
 
@@ -340,8 +381,12 @@ func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb
 
 		case schema_j5pb.FloatField_FORMAT_FLOAT64:
 			desc.Type = descriptorpb.FieldDescriptorProto_TYPE_DOUBLE.Enum()
+
+		case schema_j5pb.FloatField_FORMAT_UNSPECIFIED:
+			return nil, fmt.Errorf("float format unspecified")
+
 		default:
-			return nil, fmt.Errorf("unknown float format %T", st.Float.Format)
+			return nil, fmt.Errorf("unknown float format %v", st.Float.Format)
 		}
 
 		ww.setJ5Ext(node.Source, desc.Options, "float", st.Float.Ext)

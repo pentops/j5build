@@ -7,6 +7,9 @@ bundles:
   - name: j5build
     dir: proto/j5build
 
+  - name: j5stest
+    dir: j5stest
+
 generate:
   - name: base
     inputs:

@@ -168,6 +168,11 @@ func buildFieldNode(source SourceNode, parent parentNode, defaultNestingName str
 }
 
 func replaceNestedObject(source SourceNode, parent parentNode, defaultName string, field *schema_j5pb.ObjectField, visitor SchemaVisitor) (*RefNode, error) {
+	if field.Schema == nil {
+		field.Schema = &schema_j5pb.ObjectField_Object{
+			Object: &schema_j5pb.Object{},
+		}
+	}
 	switch st := field.Schema.(type) {
 	case *schema_j5pb.ObjectField_Ref:
 		return &RefNode{
@@ -201,6 +206,11 @@ func replaceNestedObject(source SourceNode, parent parentNode, defaultName strin
 }
 
 func replaceNestedOneof(source SourceNode, parent parentNode, defaultName string, field *schema_j5pb.OneofField, visitor SchemaVisitor) (*RefNode, error) {
+	if field.Schema == nil {
+		field.Schema = &schema_j5pb.OneofField_Oneof{
+			Oneof: &schema_j5pb.Oneof{},
+		}
+	}
 	switch st := field.Schema.(type) {
 	case *schema_j5pb.OneofField_Ref:
 		return &RefNode{

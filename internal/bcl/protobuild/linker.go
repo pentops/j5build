@@ -46,16 +46,16 @@ type fileSource interface {
 func (ll *searchLinker) resolveAll(ctx context.Context, filenames []string) (linker.Files, error) {
 	files := make(linker.Files, 0, len(filenames))
 	for _, filename := range filenames {
-		file, err := ll.resolve(ctx, filename)
+		file, err := ll.resolveFile(ctx, filename)
 		if err != nil {
-			return nil, fmt.Errorf("resolveAll, resolve: %w", err)
+			return nil, fmt.Errorf("resolve file %s: %w", filename, err)
 		}
 		files = append(files, file)
 	}
 	return files, nil
 }
 
-func (ll *searchLinker) resolve(ctx context.Context, filename string) (linker.File, error) {
+func (ll *searchLinker) resolveFile(ctx context.Context, filename string) (linker.File, error) {
 	ctx = log.WithField(ctx, "askFilename", filename)
 	result, err := ll.resolver.findFileByPath(ctx, filename)
 	if err != nil {
@@ -73,7 +73,7 @@ func (ll *searchLinker) linkResult(ctx context.Context, result *SearchResult) (l
 
 	linked, err := ll._linkNewResult(ctx, result)
 	if err != nil {
-		return nil, fmt.Errorf("resolve, link: %w", err)
+		return nil, err
 	}
 	result.Linked = linked
 	return linked, nil
@@ -123,7 +123,7 @@ func (ll *searchLinker) resultToFile(ctx context.Context, result parser.Result) 
 func (ll *searchLinker) loadDependencies(ctx context.Context, desc *descriptorpb.FileDescriptorProto) (linker.Files, error) {
 	deps := make(linker.Files, 0, len(desc.Dependency))
 	for _, dep := range desc.Dependency {
-		ll, err := ll.resolve(ctx, dep)
+		ll, err := ll.resolveFile(ctx, dep)
 		if err != nil {
 			return nil, fmt.Errorf("resolve %s: %w", dep, err)
 		}
