@@ -21,7 +21,7 @@ type Parser struct {
 	refl     *j5reflect.Reflector
 	Verbose  bool
 	FailFast bool
-	validate *protovalidate.Validator
+	validate protovalidate.Validator
 	schema   *schema.SchemaSet
 }
 
@@ -118,11 +118,11 @@ func maybeString(s *string) string {
 }
 func (s sourceSet) addViolation(violation *validate.Violation) {
 	msg := maybeString(violation.Message)
-	if violation.FieldPath == nil {
+	if violation.Field == nil {
 		s.err(errors.New(msg))
 		return
 	}
-	path := strings.Split(*violation.FieldPath, ".")
+	path := strings.Split(violation.Field.String(), ".")
 	fullPath := make([]string, 0)
 	for i, p := range path {
 		parts := strings.Split(p, "[")
@@ -140,7 +140,7 @@ func (s sourceSet) addViolation(violation *validate.Violation) {
 	for _, p := range fullPath {
 		ss = ss.field(p)
 	}
-	ss.err(fmt.Errorf("%s: %s", *violation.FieldPath, msg))
+	ss.err(fmt.Errorf("%s: %s", violation.Field.String(), msg))
 }
 
 func (s sourceSet) field(name string) sourceSet {
@@ -197,7 +197,7 @@ func printSource(loc *sourcedef_j5pb.SourceLocation, prefix string) {
 }
 */
 
-func validateFile(pv *protovalidate.Validator, msg protoreflect.ProtoMessage, source *bcl_j5pb.SourceLocation) error {
+func validateFile(pv protovalidate.Validator, msg protoreflect.ProtoMessage, source *bcl_j5pb.SourceLocation) error {
 
 	sources := newSourceSet(source)
 
@@ -206,7 +206,7 @@ func validateFile(pv *protovalidate.Validator, msg protoreflect.ProtoMessage, so
 		valErr := &protovalidate.ValidationError{}
 		if errors.As(validationErr, &valErr) {
 			//sources.err(valErr)
-			for _, violation := range valErr.Violations {
+			for _, violation := range valErr.ToProto().Violations {
 				sources.addViolation(violation)
 			}
 
