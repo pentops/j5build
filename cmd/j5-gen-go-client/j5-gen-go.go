@@ -30,7 +30,7 @@ func do() error {
 		return err
 	}
 
-	if req.Packages == nil || len(req.Packages) < 1 {
+	if len(req.Packages) < 1 {
 		return fmt.Errorf("no packages to generate")
 	}
 
