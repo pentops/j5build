@@ -42,7 +42,6 @@ func mapName(name string) string {
 }
 
 func buildProperty(ww *conversionVisitor, node *sourcewalk.PropertyNode) (*descriptorpb.FieldDescriptorProto, error) {
-
 	if node.Schema.Schema == nil {
 		return nil, fmt.Errorf("missing schema")
 	}
@@ -89,7 +88,6 @@ func buildProperty(ww *conversionVisitor, node *sourcewalk.PropertyNode) (*descr
 		}
 
 	case *schema_j5pb.Field_Array:
-
 		if st.Array.Items == nil {
 			return nil, errors.New("missing array items")
 		}
@@ -167,7 +165,6 @@ func buildProperty(ww *conversionVisitor, node *sourcewalk.PropertyNode) (*descr
 }
 
 func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb.FieldDescriptorProto, error) {
-
 	desc := &descriptorpb.FieldDescriptorProto{
 		Options: &descriptorpb.FieldOptions{},
 	}
@@ -409,12 +406,16 @@ func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb
 		switch st.Integer.Format {
 		case schema_j5pb.IntegerField_FORMAT_INT32:
 			desc.Type = descriptorpb.FieldDescriptorProto_TYPE_INT32.Enum()
+
 		case schema_j5pb.IntegerField_FORMAT_INT64:
 			desc.Type = descriptorpb.FieldDescriptorProto_TYPE_INT64.Enum()
+
 		case schema_j5pb.IntegerField_FORMAT_UINT32:
 			desc.Type = descriptorpb.FieldDescriptorProto_TYPE_UINT32.Enum()
+
 		case schema_j5pb.IntegerField_FORMAT_UINT64:
 			desc.Type = descriptorpb.FieldDescriptorProto_TYPE_UINT64.Enum()
+
 		default:
 			return nil, fmt.Errorf("unknown integer format %v", st.Integer.Format)
 		}

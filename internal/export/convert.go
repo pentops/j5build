@@ -56,7 +56,6 @@ func ConvertRootSchema(schema *schema_j5pb.RootSchema) (*Schema, error) {
 }
 
 func convertSchema(schema *schema_j5pb.Field) (*Schema, error) {
-
 	out := &Schema{
 		SchemaItem: &SchemaItem{},
 	}
@@ -91,9 +90,11 @@ func convertSchema(schema *schema_j5pb.Field) (*Schema, error) {
 		switch t := t.Enum.Schema.(type) {
 		case *schema_j5pb.EnumField_Enum:
 			out.SchemaItem.Type = convertEnumItem(t.Enum).Type
+
 		case *schema_j5pb.EnumField_Ref:
 			refStr := fmt.Sprintf("#/definitions/%s.%s", t.Ref.Package, t.Ref.Schema)
 			out.Ref = &refStr
+
 		default:
 			return nil, fmt.Errorf("unknown schema type for swagger %T", t)
 		}
@@ -105,10 +106,13 @@ func convertSchema(schema *schema_j5pb.Field) (*Schema, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			out.SchemaItem.Type = item.Type
+
 		case *schema_j5pb.ObjectField_Ref:
 			refStr := fmt.Sprintf("#/definitions/%s.%s", t.Ref.Package, t.Ref.Schema)
 			out.Ref = &refStr
+
 		default:
 			return nil, fmt.Errorf("unknown schema type for swagger %T", t)
 		}
@@ -120,10 +124,12 @@ func convertSchema(schema *schema_j5pb.Field) (*Schema, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			out.SchemaItem.Type = item.Type
 		case *schema_j5pb.OneofField_Ref:
 			refStr := fmt.Sprintf("#/definitions/%s.%s", t.Ref.Package, t.Ref.Schema)
 			out.Ref = &refStr
+
 		default:
 			return nil, fmt.Errorf("unknown schema type for swagger %T", t)
 		}
@@ -137,11 +143,11 @@ func convertSchema(schema *schema_j5pb.Field) (*Schema, error) {
 	default:
 		return nil, fmt.Errorf("unknown schema type for swagger %T", t)
 	}
+
 	return out, nil
 }
 
 func convertStringItem(item *schema_j5pb.StringField) *StringItem {
-
 	out := &StringItem{
 		Format:  Maybe(item.Format),
 		Example: Maybe(stringExample(item.Format)),

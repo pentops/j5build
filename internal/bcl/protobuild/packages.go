@@ -338,6 +338,7 @@ func (ps *PackageSet) CompilePackage(ctx context.Context, packageName string) (l
 	ctx = log.WithField(ctx, "CompilePackage", packageName)
 	log.Debug(ctx, "Compiler: Load")
 	rb := newResolveBaton()
+
 	pkg, err := ps.loadPackage(ctx, rb, packageName)
 	if err != nil {
 		return nil, fmt.Errorf("loadPackage %s: %w", packageName, err)
@@ -347,6 +348,7 @@ func (ps *PackageSet) CompilePackage(ctx context.Context, packageName string) (l
 	for filename := range pkg.Files {
 		filenames = append(filenames, filename)
 	}
+
 	sort.Strings(filenames) // for consistent error ordering
 
 	log.Debug(ctx, "Compiler: Link")

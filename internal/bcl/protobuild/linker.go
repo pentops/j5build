@@ -50,8 +50,10 @@ func (ll *searchLinker) resolveAll(ctx context.Context, filenames []string) (lin
 		if err != nil {
 			return nil, fmt.Errorf("resolve file %s: %w", filename, err)
 		}
+
 		files = append(files, file)
 	}
+
 	return files, nil
 }
 
@@ -61,6 +63,7 @@ func (ll *searchLinker) resolveFile(ctx context.Context, filename string) (linke
 	if err != nil {
 		return nil, fmt.Errorf("findFileByPath: %w", err)
 	}
+
 	return ll.linkResult(ctx, result)
 }
 
@@ -75,13 +78,14 @@ func (ll *searchLinker) linkResult(ctx context.Context, result *SearchResult) (l
 	if err != nil {
 		return nil, err
 	}
+
 	result.Linked = linked
+
 	return linked, nil
 
 }
 
 func (ll *searchLinker) _linkNewResult(ctx context.Context, result *SearchResult) (linker.File, error) {
-
 	if result.Refl != nil {
 		return linker.NewFileRecursive(result.Refl)
 	}
@@ -98,7 +102,6 @@ func (ll *searchLinker) _linkNewResult(ctx context.Context, result *SearchResult
 }
 
 func (ll *searchLinker) resultToFile(ctx context.Context, result parser.Result) (linker.File, error) {
-
 	desc := result.FileDescriptorProto()
 	deps, err := ll.loadDependencies(ctx, desc)
 	if err != nil {
@@ -127,8 +130,10 @@ func (ll *searchLinker) loadDependencies(ctx context.Context, desc *descriptorpb
 		if err != nil {
 			return nil, fmt.Errorf("resolve %s: %w", dep, err)
 		}
+
 		deps = append(deps, ll)
 	}
+
 	return deps, nil
 }
 
@@ -141,6 +146,7 @@ func (ll *searchLinker) _descriptorToFile(ctx context.Context, desc *descriptorp
 	handler := reporter.NewHandler(ll.Reporter)
 	result := parser.ResultWithoutAST(desc)
 	log.WithField(ctx, "descName", desc.GetName()).Debug("descriptorToFile")
+
 	linked, err := linker.Link(result, deps, ll.symbols, handler)
 	if err != nil {
 		return nil, fmt.Errorf("descriptorToFile, link: %w", err)
