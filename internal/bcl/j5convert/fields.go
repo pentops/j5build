@@ -42,7 +42,6 @@ func mapName(name string) string {
 }
 
 func buildProperty(ww *conversionVisitor, node *sourcewalk.PropertyNode) (*descriptorpb.FieldDescriptorProto, error) {
-
 	if node.Schema.Schema == nil {
 		return nil, fmt.Errorf("missing schema")
 	}
@@ -89,7 +88,6 @@ func buildProperty(ww *conversionVisitor, node *sourcewalk.PropertyNode) (*descr
 		}
 
 	case *schema_j5pb.Field_Array:
-
 		if st.Array.Items == nil {
 			return nil, errors.New("missing array items")
 		}
@@ -167,7 +165,6 @@ func buildProperty(ww *conversionVisitor, node *sourcewalk.PropertyNode) (*descr
 }
 
 func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb.FieldDescriptorProto, error) {
-
 	desc := &descriptorpb.FieldDescriptorProto{
 		Options: &descriptorpb.FieldOptions{},
 	}
@@ -403,23 +400,163 @@ func buildField(ww *conversionVisitor, node sourcewalk.FieldNode) (*descriptorpb
 		return desc, nil
 
 	case *schema_j5pb.Field_Integer:
-		if st.Integer.Rules != nil {
-			return nil, fmt.Errorf("TODO: integer rules not implemented")
-		}
 		switch st.Integer.Format {
 		case schema_j5pb.IntegerField_FORMAT_INT32:
 			desc.Type = descriptorpb.FieldDescriptorProto_TYPE_INT32.Enum()
+
 		case schema_j5pb.IntegerField_FORMAT_INT64:
 			desc.Type = descriptorpb.FieldDescriptorProto_TYPE_INT64.Enum()
+
 		case schema_j5pb.IntegerField_FORMAT_UINT32:
 			desc.Type = descriptorpb.FieldDescriptorProto_TYPE_UINT32.Enum()
+
 		case schema_j5pb.IntegerField_FORMAT_UINT64:
 			desc.Type = descriptorpb.FieldDescriptorProto_TYPE_UINT64.Enum()
+
 		default:
 			return nil, fmt.Errorf("unknown integer format %v", st.Integer.Format)
 		}
 
 		ww.setJ5Ext(node.Source, desc.Options, "integer", st.Integer.Ext)
+
+		if st.Integer.Rules != nil {
+			if st.Integer.Rules.ExclusiveMinimum != nil && !(*st.Integer.Rules.ExclusiveMinimum) && st.Integer.Rules.Minimum == nil {
+				return nil, fmt.Errorf("integer rules: exclusive minimum requires minimum to be set")
+			}
+
+			if st.Integer.Rules.ExclusiveMaximum != nil && !(*st.Integer.Rules.ExclusiveMaximum) && st.Integer.Rules.Maximum == nil {
+				return nil, fmt.Errorf("integer rules: exclusive maximum requires maximum to be set")
+			}
+
+			rules := &validate.FieldConstraints{}
+
+			switch st.Integer.Format {
+			case schema_j5pb.IntegerField_FORMAT_INT32:
+				rules.Type = &validate.FieldConstraints_Int32{
+					Int32: &validate.Int32Rules{},
+				}
+
+				if st.Integer.Rules.Maximum != nil {
+					if st.Integer.Rules.ExclusiveMaximum != nil {
+						rules.GetInt32().LessThan = &validate.Int32Rules_Lte{
+							Lte: int32(*st.Integer.Rules.Maximum),
+						}
+					} else {
+						rules.GetInt32().LessThan = &validate.Int32Rules_Lt{
+							Lt: int32(*st.Integer.Rules.Maximum),
+						}
+					}
+				}
+
+				if st.Integer.Rules.Minimum != nil {
+					if st.Integer.Rules.ExclusiveMinimum != nil {
+						rules.GetInt32().GreaterThan = &validate.Int32Rules_Gte{
+							Gte: int32(*st.Integer.Rules.Minimum),
+						}
+					} else {
+						rules.GetInt32().GreaterThan = &validate.Int32Rules_Gt{
+							Gt: int32(*st.Integer.Rules.Minimum),
+						}
+					}
+				}
+
+			case schema_j5pb.IntegerField_FORMAT_INT64:
+				rules.Type = &validate.FieldConstraints_Int64{
+					Int64: &validate.Int64Rules{},
+				}
+
+				if st.Integer.Rules.Maximum != nil {
+					if st.Integer.Rules.ExclusiveMaximum != nil {
+						rules.GetInt64().LessThan = &validate.Int64Rules_Lte{
+							Lte: *st.Integer.Rules.Maximum,
+						}
+					} else {
+						rules.GetInt64().LessThan = &validate.Int64Rules_Lt{
+							Lt: *st.Integer.Rules.Maximum,
+						}
+					}
+				}
+
+				if st.Integer.Rules.Minimum != nil {
+					if st.Integer.Rules.ExclusiveMinimum != nil {
+						rules.GetInt64().GreaterThan = &validate.Int64Rules_Gte{
+							Gte: *st.Integer.Rules.Minimum,
+						}
+					} else {
+						rules.GetInt64().GreaterThan = &validate.Int64Rules_Gt{
+							Gt: *st.Integer.Rules.Minimum,
+						}
+					}
+				}
+
+			case schema_j5pb.IntegerField_FORMAT_UINT32:
+				rules.Type = &validate.FieldConstraints_Uint32{
+					Uint32: &validate.UInt32Rules{},
+				}
+
+				if st.Integer.Rules.Maximum != nil {
+					if st.Integer.Rules.ExclusiveMaximum != nil {
+						rules.GetUint32().LessThan = &validate.UInt32Rules_Lte{
+							Lte: uint32(*st.Integer.Rules.Maximum),
+						}
+					} else {
+						rules.GetUint32().LessThan = &validate.UInt32Rules_Lt{
+							Lt: uint32(*st.Integer.Rules.Maximum),
+						}
+					}
+				}
+
+				if st.Integer.Rules.Minimum != nil {
+					if st.Integer.Rules.ExclusiveMinimum != nil {
+						rules.GetUint32().GreaterThan = &validate.UInt32Rules_Gte{
+							Gte: uint32(*st.Integer.Rules.Minimum),
+						}
+					} else {
+						rules.GetUint32().GreaterThan = &validate.UInt32Rules_Gt{
+							Gt: uint32(*st.Integer.Rules.Minimum),
+						}
+					}
+				}
+
+			case schema_j5pb.IntegerField_FORMAT_UINT64:
+				rules.Type = &validate.FieldConstraints_Uint64{
+					Uint64: &validate.UInt64Rules{},
+				}
+
+				if st.Integer.Rules.Maximum != nil {
+					if st.Integer.Rules.ExclusiveMaximum != nil {
+						rules.GetUint64().LessThan = &validate.UInt64Rules_Lte{
+							Lte: uint64(*st.Integer.Rules.Maximum),
+						}
+					} else {
+						rules.GetUint64().LessThan = &validate.UInt64Rules_Lt{
+							Lt: uint64(*st.Integer.Rules.Maximum),
+						}
+					}
+				}
+
+				if st.Integer.Rules.Minimum != nil {
+					if st.Integer.Rules.ExclusiveMinimum != nil {
+						rules.GetUint64().GreaterThan = &validate.UInt64Rules_Gte{
+							Gte: uint64(*st.Integer.Rules.Minimum),
+						}
+					} else {
+						rules.GetUint64().GreaterThan = &validate.UInt64Rules_Gt{
+							Gt: uint64(*st.Integer.Rules.Minimum),
+						}
+					}
+				}
+
+			default:
+				return nil, fmt.Errorf("rules: unknown integer format %v", st.Integer.Format)
+			}
+
+			proto.SetExtension(desc.Options, validate.E_Field, rules)
+		}
+
+		if st.Integer.ListRules != nil {
+			return nil, fmt.Errorf("TODO: integer list rules not implemented")
+		}
 
 		return desc, nil
 
