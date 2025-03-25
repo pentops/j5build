@@ -116,23 +116,26 @@ func maybeString(s *string) string {
 	}
 	return *s
 }
-func (s sourceSet) addViolation(violation *validate.Violation) {
-	msg := maybeString(violation.Message)
-	if violation.Field == nil {
+
+func (s sourceSet) addViolation(violation *protovalidate.Violation) error {
+	msg := maybeString(violation.Proto.Message)
+	if violation.Proto.Field == nil {
 		s.err(errors.New(msg))
-		return
+		return nil
 	}
-	path := strings.Split(violation.Field.String(), ".")
 	fullPath := make([]string, 0)
-	for i, p := range path {
-		parts := strings.Split(p, "[")
-		if len(parts) > 1 {
-			idx := parts[1]
-			idx = strings.TrimSuffix(idx, "]")
-			path[i] = parts[0]
-			fullPath = append(fullPath, parts[0], idx)
-		} else {
-			fullPath = append(fullPath, p)
+	for _, p := range violation.Proto.Field.Elements {
+		fullPath = append(fullPath, p.GetFieldName())
+
+		switch ss := p.Subscript.(type) {
+		case *validate.FieldPathElement_Index:
+			fullPath = append(fullPath, fmt.Sprintf("[%d]", ss.Index))
+
+		case *validate.FieldPathElement_StringKey:
+			fullPath = append(fullPath, ss.StringKey)
+
+		default:
+			return fmt.Errorf("unknown subscript type %T", ss)
 		}
 	}
 
@@ -140,7 +143,8 @@ func (s sourceSet) addViolation(violation *validate.Violation) {
 	for _, p := range fullPath {
 		ss = ss.field(p)
 	}
-	ss.err(fmt.Errorf("%s: %s", violation.Field.String(), msg))
+	ss.err(fmt.Errorf("%s: %s", strings.Join(fullPath, "."), msg))
+	return nil
 }
 
 func (s sourceSet) field(name string) sourceSet {
@@ -206,8 +210,11 @@ func validateFile(pv protovalidate.Validator, msg protoreflect.ProtoMessage, sou
 		valErr := &protovalidate.ValidationError{}
 		if errors.As(validationErr, &valErr) {
 			//sources.err(valErr)
-			for _, violation := range valErr.ToProto().Violations {
-				sources.addViolation(violation)
+			for _, violation := range valErr.Violations {
+				if err := sources.addViolation(violation); err != nil {
+					return err
+				}
+
 			}
 
 		} else {
