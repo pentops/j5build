@@ -24,6 +24,10 @@ func (ent *entityNode) componentName(suffix string) string {
 	return strcase.ToCamel(ent.Schema.Name) + strcase.ToCamel(suffix)
 }
 
+func (ent *entityNode) fullName() string {
+	return fmt.Sprintf("%s.%s", ent.packageName, strcase.ToCamel(ent.Schema.Name))
+}
+
 func schemaRefField(pkg, desc string) *schema_j5pb.Field {
 	return &schema_j5pb.Field{
 		Type: &schema_j5pb.Field_Object{
@@ -75,7 +79,10 @@ func (ent *entityNode) run(visitor FileVisitor) error {
 	if err := ent.acceptCommands(visitor); err != nil {
 		return err
 	}
-	if err := ent.acceptTopics(visitor); err != nil {
+	if err := ent.acceptPublishTopic(visitor); err != nil {
+		return err
+	}
+	if err := ent.acceptSummaryTopics(visitor); err != nil {
 		return err
 	}
 
@@ -363,7 +370,55 @@ func (ent *entityNode) acceptCommands(visitor FileVisitor) error {
 	})
 }
 
-func (ent *entityNode) acceptTopics(visitor FileVisitor) error {
+func (ent *entityNode) acceptSummaryTopics(visitor FileVisitor) error {
+
+	topics := make([]*topicRef, 0)
+
+	names := make(map[string]bool)
+	for idx, summary := range ent.Schema.Summaries {
+		source := ent.Source.child("summaries", strconv.Itoa(idx))
+
+		if names[summary.Name] {
+			return walkerErrorf("duplicate summary name %q", summary.Name)
+		}
+		names[summary.Name] = true
+
+		var name string
+		if summary.Name == "" {
+			name = fmt.Sprintf("%sSummary", strcase.ToCamel(ent.Schema.Name))
+		} else {
+			name = fmt.Sprintf("%s%s", strcase.ToCamel(ent.Schema.Name), strcase.ToCamel(summary.Name))
+		}
+
+		topicDef := &sourcedef_j5pb.Topic{
+			Name: name,
+			Type: &sourcedef_j5pb.TopicType{
+				Type: &sourcedef_j5pb.TopicType_Upsert_{
+					Upsert: &sourcedef_j5pb.TopicType_Upsert{
+						EntityName: ent.fullName(),
+						Message: &sourcedef_j5pb.TopicMethod{
+							Name:        gl.Ptr(name),
+							Description: fmt.Sprintf("Publishes summary output of state for the %s entity", ent.Schema.Name),
+							Fields:      summary.Fields,
+						},
+					},
+				},
+			},
+		}
+
+		topics = append(topics, &topicRef{
+			schema: topicDef,
+			source: source,
+		})
+
+	}
+
+	return visitor.VisitTopicFile(&TopicFileNode{
+		topics: topics,
+	})
+}
+
+func (ent *entityNode) acceptPublishTopic(visitor FileVisitor) error {
 
 	source := ent.Source.child(virtualPathNode, "publish")
 
@@ -417,13 +472,14 @@ func (ent *entityNode) acceptTopics(visitor FileVisitor) error {
 	publishTopic := &sourcedef_j5pb.Topic{
 		Name: fmt.Sprintf("%sPublish", strcase.ToCamel(ent.Schema.Name)),
 		Type: &sourcedef_j5pb.TopicType{
-			Type: &sourcedef_j5pb.TopicType_Publish_{
-				Publish: &sourcedef_j5pb.TopicType_Publish{
-					Messages: []*sourcedef_j5pb.TopicMethod{{
+			Type: &sourcedef_j5pb.TopicType_Event_{
+				Event: &sourcedef_j5pb.TopicType_Event{
+					EntityName: ent.fullName(),
+					Message: &sourcedef_j5pb.TopicMethod{
 						Name:        gl.Ptr(fmt.Sprintf("%sEvent", strcase.ToCamel(ent.Schema.Name))),
-						Description: fmt.Sprintf("Publishes an all events for the %s entity", ent.Schema.Name),
+						Description: fmt.Sprintf("Publishes all events for the %s entity", ent.Schema.Name),
 						Fields:      properties,
-					}},
+					},
 				},
 			},
 		},

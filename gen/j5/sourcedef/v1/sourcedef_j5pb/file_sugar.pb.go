@@ -16,6 +16,7 @@ const (
 	Topic_Publish TopicTypeKey = "publish"
 	Topic_Reqres  TopicTypeKey = "reqres"
 	Topic_Upsert  TopicTypeKey = "upsert"
+	Topic_Event   TopicTypeKey = "event"
 )
 
 func (x *TopicType) TypeKey() (TopicTypeKey, bool) {
@@ -26,6 +27,8 @@ func (x *TopicType) TypeKey() (TopicTypeKey, bool) {
 		return Topic_Reqres, true
 	case *TopicType_Upsert_:
 		return Topic_Upsert, true
+	case *TopicType_Event_:
+		return Topic_Event, true
 	default:
 		return "", false
 	}
@@ -44,6 +47,8 @@ func (x *TopicType) Set(val IsTopicTypeWrappedType) {
 		x.Type = &TopicType_Reqres{Reqres: v}
 	case *TopicType_Upsert:
 		x.Type = &TopicType_Upsert_{Upsert: v}
+	case *TopicType_Event:
+		x.Type = &TopicType_Event_{Event: v}
 	}
 }
 func (x *TopicType) Get() IsTopicTypeWrappedType {
@@ -54,6 +59,8 @@ func (x *TopicType) Get() IsTopicTypeWrappedType {
 		return v.Reqres
 	case *TopicType_Upsert_:
 		return v.Upsert
+	case *TopicType_Event_:
+		return v.Event
 	default:
 		return nil
 	}
@@ -66,6 +73,9 @@ func (x *TopicType_ReqRes) TypeKey() TopicTypeKey {
 }
 func (x *TopicType_Upsert) TypeKey() TopicTypeKey {
 	return Topic_Upsert
+}
+func (x *TopicType_Event) TypeKey() TopicTypeKey {
+	return Topic_Event
 }
 
 type IsTopicType_Type = isTopicType_Type

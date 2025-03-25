@@ -2,7 +2,7 @@
 
 syntax = "proto3";
 
-package foo.v1;
+package j5st.v1;
 
 import "buf/validate/validate.proto";
 import "j5/ext/v1/annotations.proto";

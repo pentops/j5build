@@ -79,6 +79,23 @@ func (tn *topicRef) accept(visitor TopicFileVisitor) error {
 		source := tn.source.child("type", "reqres")
 		return acceptMultiReqResTopic(source, tn.schema.Name, tt.Reqres, visitor)
 
+	case *sourcedef_j5pb.TopicType_Event_:
+		source := tn.source.child("type", "event")
+		return acceptTopic(source, topicNode{
+			name: tn.schema.Name,
+			methods: []*sourcedef_j5pb.TopicMethod{
+				tt.Event.Message,
+			},
+			serviceConfig: &messaging_j5pb.ServiceConfig{
+				TopicName: gl.Ptr(strcase.ToSnake(tn.schema.Name)),
+				Role: &messaging_j5pb.ServiceConfig_Event_{
+					Event: &messaging_j5pb.ServiceConfig_Event{
+						EntityName: tt.Event.EntityName,
+					},
+				},
+			},
+		}, visitor)
+
 	case *sourcedef_j5pb.TopicType_Upsert_:
 		source := tn.source.child("type", "upsert")
 		name := tn.schema.Name
@@ -92,8 +109,10 @@ func (tn *topicRef) accept(visitor TopicFileVisitor) error {
 			},
 			serviceConfig: &messaging_j5pb.ServiceConfig{
 				TopicName: gl.Ptr(strcase.ToSnake(name)),
-				Role: &messaging_j5pb.ServiceConfig_Publish_{
-					Publish: &messaging_j5pb.ServiceConfig_Publish{},
+				Role: &messaging_j5pb.ServiceConfig_Upsert_{
+					Upsert: &messaging_j5pb.ServiceConfig_Upsert{
+						EntityName: tt.Upsert.EntityName,
+					},
 				},
 			},
 			prependFields: []*schema_j5pb.ObjectProperty{{

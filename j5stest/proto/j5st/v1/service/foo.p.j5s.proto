@@ -2,30 +2,30 @@
 
 syntax = "proto3";
 
-package foo.v1.service;
+package j5st.v1.service;
 
 import "buf/validate/validate.proto";
-import "foo/v1/foo.j5s.proto";
 import "google/api/annotations.proto";
 import "j5/ext/v1/annotations.proto";
 import "j5/list/v1/page.proto";
 import "j5/list/v1/query.proto";
+import "j5st/v1/foo.j5s.proto";
 
 service FooQueryService {
   option (j5.ext.v1.service).state_query.entity = "foo";
 
   rpc FooGet(FooGetRequest) returns (FooGetResponse) {
-    option (google.api.http) = {get: "/foo/v1/foo/q"};
+    option (google.api.http) = {get: "/j5st/v1/foo/q"};
     option (j5.ext.v1.method).state_query.get = true;
   }
 
   rpc FooList(FooListRequest) returns (FooListResponse) {
-    option (google.api.http) = {get: "/foo/v1/foo/q"};
+    option (google.api.http) = {get: "/j5st/v1/foo/q"};
     option (j5.ext.v1.method).state_query.list = true;
   }
 
   rpc FooEvents(FooEventsRequest) returns (FooEventsResponse) {
-    option (google.api.http) = {get: "/foo/v1/foo/q/events"};
+    option (google.api.http) = {get: "/j5st/v1/foo/q/events"};
     option (j5.ext.v1.method).state_query.list_events = true;
   }
 }
@@ -37,7 +37,7 @@ message FooGetRequest {
 message FooGetResponse {
   option (j5.ext.v1.message).object = {};
 
-  foo.v1.FooState foo = 1 [
+  j5st.v1.FooState foo = 1 [
     (buf.validate.field).required = true,
     (j5.ext.v1.field).object = {}
   ];
@@ -54,7 +54,7 @@ message FooListRequest {
 message FooListResponse {
   option (j5.ext.v1.message).object = {};
 
-  repeated foo.v1.FooState foo = 1 [
+  repeated j5st.v1.FooState foo = 1 [
     (buf.validate.field).required = true,
     (j5.ext.v1.field).array = {}
   ];
@@ -73,7 +73,7 @@ message FooEventsRequest {
 message FooEventsResponse {
   option (j5.ext.v1.message).object = {};
 
-  repeated foo.v1.FooEvent events = 1 [(j5.ext.v1.field).array = {}];
+  repeated j5st.v1.FooEvent events = 1 [(j5.ext.v1.field).array = {}];
 
   j5.list.v1.PageResponse page = 2 [(j5.ext.v1.field).object = {}];
 }

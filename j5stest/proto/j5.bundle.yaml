@@ -1,0 +1,9 @@
+---
+
+packages:
+  - name: j5st.v1
+
+options:
+  subPackages:
+    - name: "service"
+    - name: "topic"

@@ -35,6 +35,9 @@ func CommandSet() *commander.CommandSet {
 	cmdGroup.Add("version", commander.NewCommand(runVersion))
 
 	cmdGroup.Add("generate", commander.NewCommand(runGenerate))
+	// alias for j5s genproto
+	cmdGroup.Add("genproto", commander.NewCommand(runJ5sGenProto))
+
 	cmdGroup.Add("verify", commander.NewCommand(runVerify))
 	cmdGroup.Add("publish", commander.NewCommand(runPublish))
 

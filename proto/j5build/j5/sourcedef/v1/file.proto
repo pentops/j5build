@@ -59,6 +59,8 @@ message Entity {
   repeated NestedSchema schemas = 7;
 
   repeated Service commands = 8 [(j5.ext.v1.field).array.single_form = "command"];
+
+  repeated EntitySummary summaries = 10 [(j5.ext.v1.field).array.single_form = "summary"];
 }
 
 message APIMethod {
@@ -94,6 +96,15 @@ message Service {
   j5.ext.v1.ServiceOptions options = 5;
 }
 
+// A Topic to publish the entity state as an 'upsert', allowing other services
+// to track the state without the full event history.
+message EntitySummary {
+  string name = 1;
+  string description = 2;
+
+  repeated j5.schema.v1.ObjectProperty fields = 3 [(j5.ext.v1.field).array.single_form = "field"];
+}
+
 message NestedSchema {
   oneof type {
     Oneof oneof = 1;
@@ -108,15 +119,26 @@ message EntityKey {
     (j5.ext.v1.field).message.flatten = true
   ];
 
-  // When true, this field will be added included in all endpoints to identify
+  // When true, this field will be added included in all endpoint>
   // the DB shard.
   // The field must be required
-  // If it is a primary key, the Get and GetEvents endpoints are not modified,
+  // If it is a primary key, the Get and GetEvents endpoints are >
   // but it is added to the ListEvents endpoint.
   // If it is not a primary key, it is added to all endpoints.
-  // The order in the path, like primary keys, is defined by the lexical order
+  // The order in the path, like primary keys, is defined by the >
   // of the fields in the source file.
+
   bool shard_key = 2;
+
+  // Marks the key as participating in the primary key of this entity
+  bool primary_key = 3;
+
+  // Marks the field as a foreign key to the given entity.
+  j5.schema.v1.EntityRef foreign_key = 4;
+
+  // Marks the field as containing a tenant_id for the given tenant. Copies to
+  // j5.state.v1.PublishAuth.tenant_keys on publish
+  optional string tenant_type = 5;
 }
 
 message Oneof {
@@ -147,6 +169,7 @@ message TopicType {
     Publish publish = 1;
     ReqRes reqres = 2;
     Upsert upsert = 3;
+    Event event = 4;
   }
 
   message Publish {
@@ -159,6 +182,12 @@ message TopicType {
   }
 
   message Upsert {
+    string entity_name = 1;
+    TopicMethod message = 2 [(buf.validate.field).required = true];
+  }
+
+  message Event {
+    string entity_name = 1;
     TopicMethod message = 2 [(buf.validate.field).required = true];
   }
 }

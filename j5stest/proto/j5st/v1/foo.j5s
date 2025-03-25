@@ -1,4 +1,4 @@
-package foo.v1
+package j5st.v1
 
 entity Foo {
 	| Foo is lorem ipsum
@@ -15,5 +15,9 @@ entity Foo {
 	}
 
 	event Archive {
+	}
+
+	summary {
+		field name string
 	}
 }

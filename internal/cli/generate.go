@@ -12,8 +12,17 @@ import (
 
 func runGenerate(ctx context.Context, cfg struct {
 	SourceConfig
-	Clean bool `flag:"clean" description:"Remove the directories in config as 'managedPaths' before generating"`
+	NoClean bool `flag:"no-clean" description:"Do not remove the directories in config as 'managedPaths' before generating"`
+	NoJ5s   bool `flag:"no-j5s" description:"Do not convert J5s source files to proto"`
 }) error {
+
+	if !cfg.NoJ5s {
+		if err := runJ5sGenProto(ctx, j5sGenProtoConfig{
+			SourceConfig: cfg.SourceConfig,
+		}); err != nil {
+			return err
+		}
+	}
 
 	src, err := cfg.GetSource(ctx)
 	if err != nil {
@@ -31,7 +40,7 @@ func runGenerate(ctx context.Context, cfg struct {
 		return err
 	}
 
-	if cfg.Clean {
+	if !cfg.NoClean {
 		repoConfig := src.RepoConfig()
 		if err := outRoot.Clean(repoConfig.ManagedPaths); err != nil {
 			return err
