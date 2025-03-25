@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pentops/j5build/internal/bcl/errpos"
 	"github.com/pentops/golib/gl"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
+	"github.com/pentops/j5build/internal/bcl/errpos"
 )
 
 type PackageSummary struct {

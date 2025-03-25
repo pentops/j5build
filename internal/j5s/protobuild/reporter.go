@@ -2,8 +2,8 @@ package protobuild
 
 import (
 	"github.com/bufbuild/protocompile/reporter"
-	"github.com/pentops/j5build/internal/bcl/errpos"
 	"github.com/pentops/golib/gl"
+	"github.com/pentops/j5build/internal/bcl/errpos"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"
 )

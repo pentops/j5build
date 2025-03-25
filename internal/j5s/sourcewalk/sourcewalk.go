@@ -5,9 +5,9 @@ import (
 	"log"
 	"strings"
 
+	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
 	"github.com/pentops/j5build/internal/bcl/errpos"
 	"github.com/pentops/j5build/internal/bcl/gen/j5/bcl/v1/bcl_j5pb"
-	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
 	"golang.org/x/exp/maps"
 )
 

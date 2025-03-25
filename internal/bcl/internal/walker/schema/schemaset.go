@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/iancoleman/strcase"
-	"github.com/pentops/j5build/internal/bcl/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/lib/j5reflect"
+	"github.com/pentops/j5build/internal/bcl/gen/j5/bcl/v1/bcl_j5pb"
 	"google.golang.org/protobuf/proto"
 )
 
