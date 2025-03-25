@@ -6,7 +6,6 @@ run:
 linters:
   enable:
     - errcheck
-    - exportloopref
     - gofmt
     - gosimple
     - govet
@@ -27,6 +26,3 @@ linters:
     - unused
   fast: true
 
-linters-settings:
-  unused:
-    parameters-are-used: true

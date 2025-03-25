@@ -126,14 +126,8 @@ func (l *Lexer) errf(format string, args ...interface{}) error {
 	current := l.getPosition()
 	return &errpos.Err{
 		Pos: &errpos.Position{
-			Start: errpos.Point{
-				Line:   current.Line,
-				Column: current.Column,
-			},
-			End: errpos.Point{
-				Line:   current.Line,
-				Column: current.Column,
-			},
+			Start: current,
+			End:   current,
 		},
 		Err: fmt.Errorf(format, args...),
 	}
