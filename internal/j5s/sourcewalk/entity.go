@@ -507,9 +507,11 @@ func (ent *entityNode) acceptQuery(visitor FileVisitor) error {
 	for _, key := range ent.Schema.Keys {
 		kk := key.Def.Schema.GetKey()
 		if kk == nil {
+			// The field is an entity Key, but is not a 'Key' field
 			continue
 		}
 		if kk.Entity != nil && kk.Entity.GetPrimaryKey() {
+			// The field is a Primary Key of the entity
 			getKeys = append(getKeys, key.Def)
 			httpPath = append(httpPath, fmt.Sprintf(":%s", key.Def.Name))
 
@@ -518,15 +520,18 @@ func (ent *entityNode) acceptQuery(visitor FileVisitor) error {
 				listKeys = append(listKeys, key.Def)
 				listHttpPath = append(listHttpPath, fmt.Sprintf(":%s", key.Def.Name))
 			}
-		} else if key.ShardKey {
-			// just shard, not primary
+		} else {
+			if key.ShardKey {
+				// just shard, not primary - still part of the URL
 
-			listKeys = append(listKeys, key.Def)
-			listHttpPath = append(listHttpPath, fmt.Sprintf(":%s", key.Def.Name))
+				listKeys = append(listKeys, key.Def)
+				listHttpPath = append(listHttpPath, fmt.Sprintf(":%s", key.Def.Name))
 
-			getKeys = append(getKeys, key.Def)
-			httpPath = append(httpPath, fmt.Sprintf(":%s", key.Def.Name))
+				getKeys = append(getKeys, key.Def)
+				httpPath = append(httpPath, fmt.Sprintf(":%s", key.Def.Name))
+			}
 		}
+
 	}
 
 	query := &sourcedef_j5pb.Service{

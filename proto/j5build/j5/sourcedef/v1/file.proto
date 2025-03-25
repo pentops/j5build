@@ -127,18 +127,7 @@ message EntityKey {
   // If it is not a primary key, it is added to all endpoints.
   // The order in the path, like primary keys, is defined by the >
   // of the fields in the source file.
-
   bool shard_key = 2;
-
-  // Marks the key as participating in the primary key of this entity
-  bool primary_key = 3;
-
-  // Marks the field as a foreign key to the given entity.
-  j5.schema.v1.EntityRef foreign_key = 4;
-
-  // Marks the field as containing a tenant_id for the given tenant. Copies to
-  // j5.state.v1.PublishAuth.tenant_keys on publish
-  optional string tenant_type = 5;
 }
 
 message Oneof {

@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/j5build/internal/bcl/j5convert"
-	"github.com/pentops/j5build/internal/bcl/j5parse"
+	"github.com/pentops/j5build/internal/j5s/j5convert"
+	"github.com/pentops/j5build/internal/j5s/j5parse"
 	"github.com/pentops/j5build/internal/source"
 	"github.com/pentops/log.go/log"
 )

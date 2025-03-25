@@ -98,3 +98,5 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.1 // indirect
 )
+
+replace github.com/pentops/j5 => /Users/daemonl/pentops/j5

@@ -10,7 +10,7 @@ import (
 
 	"github.com/bufbuild/protocompile/linker"
 	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
-	"github.com/pentops/j5build/internal/bcl/j5convert"
+	"github.com/pentops/j5build/internal/j5s/j5convert"
 	"github.com/pentops/log.go/log"
 	"golang.org/x/exp/maps"
 )

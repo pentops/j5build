@@ -8,7 +8,7 @@ import (
 	"github.com/bufbuild/protocompile/options"
 	"github.com/bufbuild/protocompile/parser"
 	"github.com/bufbuild/protocompile/reporter"
-	"github.com/pentops/j5build/internal/bcl/j5convert"
+	"github.com/pentops/j5build/internal/j5s/j5convert"
 	"github.com/pentops/log.go/log"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"

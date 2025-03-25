@@ -86,9 +86,6 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 			IsBlock:   true,
 		},
 		Alias: []*bcl_j5pb.Alias{{
-			Name: "primary",
-			Path: bclPath("entity", "primaryKey"),
-		}, {
 			Name: "foreign",
 			Path: bclPath("entity", "foreignKey"),
 		}},
@@ -133,6 +130,12 @@ var J5SchemaSpec = &bcl_j5pb.Schema{
 			QuestionBool: gl.Ptr("optional"),
 		},
 		Alias: []*bcl_j5pb.Alias{{
+			Name: "primary",
+			Path: bclPath("schema", "key", "entity", "primaryKey"),
+		}, {
+			Name: "tenant",
+			Path: bclPath("schema", "key", "entity", "tenantKey"),
+		}, {
 			Name: "optional",
 			Path: bclPath("explicitlyOptional"),
 		}},

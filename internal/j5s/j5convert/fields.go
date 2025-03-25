@@ -12,7 +12,7 @@ import (
 	"github.com/pentops/j5/gen/j5/list/v1/list_j5pb"
 	"github.com/pentops/j5/gen/j5/schema/v1/schema_j5pb"
 	"github.com/pentops/j5/lib/id62"
-	"github.com/pentops/j5build/internal/bcl/sourcewalk"
+	"github.com/pentops/j5build/internal/j5s/sourcewalk"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/descriptorpb"

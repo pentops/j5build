@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/bufbuild/protocompile/linker"
-	"github.com/pentops/j5build/internal/bcl/protoprint"
+	"github.com/pentops/j5build/internal/j5s/protoprint"
 	"github.com/pentops/log.go/log"
 	"google.golang.org/protobuf/types/descriptorpb"
 )

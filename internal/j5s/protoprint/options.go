@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/pentops/j5build/internal/bcl/protoprint/optionreflect"
+	"github.com/pentops/j5build/internal/j5s/protoprint/optionreflect"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
