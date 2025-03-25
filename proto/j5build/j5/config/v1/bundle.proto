@@ -6,8 +6,6 @@ import "j5/config/v1/input.proto";
 import "j5/config/v1/mods.proto";
 import "j5/config/v1/plugin.proto";
 
-option go_package = "github.com/pentops/j5build/gen/j5/config/v1/config_j5pb";
-
 // BundleConfigFile represents j5.bundle.yaml
 message BundleConfigFile {
   RegistryConfig registry = 1;

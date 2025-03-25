@@ -2,8 +2,6 @@ syntax = "proto3";
 
 package j5.config.v1;
 
-option go_package = "github.com/pentops/j5build/gen/j5/config/v1/config_j5pb";
-
 message LockFile {
   repeated InputLock inputs = 1;
   repeated PluginLock plugins = 2;

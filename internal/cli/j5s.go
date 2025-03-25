@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pentops/bcl.go/bcl"
-	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/j5build/internal/bcl/protobuild"
-	"github.com/pentops/j5build/internal/bcl/protoprint"
+	"github.com/pentops/j5build/internal/bcl"
+	"github.com/pentops/j5build/internal/bcl/errpos"
+	"github.com/pentops/j5build/internal/j5s/protobuild"
+	"github.com/pentops/j5build/internal/j5s/protoprint"
 	"github.com/pentops/j5build/internal/source"
 	"github.com/pentops/log.go/log"
 	"github.com/pentops/runner/commander"
@@ -212,10 +212,12 @@ func runForJ5Files(ctx context.Context, root fs.FS, doFile func(ctx context.Cont
 	return nil
 }
 
-func runJ5sGenProto(ctx context.Context, cfg struct {
+type j5sGenProtoConfig struct {
 	SourceConfig
 	Verbose bool `flag:"verbose" env:"BCL_VERBOSE" default:"false" desc:"Verbose output"`
-}) error {
+}
+
+func runJ5sGenProto(ctx context.Context, cfg j5sGenProtoConfig) error {
 	src, err := cfg.GetSource(ctx)
 	if err != nil {
 		return err
@@ -237,6 +239,11 @@ func runJ5sGenProto(ctx context.Context, cfg struct {
 		}
 
 		compiler, err := protobuild.NewPackageSet(deps, localFiles)
+		if err != nil {
+			return err
+		}
+
+		err = deleteJ5sProto(ctx, bundle.DirInRepo())
 		if err != nil {
 			return err
 		}
@@ -291,4 +298,27 @@ func runJ5sGenProto(ctx context.Context, cfg struct {
 	fmt.Fprintln(os.Stderr, e.HumanString(3))
 
 	return err
+}
+
+func deleteJ5sProto(ctx context.Context, dir string) error {
+	err := fs.WalkDir(os.DirFS(dir), ".", func(pathname string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+
+		if !strings.HasSuffix(pathname, ".j5s.proto") {
+			// not using path.Ext because it returns .proto
+			return nil
+		}
+
+		log.WithField(ctx, "file", pathname).Debug("Deleting file")
+		return os.Remove(filepath.Join(dir, pathname))
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }

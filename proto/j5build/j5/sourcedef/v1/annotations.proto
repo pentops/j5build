@@ -4,8 +4,6 @@ package j5.sourcedef.v1;
 
 import "google/protobuf/descriptor.proto";
 
-option go_package = "github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb";
-
 extend google.protobuf.FieldOptions {
   FieldOptions field = 555301;
 }

@@ -1,4 +1,50 @@
 ---
+bundles:
+  - name: j5stest
+    dir: proto
 
-packages:
-  - name: foo.v1
+generate:
+  - name: test
+    mods:
+      - goPackageNames:
+          prefix: "github.com/pentops/j5build/j5stest/gen"
+          trimPrefixes: []
+    inputs:
+      - local: j5stest
+    output: .
+    opts:
+      paths: import
+      module: github.com/pentops/j5build/j5stest
+    plugins:
+      - base: go
+      - base: go-sugar
+      - base: go-o5-messaging
+
+managedPaths:
+ - gen
+
+plugins:
+  - name: go
+    type: PLUGIN_PROTO
+    docker:
+      image: ghcr.io/pentops/protoc-gen-go:v1.34.2
+
+  - name: go-sugar
+    type: PLUGIN_PROTO
+    docker:
+      image: ghcr.io/pentops/protoc-gen-go-sugar:b1e769eeea97192209ab5a4e8fc560bf72ce5ba7
+
+  - name: go-o5-messaging
+    base: go
+    docker:
+      image: ghcr.io/pentops/protoc-gen-go-o5-messaging:de51c0e702a323018fbce11df5cef4075b729e50
+
+  - name: go-psm
+    base: go
+    docker:
+      image: ghcr.io/pentops/protoc-gen-go-protostate:5d0574ed788c9c203c8f6935db30856aa35ac9bf
+
+pluginOverrides:
+  - name: go-o5-messaging
+    local:
+      cmd: protoc-gen-go-o5-messaging 

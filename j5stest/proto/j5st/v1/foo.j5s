@@ -1,0 +1,30 @@
+package j5st.v1
+
+entity Foo {
+	| Foo is lorem ipsum
+
+	key fooId key:id62 {
+		primary = true
+	}
+
+	key accountId key:id62 {
+		primary = false
+		tenant = "account"
+	}
+
+	data name string
+
+	status ACTIVE
+	status INACTIVE
+
+	event Create {
+		field name string
+	}
+
+	event Archive {
+	}
+
+	summary {
+		field name string
+	}
+}

@@ -7,8 +7,6 @@ import "j5/config/v1/input.proto";
 import "j5/config/v1/mods.proto";
 import "j5/config/v1/plugin.proto";
 
-option go_package = "github.com/pentops/j5build/gen/j5/config/v1/config_j5pb";
-
 // Config represents the config file (j5.yaml) for a repo.
 message RepoConfigFile {
   repeated BuildPlugin plugins = 3;

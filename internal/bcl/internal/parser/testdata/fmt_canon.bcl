@@ -1,0 +1,41 @@
+package namespace.version
+
+key1 = "value"
+key2 = "value" // inline comment
+foo.bar = "value"
+array += "value"
+array += "value"
+
+block tag1 | description
+
+block a.b : qualifier
+block a.b : qualifier
+
+block foo "bar" : q1 : q2 {
+	| inner description
+
+	key1 = "value"
+	key1 = "value"
+
+	key1 = "value"
+
+	| Later description
+	| Multiple Lines
+	|
+	| Including Empty
+}
+
+// standalone
+// multiline comment
+
+// another standalone
+
+// before assign
+key1 = "value" // inline comment
+
+// before block
+block foo "bar" : q1 : q2
+
+// other type
+		of multiline
+   comment 
