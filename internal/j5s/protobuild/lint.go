@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pentops/bcl.go/bcl/errpos"
+	"github.com/pentops/j5build/internal/bcl/errpos"
 	"github.com/pentops/j5build/internal/j5s/j5convert"
 	"github.com/pentops/log.go/log"
 )

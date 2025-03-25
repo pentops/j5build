@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/pentops/bcl.go/bcl/bclsp"
+	"github.com/pentops/j5build/internal/bcl/bclsp"
 	"github.com/pentops/j5build/internal/j5s/j5parse"
 )
 

@@ -10,8 +10,6 @@ import "j5/client/v1/client.proto";
 import "j5/ext/v1/annotations.proto";
 import "j5/schema/v1/schema.proto";
 
-option go_package = "github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb";
-
 message SourceFile {
   string path = 1;
   Package package = 2;

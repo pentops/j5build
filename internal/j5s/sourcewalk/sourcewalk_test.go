@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
+	"github.com/pentops/j5build/internal/bcl/gen/j5/bcl/v1/bcl_j5pb"
 )
 
 func walkLoc(walk *bcl_j5pb.SourceLocation, path ...string) *bcl_j5pb.SourceLocation {

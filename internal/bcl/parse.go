@@ -8,12 +8,12 @@ import (
 
 	"buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	"github.com/bufbuild/protovalidate-go"
-	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/bcl.go/bcl/internal/parser"
-	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
-	"github.com/pentops/bcl.go/bcl/internal/walker"
-	"github.com/pentops/bcl.go/bcl/internal/walker/schema"
 	"github.com/pentops/j5/lib/j5reflect"
+	"github.com/pentops/j5build/internal/bcl/errpos"
+	"github.com/pentops/j5build/internal/bcl/gen/j5/bcl/v1/bcl_j5pb"
+	"github.com/pentops/j5build/internal/bcl/internal/parser"
+	"github.com/pentops/j5build/internal/bcl/internal/walker"
+	"github.com/pentops/j5build/internal/bcl/internal/walker/schema"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 

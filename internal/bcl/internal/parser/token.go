@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"unicode"
 
-	"github.com/pentops/bcl.go/bcl/errpos"
+	"github.com/pentops/j5build/internal/bcl/errpos"
 )
 
 type TokenType int

@@ -3,9 +3,9 @@ package walker
 import (
 	"fmt"
 
-	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/bcl.go/bcl/internal/parser"
-	"github.com/pentops/bcl.go/bcl/internal/walker/schema"
+	"github.com/pentops/j5build/internal/bcl/errpos"
+	"github.com/pentops/j5build/internal/bcl/internal/parser"
+	"github.com/pentops/j5build/internal/bcl/internal/walker/schema"
 )
 
 func WalkSchema(scope *schema.Scope, body parser.Body, verbose bool) error {

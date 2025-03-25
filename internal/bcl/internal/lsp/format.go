@@ -3,7 +3,7 @@ package lsp
 import (
 	"context"
 
-	"github.com/pentops/bcl.go/bcl/internal/parser"
+	"github.com/pentops/j5build/internal/bcl/internal/parser"
 	"go.lsp.dev/protocol"
 )
 

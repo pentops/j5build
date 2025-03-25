@@ -6,8 +6,6 @@ import "google/protobuf/timestamp.proto";
 import "j5/bcl/v1/annotations.proto";
 import "j5/ext/v1/annotations.proto";
 
-option go_package = "github.com/pentops/bcl.go/gen/test/v1/test_pb";
-
 message File {
   repeated Element elements = 3;
 

@@ -4,11 +4,11 @@
 // 	protoc        (unknown)
 // source: test/v1/foo.proto
 
-package test_pb
+package test_j5pb
 
 import (
-	bcl_pb "github.com/pentops/bcl.go/bcl/gen/j5/bcl/v1/bcl_pb"
 	_ "github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
+	bcl_j5pb "github.com/pentops/j5build/internal/bcl/gen/j5/bcl/v1/bcl_j5pb"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	_ "google.golang.org/protobuf/types/known/timestamppb"
@@ -28,11 +28,11 @@ type File struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Elements       []*Element             `protobuf:"bytes,3,rep,name=elements,proto3" json:"elements,omitempty"`
-	SourceLocation *bcl_pb.SourceLocation `protobuf:"bytes,10,opt,name=source_location,json=sourceLocation,proto3" json:"source_location,omitempty"`
-	SString        string                 `protobuf:"bytes,11,opt,name=s_string,json=sString,proto3" json:"s_string,omitempty"`
-	RString        []string               `protobuf:"bytes,12,rep,name=r_string,json=rString,proto3" json:"r_string,omitempty"`
-	Tags           map[string]string      `protobuf:"bytes,13,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	Elements       []*Element               `protobuf:"bytes,3,rep,name=elements,proto3" json:"elements,omitempty"`
+	SourceLocation *bcl_j5pb.SourceLocation `protobuf:"bytes,10,opt,name=source_location,json=sourceLocation,proto3" json:"source_location,omitempty"`
+	SString        string                   `protobuf:"bytes,11,opt,name=s_string,json=sString,proto3" json:"s_string,omitempty"`
+	RString        []string                 `protobuf:"bytes,12,rep,name=r_string,json=rString,proto3" json:"r_string,omitempty"`
+	Tags           map[string]string        `protobuf:"bytes,13,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (x *File) Reset() {
@@ -74,7 +74,7 @@ func (x *File) GetElements() []*Element {
 	return nil
 }
 
-func (x *File) GetSourceLocation() *bcl_pb.SourceLocation {
+func (x *File) GetSourceLocation() *bcl_j5pb.SourceLocation {
 	if x != nil {
 		return x.SourceLocation
 	}
@@ -325,11 +325,12 @@ var file_test_v1_foo_proto_rawDesc = []byte{
 	0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x64,
 	0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x1a, 0x19, 0x0a, 0x03, 0x42, 0x61,
 	0x72, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x04, 0x6e, 0x61, 0x6d, 0x65, 0x42, 0x06, 0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x42, 0x33, 0x5a,
-	0x31, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x70, 0x65, 0x6e, 0x74,
-	0x6f, 0x70, 0x73, 0x2f, 0x62, 0x63, 0x6c, 0x2e, 0x67, 0x6f, 0x2f, 0x62, 0x63, 0x6c, 0x2f, 0x67,
-	0x65, 0x6e, 0x2f, 0x74, 0x65, 0x73, 0x74, 0x2f, 0x76, 0x31, 0x2f, 0x74, 0x65, 0x73, 0x74, 0x5f,
-	0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x04, 0x6e, 0x61, 0x6d, 0x65, 0x42, 0x06, 0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x42, 0x3f, 0x5a,
+	0x3d, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x70, 0x65, 0x6e, 0x74,
+	0x6f, 0x70, 0x73, 0x2f, 0x6a, 0x35, 0x62, 0x75, 0x69, 0x6c, 0x64, 0x2f, 0x69, 0x6e, 0x74, 0x65,
+	0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x62, 0x63, 0x6c, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x74, 0x65, 0x73,
+	0x74, 0x2f, 0x76, 0x31, 0x2f, 0x74, 0x65, 0x73, 0x74, 0x5f, 0x6a, 0x35, 0x70, 0x62, 0x62, 0x06,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -346,12 +347,12 @@ func file_test_v1_foo_proto_rawDescGZIP() []byte {
 
 var file_test_v1_foo_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_test_v1_foo_proto_goTypes = []any{
-	(*File)(nil),                  // 0: test.v1.File
-	(*Element)(nil),               // 1: test.v1.Element
-	nil,                           // 2: test.v1.File.TagsEntry
-	(*Element_Foo)(nil),           // 3: test.v1.Element.Foo
-	(*Element_Bar)(nil),           // 4: test.v1.Element.Bar
-	(*bcl_pb.SourceLocation)(nil), // 5: j5.bcl.v1.SourceLocation
+	(*File)(nil),                    // 0: test.v1.File
+	(*Element)(nil),                 // 1: test.v1.Element
+	nil,                             // 2: test.v1.File.TagsEntry
+	(*Element_Foo)(nil),             // 3: test.v1.Element.Foo
+	(*Element_Bar)(nil),             // 4: test.v1.Element.Bar
+	(*bcl_j5pb.SourceLocation)(nil), // 5: j5.bcl.v1.SourceLocation
 }
 var file_test_v1_foo_proto_depIdxs = []int32{
 	1, // 0: test.v1.File.elements:type_name -> test.v1.Element

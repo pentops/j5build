@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pentops/bcl.go/bcl"
-	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
-	"github.com/pentops/bcl.go/gen/test/v1/test_pb"
+	"github.com/pentops/j5build/internal/bcl"
+	"github.com/pentops/j5build/internal/bcl/gen/j5/bcl/v1/bcl_j5pb"
+	"github.com/pentops/j5build/internal/bcl/gen/test/v1/test_j5pb"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -31,8 +31,8 @@ func TestEndToEnd(t *testing.T) {
 	}
 	pp.Verbose = true
 
-	run := func(t testing.TB, input string) *test_pb.File {
-		msg := &test_pb.File{}
+	run := func(t testing.TB, input string) *test_j5pb.File {
+		msg := &test_j5pb.File{}
 		locs, err := pp.ParseFile("in.bcl", input, msg.ProtoReflect())
 		if err != nil {
 			t.Fatal(err)

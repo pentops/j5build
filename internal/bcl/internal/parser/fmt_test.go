@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pentops/bcl.go/bcl/internal/parser/testdata"
+	"github.com/pentops/j5build/internal/bcl/internal/parser/testdata"
 )
 
 func TestFmtDiff(t *testing.T) {

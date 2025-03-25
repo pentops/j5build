@@ -2,8 +2,6 @@ syntax = "proto3";
 
 package j5.config.v1;
 
-option go_package = "github.com/pentops/j5build/gen/j5/config/v1/config_j5pb";
-
 message Input {
   oneof type {
     string local = 1; // name of a local bundle

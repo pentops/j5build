@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pentops/bcl.go/bcl/errpos"
+	"github.com/pentops/j5build/internal/bcl/errpos"
 )
 
 func tTokIdent(lit string) Token {

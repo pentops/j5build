@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pentops/bcl.go/bcl"
-	"github.com/pentops/bcl.go/bcl/errpos"
+	"github.com/pentops/j5build/internal/bcl"
+	"github.com/pentops/j5build/internal/bcl/errpos"
 	"github.com/pentops/j5build/internal/j5s/protobuild"
 	"github.com/pentops/j5build/internal/j5s/protoprint"
 	"github.com/pentops/j5build/internal/source"

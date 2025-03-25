@@ -4,8 +4,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/pentops/bcl.go/bcl"
-	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
+	"github.com/pentops/j5build/internal/bcl"
+	"github.com/pentops/j5build/internal/bcl/gen/j5/bcl/v1/bcl_j5pb"
 	"github.com/pentops/j5build/gen/j5/sourcedef/v1/sourcedef_j5pb"
 )
 

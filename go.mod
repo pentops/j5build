@@ -14,7 +14,6 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/iancoleman/strcase v0.3.0
-	github.com/pentops/bcl.go v0.0.0-20250325013323-9fa8edf9fc06
 	github.com/pentops/flowtest v0.0.0-20241110231021-42663ac00b63
 	github.com/pentops/golib v0.0.0-20250107012216-1b5307b3bfe0
 	github.com/pentops/j5 v0.0.0-20250324042848-a1db7999e76c

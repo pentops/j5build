@@ -4,13 +4,13 @@
 // 	protoc        (unknown)
 // source: test/foo/v1/service/foo_service.proto
 
-package foo_testspb
+package foo_spb
 
 import (
 	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	_ "github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"
 	list_j5pb "github.com/pentops/j5/gen/j5/list/v1/list_j5pb"
-	foo_testpb "github.com/pentops/j5build/gen/test/foo/v1/foo_testpb"
+	foo_j5pb "github.com/pentops/j5build/gen/test/foo/v1/foo_j5pb"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	httpbody "google.golang.org/genproto/googleapis/api/httpbody"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -165,7 +165,7 @@ type GetFooResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Foo *foo_testpb.FooState `protobuf:"bytes,1,opt,name=foo,proto3" json:"foo,omitempty"`
+	Foo *foo_j5pb.FooState `protobuf:"bytes,1,opt,name=foo,proto3" json:"foo,omitempty"`
 }
 
 func (x *GetFooResponse) Reset() {
@@ -200,7 +200,7 @@ func (*GetFooResponse) Descriptor() ([]byte, []int) {
 	return file_test_foo_v1_service_foo_service_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *GetFooResponse) GetFoo() *foo_testpb.FooState {
+func (x *GetFooResponse) GetFoo() *foo_j5pb.FooState {
 	if x != nil {
 		return x.Foo
 	}
@@ -259,7 +259,7 @@ type PostFooResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Foo *foo_testpb.FooState `protobuf:"bytes,1,opt,name=foo,proto3" json:"foo,omitempty"`
+	Foo *foo_j5pb.FooState `protobuf:"bytes,1,opt,name=foo,proto3" json:"foo,omitempty"`
 }
 
 func (x *PostFooResponse) Reset() {
@@ -294,7 +294,7 @@ func (*PostFooResponse) Descriptor() ([]byte, []int) {
 	return file_test_foo_v1_service_foo_service_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *PostFooResponse) GetFoo() *foo_testpb.FooState {
+func (x *PostFooResponse) GetFoo() *foo_j5pb.FooState {
 	if x != nil {
 		return x.Foo
 	}
@@ -361,7 +361,7 @@ type ListFoosResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Foos []*foo_testpb.FooState `protobuf:"bytes,1,rep,name=foos,proto3" json:"foos,omitempty"`
+	Foos []*foo_j5pb.FooState `protobuf:"bytes,1,rep,name=foos,proto3" json:"foos,omitempty"`
 }
 
 func (x *ListFoosResponse) Reset() {
@@ -396,7 +396,7 @@ func (*ListFoosResponse) Descriptor() ([]byte, []int) {
 	return file_test_foo_v1_service_foo_service_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *ListFoosResponse) GetFoos() []*foo_testpb.FooState {
+func (x *ListFoosResponse) GetFoos() []*foo_j5pb.FooState {
 	if x != nil {
 		return x.Foos
 	}
@@ -471,7 +471,7 @@ type ListFooEventsResponse struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Events []*foo_testpb.FooEvent `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
+	Events []*foo_j5pb.FooEvent `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
 }
 
 func (x *ListFooEventsResponse) Reset() {
@@ -506,7 +506,7 @@ func (*ListFooEventsResponse) Descriptor() ([]byte, []int) {
 	return file_test_foo_v1_service_foo_service_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *ListFooEventsResponse) GetEvents() []*foo_testpb.FooEvent {
+func (x *ListFooEventsResponse) GetEvents() []*foo_j5pb.FooEvent {
 	if x != nil {
 		return x.Events
 	}
@@ -672,11 +672,11 @@ var file_test_foo_v1_service_foo_service_proto_rawDesc = []byte{
 	0x75, 0x65, 0x73, 0x74, 0x1a, 0x14, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x61, 0x70,
 	0x69, 0x2e, 0x48, 0x74, 0x74, 0x70, 0x42, 0x6f, 0x64, 0x79, 0x22, 0x1d, 0x82, 0xd3, 0xe4, 0x93,
 	0x02, 0x17, 0x12, 0x15, 0x2f, 0x74, 0x65, 0x73, 0x74, 0x2f, 0x76, 0x31, 0x2f, 0x66, 0x6f, 0x6f,
-	0x2f, 0x7b, 0x69, 0x64, 0x7d, 0x2f, 0x72, 0x61, 0x77, 0x42, 0x38, 0x5a, 0x36, 0x67, 0x69, 0x74,
+	0x2f, 0x7b, 0x69, 0x64, 0x7d, 0x2f, 0x72, 0x61, 0x77, 0x42, 0x34, 0x5a, 0x32, 0x67, 0x69, 0x74,
 	0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x70, 0x65, 0x6e, 0x74, 0x6f, 0x70, 0x73, 0x2f,
 	0x6a, 0x35, 0x62, 0x75, 0x69, 0x6c, 0x64, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x74, 0x65, 0x73, 0x74,
-	0x2f, 0x66, 0x6f, 0x6f, 0x2f, 0x76, 0x31, 0x2f, 0x66, 0x6f, 0x6f, 0x5f, 0x74, 0x65, 0x73, 0x74,
-	0x73, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x2f, 0x66, 0x6f, 0x6f, 0x2f, 0x76, 0x31, 0x2f, 0x66, 0x6f, 0x6f, 0x5f, 0x73, 0x70, 0x62, 0x62,
+	0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -703,10 +703,10 @@ var file_test_foo_v1_service_foo_service_proto_goTypes = []any{
 	(*ListFooEventsRequest)(nil),   // 7: test.foo.v1.service.ListFooEventsRequest
 	(*ListFooEventsResponse)(nil),  // 8: test.foo.v1.service.ListFooEventsResponse
 	(*DownloadRawRequest)(nil),     // 9: test.foo.v1.service.DownloadRawRequest
-	(*foo_testpb.FooState)(nil),    // 10: test.foo.v1.FooState
+	(*foo_j5pb.FooState)(nil),      // 10: test.foo.v1.FooState
 	(*list_j5pb.PageRequest)(nil),  // 11: j5.list.v1.PageRequest
 	(*list_j5pb.QueryRequest)(nil), // 12: j5.list.v1.QueryRequest
-	(*foo_testpb.FooEvent)(nil),    // 13: test.foo.v1.FooEvent
+	(*foo_j5pb.FooEvent)(nil),      // 13: test.foo.v1.FooEvent
 	(*httpbody.HttpBody)(nil),      // 14: google.api.HttpBody
 }
 var file_test_foo_v1_service_foo_service_proto_depIdxs = []int32{

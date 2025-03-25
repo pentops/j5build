@@ -4,11 +4,11 @@ import (
 	"context"
 	"os"
 
-	"github.com/pentops/bcl.go/bcl"
-	"github.com/pentops/bcl.go/bcl/internal/linter"
-	"github.com/pentops/bcl.go/bcl/internal/lsp"
-	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
-	"github.com/pentops/bcl.go/lib/internal/genlsp"
+	"github.com/pentops/j5build/internal/bcl"
+	"github.com/pentops/j5build/internal/bcl/gen/j5/bcl/v1/bcl_j5pb"
+	"github.com/pentops/j5build/internal/bcl/genlsp"
+	"github.com/pentops/j5build/internal/bcl/internal/linter"
+	"github.com/pentops/j5build/internal/bcl/internal/lsp"
 	"github.com/pentops/log.go/log"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )

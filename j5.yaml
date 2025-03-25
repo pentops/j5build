@@ -6,14 +6,43 @@ bundles:
 
   - name: j5build
     dir: proto/j5build
+    
+  - name: bcl
+    dir: proto/bcl
+
+  - name: bcltest
+    dir: proto/bcltest
+
 
 generate:
-  - name: base
+  - name: j5build
     inputs:
       - local: j5build
       - local: test
 
     output: .
+    mods:
+      - goPackageNames: 
+          prefix: github.com/pentops/j5build/gen
+          suffixes:
+            "": "_j5pb"
+    opts:
+      paths: import
+      module: github.com/pentops/j5build
+    plugins:
+      - base: go
+      - base: go-sugar
+
+  - name: bcl
+    inputs:
+      - local: bcl
+      - local: bcltest
+    output: .
+    mods:
+      - goPackageNames: 
+          prefix: github.com/pentops/j5build/internal/bcl/gen
+          suffixes:
+            "": "_j5pb"
     opts:
       paths: import
       module: github.com/pentops/j5build
@@ -23,6 +52,7 @@ generate:
 
 managedPaths:
  - gen
+ - internal/bcl/gen
 
 plugins:
   - name: go
@@ -34,4 +64,5 @@ plugins:
     type: PLUGIN_PROTO
     docker:
       image: ghcr.io/pentops/protoc-gen-go-sugar:b1e769eeea97192209ab5a4e8fc560bf72ce5ba7
+
 

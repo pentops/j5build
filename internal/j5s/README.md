@@ -3,7 +3,7 @@ Proto and J5 Parsing
 
 ## j5parse - BCL Source Files to SourceDef
 
-The j5parse package defines the schema and wraps the bcl parser (pentops/bcl.go)
+The j5parse package defines the schema and wraps the bcl parser (internal/bcl)
 to parse bcl / j5s source files into a proto representation of the J5 schema
 files, defined at `proto/j5/sourcedef/file.proto` in this repo.
 

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/iancoleman/strcase"
-	"github.com/pentops/bcl.go/bcl/errpos"
+	"github.com/pentops/j5build/internal/bcl/errpos"
 	"github.com/pentops/golib/gl"
 	"github.com/pentops/j5/gen/j5/client/v1/client_j5pb"
 	"github.com/pentops/j5/gen/j5/ext/v1/ext_j5pb"

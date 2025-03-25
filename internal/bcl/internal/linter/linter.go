@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pentops/bcl.go/bcl"
-	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/bcl.go/bcl/internal/parser"
+	"github.com/pentops/j5build/internal/bcl"
+	"github.com/pentops/j5build/internal/bcl/errpos"
+	"github.com/pentops/j5build/internal/bcl/internal/parser"
 	"github.com/pentops/log.go/log"
 	"go.lsp.dev/protocol"
 	"google.golang.org/protobuf/reflect/protoreflect"

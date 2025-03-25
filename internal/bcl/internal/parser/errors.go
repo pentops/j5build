@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pentops/bcl.go/bcl/errpos"
+	"github.com/pentops/j5build/internal/bcl/errpos"
 )
 
 var HadErrors = fmt.Errorf("had errors, see Walker.Errors")
