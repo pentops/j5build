@@ -17,10 +17,10 @@ type Config struct {
 	ProjectRoot string
 	Schema      *bcl_j5pb.Schema
 	FileFactory func(filename string) protoreflect.Message
+	OnChange    func(filename string, parsed protoreflect.Message) error
 }
 
-func RunLSP(ctx context.Context, config Config) error {
-
+func BuildLSPHandler(config Config) (*genlsp.LSPConfig, error) {
 	lspc := genlsp.LSPConfig{
 		ProjectRoot: config.ProjectRoot,
 	}
@@ -28,27 +28,37 @@ func RunLSP(ctx context.Context, config Config) error {
 	if config.ProjectRoot == "" {
 		pwd, err := os.Getwd()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		config.ProjectRoot = pwd
 	}
-	ctx = log.WithField(ctx, "ProjectRoot", config.ProjectRoot)
 
 	if config.Schema != nil && config.FileFactory != nil {
 		parser, err := bcl.NewParser(config.Schema)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		lspc.Linter = linter.New(parser, config.FileFactory)
+		lspc.OnChange = linter.New(parser, config.FileFactory, config.OnChange)
 	} else {
-		lspc.Linter = linter.NewGeneric()
+		lspc.OnChange = linter.NewGeneric()
 	}
 
 	lspc.Formatter = lsp.ASTFormatter{}
 
+	return &lspc, nil
+
+}
+
+func RunLSP(ctx context.Context, config Config) error {
+	lspc, err := BuildLSPHandler(config)
+	if err != nil {
+		return err
+	}
+
+	ctx = log.WithField(ctx, "ProjectRoot", config.ProjectRoot)
 	log.Info(ctx, "Starting LSP server")
 
-	ss, err := genlsp.NewServerStream(lspc)
+	ss, err := genlsp.NewServerStream(*lspc)
 	if err != nil {
 		return err
 	}

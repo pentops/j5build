@@ -9,30 +9,29 @@ import (
 	"github.com/pentops/log.go/log"
 	"go.lsp.dev/jsonrpc2"
 	"go.lsp.dev/protocol"
-	"go.uber.org/zap"
 )
 
 type Formatter interface {
 	Format(context.Context, *protocol.TextDocumentItem) ([]protocol.TextEdit, error)
 }
 
-type Linter interface {
-	Lint(context.Context, *protocol.TextDocumentItem) ([]protocol.Diagnostic, error)
+type ChangeHandler interface {
+	FileChanged(context.Context, *protocol.TextDocumentItem) ([]protocol.Diagnostic, error)
 }
 
 type LSPConfig struct {
 	ProjectRoot string
 
 	Formatter Formatter
-	Linter    Linter
+	OnChange  ChangeHandler
 }
 
 type ServerStream struct {
 	files      *fileSet
 	dispatcher replyServer
 
-	Formatter Formatter
-	Linter    Linter
+	Formatter     Formatter
+	ChangeHandler ChangeHandler
 }
 
 type replyServer interface {
@@ -45,9 +44,9 @@ func NewServerStream(cfg LSPConfig) (*ServerStream, error) {
 		return nil, fmt.Errorf("failed to create file set: %w", err)
 	}
 	ss := &ServerStream{
-		files:     files,
-		Formatter: cfg.Formatter,
-		Linter:    cfg.Linter,
+		files:         files,
+		Formatter:     cfg.Formatter,
+		ChangeHandler: cfg.OnChange,
 	}
 
 	dbchange := newDebounce(500, ss.fileDidChange)
@@ -64,10 +63,10 @@ func (ss *ServerStream) fileDidChange(ctx context.Context, doc *protocol.TextDoc
 }
 
 func (ss *ServerStream) fileDidChangeErr(ctx context.Context, doc *protocol.TextDocumentItem) error {
-	if ss.Linter == nil {
+	if ss.ChangeHandler == nil {
 		return nil
 	}
-	diagnostics, err := ss.Linter.Lint(ctx, doc)
+	diagnostics, err := ss.ChangeHandler.FileChanged(ctx, doc)
 	if err != nil {
 		return err
 	}
@@ -82,8 +81,6 @@ func (ss *ServerStream) fileDidChangeErr(ctx context.Context, doc *protocol.Text
 }
 
 func (ss *ServerStream) Run(ctx context.Context, rwc io.ReadWriteCloser) error {
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync() // nolint:errcheck
 	conn := jsonrpc2.NewConn(jsonrpc2.NewStream(rwc))
 	ss.dispatcher = conn
 	conn.Go(ctx, ss.handle)

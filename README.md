@@ -3,17 +3,16 @@ BCL - Block Config Language
 
 BCL is - another - human centric general configurateion language.
 
-It is designed around the specific case of J5 Schemas, initially to specify the
-schema itself, but also to be a codec of J5 Schema itself, as a schema driven
-config language.
+It is designed around the specific case of J5 Schemas, both to define [J5
+Schemas](https://github.com/pentops/j5), and to be a j5-schema driven
+configuration language for other purposes.
 
 Goals:
  - All about the humans reading and writing.
  - Ability to extend the language over time.
  - Support 'Doc' blocks, large (markdown) text bodies attached to elements
- - Familiar for `{}` style programmers. Small, easy to learn and all those good
-   things we always try to achieve.
-
+ - Familiar for `{}` style programmers. 
+ - Small, easy to learn
 
 ### Why this and not X?
 
@@ -47,7 +46,7 @@ there were a few things missing in the available languages:
 - PKL - looks interesting, but is typed in the config file itself rather than
   filling in a pre-defined schema.
 
-There are single purpose langiuages which also compare pretty well:
+There are single purpose languages which also compare pretty well:
 
 - PROTO is cool, single-purpose - that purpose being API definitions, and the
   basis for J5, but the extensions are getting out of hand. The 'defaults' we
@@ -118,6 +117,11 @@ foo bar baz {
   | documentation
 
   key = value
+
+  // Nested block
+  qux {
+    key = value
+  }
 }
 
 ```

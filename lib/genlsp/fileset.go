@@ -46,7 +46,7 @@ func (fs *fileSet) relativeURL(uri protocol.DocumentURI) (string, error) {
 	return relPath, nil
 }
 
-func (fs *fileSet) getDocument(ctx context.Context, docID protocol.TextDocumentIdentifier) (*protocol.TextDocumentItem, error) {
+func (fs *fileSet) getDocument(_ context.Context, docID protocol.TextDocumentIdentifier) (*protocol.TextDocumentItem, error) {
 	uri := docID.URI
 	local, err := fs.relativeURL(uri)
 	if err != nil {
