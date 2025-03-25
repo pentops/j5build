@@ -5,8 +5,6 @@ package j5.bcl.v1;
 import "j5/bcl/v1/annotations.proto";
 import "j5/ext/v1/annotations.proto";
 
-option go_package = "github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb";
-
 // A Path is the nested field names from a root node to a child node. All path
 // elements are strings, which is the field names, map keys, or in theory list
 // index string-numbers.

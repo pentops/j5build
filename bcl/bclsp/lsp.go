@@ -5,10 +5,10 @@ import (
 	"os"
 
 	"github.com/pentops/bcl.go/bcl"
+	"github.com/pentops/bcl.go/bcl/internal/linter"
+	"github.com/pentops/bcl.go/bcl/internal/lsp"
 	"github.com/pentops/bcl.go/gen/j5/bcl/v1/bcl_j5pb"
-	"github.com/pentops/bcl.go/internal/linter"
-	"github.com/pentops/bcl.go/internal/lsp"
-	"github.com/pentops/bcl.go/lib/genlsp"
+	"github.com/pentops/bcl.go/lib/internal/genlsp"
 	"github.com/pentops/log.go/log"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )

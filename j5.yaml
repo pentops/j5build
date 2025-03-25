@@ -2,7 +2,8 @@
 
 bundles:
   - name: bcl
-    dir: proto/j5
+    dir: proto/bcl
+
   - name: test
     dir: proto/test
 
@@ -12,6 +13,9 @@ generate:
       - local: bcl
       - local: test
     output: .
+    mods:
+      - goPackageNames: 
+          prefix: github.com/pentops/bcl.go/bcl/gen
     opts:
       paths: import
       module: github.com/pentops/bcl.go
@@ -20,7 +24,7 @@ generate:
       - base: go-sugar
 
 managedPaths:
- - gen
+ - bcl/gen
 
 plugins:
   - name: go

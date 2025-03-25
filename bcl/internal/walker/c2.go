@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/bcl.go/internal/parser"
-	"github.com/pentops/bcl.go/internal/walker/schema"
+	"github.com/pentops/bcl.go/bcl/internal/parser"
+	"github.com/pentops/bcl.go/bcl/internal/walker/schema"
 )
 
 func WalkSchema(scope *schema.Scope, body parser.Body, verbose bool) error {

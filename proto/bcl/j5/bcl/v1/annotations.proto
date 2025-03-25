@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package j5.bcl.v1;
+
+message SourceLocation {
+  map<string, SourceLocation> children = 1;
+  int32 start_line = 2;
+  int32 start_column = 3;
+  int32 end_line = 4;
+  int32 end_column = 5;
+}

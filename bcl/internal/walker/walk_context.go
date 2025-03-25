@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/pentops/bcl.go/bcl/errpos"
-	"github.com/pentops/bcl.go/internal/parser"
-	"github.com/pentops/bcl.go/internal/walker/schema"
+	"github.com/pentops/bcl.go/bcl/internal/parser"
+	"github.com/pentops/bcl.go/bcl/internal/walker/schema"
 )
 
 type ScopeFlag int
