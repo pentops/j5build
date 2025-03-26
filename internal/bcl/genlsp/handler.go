@@ -19,14 +19,14 @@ type ChangeHandler interface {
 	FileChanged(context.Context, *protocol.TextDocumentItem) ([]protocol.Diagnostic, error)
 }
 
-type LSPConfig struct {
+type lspConfig struct {
 	ProjectRoot string
 
 	Formatter Formatter
 	OnChange  ChangeHandler
 }
 
-type ServerStream struct {
+type serverStream struct {
 	files      *fileSet
 	dispatcher replyServer
 
@@ -38,12 +38,12 @@ type replyServer interface {
 	Notify(context.Context, string, interface{}) error
 }
 
-func NewServerStream(cfg LSPConfig) (*ServerStream, error) {
+func newServerStream(cfg lspConfig) (*serverStream, error) {
 	files, err := newFileSet(cfg.ProjectRoot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create file set: %w", err)
 	}
-	ss := &ServerStream{
+	ss := &serverStream{
 		files:         files,
 		Formatter:     cfg.Formatter,
 		ChangeHandler: cfg.OnChange,
@@ -55,14 +55,14 @@ func NewServerStream(cfg LSPConfig) (*ServerStream, error) {
 	return ss, nil
 }
 
-func (ss *ServerStream) fileDidChange(ctx context.Context, doc *protocol.TextDocumentItem) {
+func (ss *serverStream) fileDidChange(ctx context.Context, doc *protocol.TextDocumentItem) {
 	err := ss.fileDidChangeErr(ctx, doc)
 	if err != nil {
 		log.WithError(ctx, err).Error("failed to handle file change")
 	}
 }
 
-func (ss *ServerStream) fileDidChangeErr(ctx context.Context, doc *protocol.TextDocumentItem) error {
+func (ss *serverStream) fileDidChangeErr(ctx context.Context, doc *protocol.TextDocumentItem) error {
 	if ss.ChangeHandler == nil {
 		return nil
 	}
@@ -80,7 +80,7 @@ func (ss *ServerStream) fileDidChangeErr(ctx context.Context, doc *protocol.Text
 	})
 }
 
-func (ss *ServerStream) Run(ctx context.Context, rwc io.ReadWriteCloser) error {
+func (ss *serverStream) Run(ctx context.Context, rwc io.ReadWriteCloser) error {
 	conn := jsonrpc2.NewConn(jsonrpc2.NewStream(rwc))
 	ss.dispatcher = conn
 	conn.Go(ctx, ss.handle)
@@ -110,7 +110,7 @@ func replyParseError(ctx context.Context, reply jsonrpc2.Replier, err error) err
 	return reply(ctx, nil, fmt.Errorf("%s: %w", jsonrpc2.ErrParse, err))
 }
 
-func (h *ServerStream) handle(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
+func (h *serverStream) handle(ctx context.Context, reply jsonrpc2.Replier, req jsonrpc2.Request) error {
 	method := req.Method()
 	ctx = log.WithField(ctx, "method", method)
 	log.Debug(ctx, "handling request")
@@ -135,7 +135,7 @@ func (h *ServerStream) handle(ctx context.Context, reply jsonrpc2.Replier, req j
 	}
 
 }
-func (h *ServerStream) Initialize(_ context.Context, req *protocol.InitializeParams) (*protocol.InitializeResult, error) {
+func (h *serverStream) Initialize(_ context.Context, req *protocol.InitializeParams) (*protocol.InitializeResult, error) {
 	return &protocol.InitializeResult{
 		Capabilities: protocol.ServerCapabilities{
 			DocumentFormattingProvider: true,
@@ -150,15 +150,15 @@ func (h *ServerStream) Initialize(_ context.Context, req *protocol.InitializePar
 	}, nil
 }
 
-func (h *ServerStream) Initialized(_ context.Context, _ *protocol.InitializedParams) error {
+func (h *serverStream) Initialized(_ context.Context, _ *protocol.InitializedParams) error {
 	return nil
 }
 
-func (h *ServerStream) Shutdown(_ context.Context) error {
+func (h *serverStream) Shutdown(_ context.Context) error {
 	return nil
 }
 
-func (h *ServerStream) Formatting(ctx context.Context, params *protocol.DocumentFormattingParams) ([]protocol.TextEdit, error) {
+func (h *serverStream) Formatting(ctx context.Context, params *protocol.DocumentFormattingParams) ([]protocol.TextEdit, error) {
 	if h.Formatter == nil {
 		return nil, fmt.Errorf("formatter not available")
 	}

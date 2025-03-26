@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-func StdIO() io.ReadWriteCloser {
+func stdIO() io.ReadWriteCloser {
 	return stdrwc{}
 }
 

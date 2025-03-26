@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/pentops/j5build/internal/bcl/bclsp"
+	"github.com/pentops/j5build/internal/bcl/genlsp"
 	"github.com/pentops/j5build/internal/j5s/j5parse"
 )
 
@@ -23,7 +23,7 @@ func runLSP(ctx context.Context, cfg struct {
 
 	log.Printf("ARGS: %+v", os.Args)
 
-	return bclsp.RunLSP(ctx, bclsp.Config{
+	return genlsp.RunLSP(ctx, genlsp.Config{
 		ProjectRoot: cfg.Dir,
 		Schema:      j5parse.J5SchemaSpec,
 		FileFactory: j5parse.FileStub,

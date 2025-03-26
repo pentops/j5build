@@ -1,4 +1,4 @@
-package bclsp
+package genlsp
 
 import (
 	"context"
@@ -6,9 +6,7 @@ import (
 
 	"github.com/pentops/j5build/internal/bcl"
 	"github.com/pentops/j5build/internal/bcl/gen/j5/bcl/v1/bcl_j5pb"
-	"github.com/pentops/j5build/internal/bcl/genlsp"
 	"github.com/pentops/j5build/internal/bcl/internal/linter"
-	"github.com/pentops/j5build/internal/bcl/internal/lsp"
 	"github.com/pentops/log.go/log"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -20,8 +18,8 @@ type Config struct {
 	OnChange    func(filename string, parsed protoreflect.Message) error
 }
 
-func BuildLSPHandler(config Config) (*genlsp.LSPConfig, error) {
-	lspc := genlsp.LSPConfig{
+func BuildLSPHandler(config Config) (*lspConfig, error) {
+	lspc := lspConfig{
 		ProjectRoot: config.ProjectRoot,
 	}
 
@@ -43,7 +41,7 @@ func BuildLSPHandler(config Config) (*genlsp.LSPConfig, error) {
 		lspc.OnChange = linter.NewGeneric()
 	}
 
-	lspc.Formatter = lsp.ASTFormatter{}
+	lspc.Formatter = astFormatter{}
 
 	return &lspc, nil
 
@@ -58,10 +56,10 @@ func RunLSP(ctx context.Context, config Config) error {
 	ctx = log.WithField(ctx, "ProjectRoot", config.ProjectRoot)
 	log.Info(ctx, "Starting LSP server")
 
-	ss, err := genlsp.NewServerStream(*lspc)
+	ss, err := newServerStream(*lspc)
 	if err != nil {
 		return err
 	}
 
-	return ss.Run(ctx, genlsp.StdIO())
+	return ss.Run(ctx, stdIO())
 }

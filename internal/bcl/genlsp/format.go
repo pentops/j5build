@@ -1,4 +1,4 @@
-package lsp
+package genlsp
 
 import (
 	"context"
@@ -7,9 +7,9 @@ import (
 	"go.lsp.dev/protocol"
 )
 
-type ASTFormatter struct{}
+type astFormatter struct{}
 
-func (f ASTFormatter) Format(ctx context.Context, doc *protocol.TextDocumentItem) ([]protocol.TextEdit, error) {
+func (f astFormatter) Format(ctx context.Context, doc *protocol.TextDocumentItem) ([]protocol.TextEdit, error) {
 	diffs, err := parser.FmtDiffs(doc.Text)
 	if err != nil {
 		return nil, err

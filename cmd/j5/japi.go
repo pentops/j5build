@@ -3,7 +3,7 @@ package main
 import (
 	"runtime/debug"
 
-	"github.com/pentops/j5build/internal/cli"
+	"github.com/pentops/j5build/cmd/j5/internal/cli"
 )
 
 var Version = ""
