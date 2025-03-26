@@ -17,8 +17,20 @@ message FooKeys {
   option (j5.ext.v1.message).object = {};
 
   string foo_id = 1 [
+    (buf.validate.field) = {
+      required: true
+      string: {
+        pattern: "^[0-9A-Za-z]{22}$"
+      }
+    },
+    (j5.ext.v1.field).key = {},
+    (j5.ext.v1.key).primary_key = true
+  ];
+
+  string account_id = 2 [
     (buf.validate.field).string.pattern = "^[0-9A-Za-z]{22}$",
-    (j5.ext.v1.field).key = {}
+    (j5.ext.v1.field).key = {},
+    (j5.ext.v1.key) = {}
   ];
 }
 

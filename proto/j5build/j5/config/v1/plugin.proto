@@ -4,8 +4,6 @@ package j5.config.v1;
 
 import "j5/config/v1/mods.proto";
 
-option go_package = "github.com/pentops/j5build/gen/j5/config/v1/config_j5pb";
-
 message BuildPlugin {
   // extend the base plugin.
   optional string base = 1;

@@ -63,7 +63,12 @@ func runGoPackageNamesMod(img *source_j5pb.SourceImage, mod *config_j5pb.ImageMo
 			sub := *subPkg
 			suffix = fmt.Sprintf("_%spb", sub[0:1])
 		}
-		if modSuffix, ok := mod.Suffixes[basePkg]; ok {
+		subPkgName := ""
+		if subPkg != nil {
+			subPkgName = *subPkg
+		}
+
+		if modSuffix, ok := mod.Suffixes[subPkgName]; ok {
 			suffix = modSuffix
 		}
 		pkgParts := strings.Split(basePkg, ".")

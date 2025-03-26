@@ -131,14 +131,14 @@ github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3I
 github.com/opencontainers/image-spec v1.1.1 h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040=
 github.com/opencontainers/image-spec v1.1.1/go.mod h1:qpqAh3Dmcf36wStyyWU+kCeDgrGnAve2nCC8+7h8Q0M=
 github.com/opentracing/opentracing-go v1.1.0/go.mod h1:UkNAQd3GIcIGf0SeVgPpRdFStlNbqXla1AfSYxPUl2o=
-github.com/pentops/bcl.go v0.0.0-20250325013323-9fa8edf9fc06 h1:ar+zJUjbIKkOeMQqKi5ic6qR+eSeIsWjTuKp+azblJw=
-github.com/pentops/bcl.go v0.0.0-20250325013323-9fa8edf9fc06/go.mod h1:/nmjuK461exJGJh6mGRuOKQNj2LzW1bFMzosnv6SMDo=
 github.com/pentops/flowtest v0.0.0-20241110231021-42663ac00b63 h1:c/Km4mfvR35s9uPVfSXTaZswD5T93vaeMRdTSJ2SGyY=
 github.com/pentops/flowtest v0.0.0-20241110231021-42663ac00b63/go.mod h1:vNp8crAKcH0f/sZU9frkmQLUeDsTIgMqV14kQtkAqC0=
 github.com/pentops/golib v0.0.0-20250107012216-1b5307b3bfe0 h1:GA2C2velp/AoojR+fsf4kFXhJ1MLg0y3H84Z2yJ6/+Q=
 github.com/pentops/golib v0.0.0-20250107012216-1b5307b3bfe0/go.mod h1:I58JIVvL1/nP4CEHGKGbBhvWIEA9mVkGeoviemaqanU=
 github.com/pentops/j5 v0.0.0-20250324042848-a1db7999e76c h1:fqIgGPAGAwAMj1QcwSAAzr9JVR6wQM/ueDYHvs0Ef1E=
 github.com/pentops/j5 v0.0.0-20250324042848-a1db7999e76c/go.mod h1:iEHeUub/dC1C2hoNbl9gvYVcNU6sq8WWBz5TIyqAJW0=
+github.com/pentops/j5 v0.0.0-20250326000307-24e2adf77e8e h1:BjQgpNDsyR3jnL0ZefrKCCMQu6kM2qP9H6sOZs3NU28=
+github.com/pentops/j5 v0.0.0-20250326000307-24e2adf77e8e/go.mod h1:iEHeUub/dC1C2hoNbl9gvYVcNU6sq8WWBz5TIyqAJW0=
 github.com/pentops/log.go v0.0.15 h1:yoyu8/2LTvJ4daAkRuKcDyLe1eICwJdiCkWgZwgtq3A=
 github.com/pentops/log.go v0.0.15/go.mod h1:yR34x8aMlvhdGvqgIU4+0MiLjJTKt0vpcgUnVN2nZV4=
 github.com/pentops/o5-messaging v0.0.0-20250317182016-de51c0e702a3 h1:xlKXoYV+A7xFxg1O4HyBSb4/k6hVc+exlEVKeoGXzCc=
