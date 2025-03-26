@@ -1,8 +1,8 @@
 ---
 
 bundles:
-  - name: test
-    dir: proto/test
+  - name: buildtest
+    dir: proto/buildtest
 
   - name: j5build
     dir: proto/j5build
@@ -18,7 +18,7 @@ generate:
   - name: j5build
     inputs:
       - local: j5build
-      - local: test
+      - local: buildtest
 
     output: .
     mods:
