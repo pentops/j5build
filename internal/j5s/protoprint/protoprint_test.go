@@ -137,7 +137,7 @@ func TestSimplePrint(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	output, err := printFile(testFile, nil)
+	output, err := printFile(testFile, "generate comment")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,6 +145,8 @@ func TestSimplePrint(t *testing.T) {
 	t.Log(prototext.Format(input))
 
 	expected := []string{
+		`// generate comment`,
+		``,
 		`syntax = "proto3";`,
 		"",
 		`package test.v1;`,

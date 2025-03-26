@@ -17,8 +17,8 @@ require (
 	github.com/iancoleman/strcase v0.3.0
 	github.com/pentops/flowtest v0.0.0-20241110231021-42663ac00b63
 	github.com/pentops/golib v0.0.0-20250107012216-1b5307b3bfe0
-	github.com/pentops/j5 v0.0.0-20250324042848-a1db7999e76c
-	github.com/pentops/log.go v0.0.15
+	github.com/pentops/j5 v0.0.0-20250326000307-24e2adf77e8e
+	github.com/pentops/log.go v0.0.0-20250304233315-e0210b7a6dc3
 	github.com/pentops/o5-messaging v0.0.0-20250317182016-de51c0e702a3
 	github.com/pentops/runner v0.0.0-20250116202335-8635b2a42547
 	github.com/ryanuber/go-glob v1.0.0
@@ -97,3 +97,5 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.1 // indirect
 )
+
+replace github.com/pentops/j5 => /Users/daemonl/pentops/j5

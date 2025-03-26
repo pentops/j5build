@@ -18,6 +18,8 @@ import (
 	"github.com/pentops/runner/commander"
 )
 
+var Version = "dev" // Set by main
+
 var Commit = func() string {
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, setting := range info.Settings {
