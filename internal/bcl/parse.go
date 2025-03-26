@@ -129,10 +129,13 @@ func (s sourceSet) addViolation(violation *protovalidate.Violation) error {
 
 		switch ss := p.Subscript.(type) {
 		case *validate.FieldPathElement_Index:
-			fullPath = append(fullPath, fmt.Sprintf("[%d]", ss.Index))
+			fullPath = append(fullPath, fmt.Sprintf("%d", ss.Index))
 
 		case *validate.FieldPathElement_StringKey:
 			fullPath = append(fullPath, ss.StringKey)
+
+		case nil:
+			// OK
 
 		default:
 			return fmt.Errorf("unknown subscript type %T", ss)
