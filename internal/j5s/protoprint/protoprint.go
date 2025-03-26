@@ -9,10 +9,7 @@ import (
 	"strings"
 
 	"github.com/pentops/j5build/internal/j5s/protoprint/optionreflect"
-	"google.golang.org/protobuf/reflect/protodesc"
 	"google.golang.org/protobuf/reflect/protoreflect"
-	"google.golang.org/protobuf/reflect/protoregistry"
-	"google.golang.org/protobuf/types/descriptorpb"
 )
 
 type Options struct {
@@ -24,30 +21,6 @@ type FileWriter interface {
 	PutFile(ctx context.Context, path string, data []byte) error
 }
 
-type mapResolver struct {
-	descriptors map[string]*descriptorpb.FileDescriptorProto
-	built       map[string]protoreflect.FileDescriptor
-}
-
-func (r *mapResolver) FindFileByPath(path string) (protoreflect.FileDescriptor, error) {
-	if file, ok := r.built[path]; ok {
-		return file, nil
-	}
-	if file, ok := r.descriptors[path]; ok {
-		fd, err := protodesc.NewFile(file, r)
-		if err != nil {
-			return nil, err
-		}
-		r.built[path] = fd
-		return fd, nil
-	}
-	return protoregistry.GlobalFiles.FindFileByPath(path)
-}
-
-func (r *mapResolver) FindDescriptorByName(message protoreflect.FullName) (protoreflect.Descriptor, error) {
-	return protoregistry.GlobalFiles.FindDescriptorByName(message)
-}
-
 func PrintFile(ctx context.Context, file protoreflect.FileDescriptor, genComment string) (string, error) {
 
 	fileData, err := printFile(file, genComment)
@@ -57,80 +30,6 @@ func PrintFile(ctx context.Context, file protoreflect.FileDescriptor, genComment
 	return string(fileData), nil
 }
 
-/*
-	func PrintReflect(ctx context.Context, out FileWriter, descriptors []protoreflect.FileDescriptor, opts Options) error {
-		for _, file := range descriptors {
-			fileData, err := printFile(file, nil)
-			if err != nil {
-				return fmt.Errorf("in file %s: %w", file.Path(), err)
-			}
-
-			if err := out.PutFile(ctx, file.Path(), fileData); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	}
-
-func PrintProtoFiles(ctx context.Context, out FileWriter, src *descriptorpb.FileDescriptorSet, opts Options) error {
-
-		fileMap := make(map[string]struct{})
-		if len(opts.OnlyFilenames) > 0 {
-			for _, filename := range opts.OnlyFilenames {
-				fileMap[filename] = struct{}{}
-			}
-		} else {
-			for _, file := range src.File {
-				fileMap[*file.Name] = struct{}{}
-			}
-		}
-
-		sourceMap := make(map[string]*descriptorpb.FileDescriptorProto)
-		for _, file := range src.File {
-			sourceMap[*file.Name] = file
-		}
-
-		resolver := &mapResolver{descriptors: sourceMap}
-		descriptors := make([]protoreflect.FileDescriptor, 0)
-		for _, file := range src.File {
-			descriptor, err := protodesc.NewFile(file, resolver)
-			if err != nil {
-				return err
-			}
-			descriptors = append(descriptors, descriptor)
-		}
-
-		foundExtensions := make([]protoreflect.ExtensionDescriptor, 0)
-
-		for _, file := range descriptors {
-			for i := 0; i < file.Extensions().Len(); i++ {
-				foundExtensions = append(foundExtensions, file.Extensions().Get(i))
-			}
-		}
-
-		extBuilder := optionreflect.NewBuilder(foundExtensions)
-
-		for _, file := range descriptors {
-			if _, ok := fileMap[string(file.Path())]; !ok {
-				continue
-			}
-
-			fileData, err := printFile(file, extBuilder)
-			if err != nil {
-				return fmt.Errorf("in file %s: %w", file.Path(), err)
-
-			}
-
-			if err := out.PutFile(ctx, file.Path(), fileData); err != nil {
-				return err
-			}
-
-		}
-
-		return nil
-	}
-*/
 type fileBuffer struct {
 	out        *bytes.Buffer
 	addGap     bool

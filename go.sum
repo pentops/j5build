@@ -135,6 +135,8 @@ github.com/pentops/flowtest v0.0.0-20241110231021-42663ac00b63 h1:c/Km4mfvR35s9u
 github.com/pentops/flowtest v0.0.0-20241110231021-42663ac00b63/go.mod h1:vNp8crAKcH0f/sZU9frkmQLUeDsTIgMqV14kQtkAqC0=
 github.com/pentops/golib v0.0.0-20250107012216-1b5307b3bfe0 h1:GA2C2velp/AoojR+fsf4kFXhJ1MLg0y3H84Z2yJ6/+Q=
 github.com/pentops/golib v0.0.0-20250107012216-1b5307b3bfe0/go.mod h1:I58JIVvL1/nP4CEHGKGbBhvWIEA9mVkGeoviemaqanU=
+github.com/pentops/j5 v0.0.0-20250326000307-24e2adf77e8e h1:BjQgpNDsyR3jnL0ZefrKCCMQu6kM2qP9H6sOZs3NU28=
+github.com/pentops/j5 v0.0.0-20250326000307-24e2adf77e8e/go.mod h1:iEHeUub/dC1C2hoNbl9gvYVcNU6sq8WWBz5TIyqAJW0=
 github.com/pentops/log.go v0.0.0-20250304233315-e0210b7a6dc3 h1:KA7Sit7rxlgdeQPGMmD/7PSnBVwjY50+C4HuWAkV3vU=
 github.com/pentops/log.go v0.0.0-20250304233315-e0210b7a6dc3/go.mod h1:yR34x8aMlvhdGvqgIU4+0MiLjJTKt0vpcgUnVN2nZV4=
 github.com/pentops/o5-messaging v0.0.0-20250317182016-de51c0e702a3 h1:xlKXoYV+A7xFxg1O4HyBSb4/k6hVc+exlEVKeoGXzCc=
