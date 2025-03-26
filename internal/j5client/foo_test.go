@@ -25,7 +25,7 @@ func TestFooSchema(t *testing.T) {
 		t.Fatalf("ReadLocalSource: %v", err)
 	}
 
-	srcImg, _, err := thisRoot.BundleImageSource(ctx, "test")
+	srcImg, _, err := thisRoot.BundleImageSource(ctx, "buildtest")
 	if err != nil {
 		t.Fatalf("NamedInput: %v", err)
 	}
